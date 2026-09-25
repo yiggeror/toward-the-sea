@@ -505,3 +505,111 @@ export function wait(perf, n) {
   perf.holdAll(perf.t);
   return perf.t;
 }
+
+// ---------------------------------------------------------------- head tracking
+/**
+ * Key the head (yaw/pitch) and eyes to follow a moving world target from t0 to
+ * t1. target(t) -> [x, y]. Keys every `step` frames (on twos by default).
+ */
+export function track(perf, t0, t1, target, o = {}) {
+  const step = o.step ?? 4;
+  for (let t = t0; t <= t1 + 1e-6; t += step) {
+    const p = perf.poseAt(t, false);
+    const f = p.facing < 0 ? -1 : 1;
+    const hx = p.hip[0] + f * 1.55, hy = p.hip[1] - 1.1;
+    const [tx, ty] = target(t);
+    const dx = (tx - hx) * f, dy = ty - hy;
+    const d = Math.hypot(dx, dy) || 1;
+    let yaw, pitch;
+    if (dx > -0.2) {
+      yaw = (o.baseYaw ?? 0.3) + clamp(-dx / d, 0, 0.6) * 0.6;
+      pitch = clamp(Math.atan2(-dy, Math.max(0.3, dx)) * 0.8, -0.8, 0.9);
+    } else {
+      // behind: turn the head over the shoulder toward the camera side
+      yaw = lerp(1.4, 2.5, clamp(-dx / (d + 1e-6), 0, 1));
+      pitch = clamp(Math.atan2(-dy, Math.abs(dx)) * 0.6, -0.6, 0.8);
+    }
+    const k = { hYaw: yaw, hPitch: pitch, lookY: clamp(-dy / d, -1, 1) * 0.7, lookX: clamp(dx / d, -1, 1) * 0.3 };
+    if (o.neck !== undefined) k.neck = o.neck;
+    perf.key(t, k, 'inout');
+  }
+}
+
+// ---------------------------------------------------------------- put the card down
+/** head dips to (x, y) (world), mouth opens; returns release time */
+export function putDown(perf, o = {}) {
+  const t = perf.t;
+  const F = frameOf(perf);
+  perf.holdAll(t);
+  perf.key(t + 10, { neck: -0.25, neckLen: 1.15, hPitch: -0.8, hip: F.P(0.12, -0.95), pitch: -0.06, earRot: 0.1 }, 'inout');
+  perf.key(t + 14, { mouth: 0.4 }, 'out');
+  const tr = t + 14;
+  perf.event(tr, 'putdown', {});
+  perf.key(t + 24, { neck: 0.62, neckLen: 1, hPitch: 0, mouth: 0, hip: F.P(0, -1.0), pitch: 0.05 }, 'inout');
+  perf.t = t + 26;
+  return tr;
+}
+
+// ---------------------------------------------------------------- rear up and swat
+export function swatUp(perf, o = {}) {
+  const t = perf.t;
+  const F = frameOf(perf);
+  const { P, Pg } = F;
+  perf.holdAll(t);
+  const n = o.swats ?? 3;
+  // gather
+  perf.key(t + 5, { hip: P(-0.1, -0.8), pitch: 0.25, archB: 0.3, hn: Pg(0.1), hf: Pg(0.0), neck: 0.5, hPitch: 0.4, lookY: 0.6 }, 'inout');
+  // rise onto the hind legs
+  perf.key(t + 10, { hip: P(0.0, -1.0), pitch: 1.35, len: 1.1, archB: -0.1, archF: -0.1, neck: 0.3, hPitch: 0.55, hnM: 0.5, hfM: 0.5,
+    fn: [F.x0 + F.f * 0.9, F.gy - 2.3], ff: [F.x0 + F.f * 0.8, F.gy - 2.1], fnC: 0.9, ffC: 0.9, tailA: -0.3, tailC: 0.5 }, 'out');
+  perf.event(t + 10, 'rear', {});
+  let tc = t + 12;
+  for (let i = 0; i < n; i++) {
+    const a = i % 2 === 0;
+    perf.key(tc + 2, { [a ? 'fn' : 'ff']: [F.x0 + F.f * 1.25, F.gy - 2.9], [a ? 'fnC' : 'ffC']: 0.3, [a ? 'ff' : 'fn']: [F.x0 + F.f * 0.75, F.gy - 2.0], [a ? 'ffC' : 'fnC']: 1, hPitch: 0.65 }, 'out');
+    perf.key(tc + 5, { [a ? 'fn' : 'ff']: [F.x0 + F.f * 0.95, F.gy - 2.4], [a ? 'fnC' : 'ffC']: 0.9 }, 'in');
+    perf.event(tc + 2, 'swat', {});
+    tc += 6;
+  }
+  // drop back down on all fours
+  perf.key(tc + 4, { hip: P(0.05, -0.9), pitch: 0.1, len: 1, archB: 0.2, neck: 0.55, hPitch: 0.1, hnM: 0, hfM: 0,
+    fn: Pg(1.2), ff: Pg(1.1), hn: Pg(0.08), hf: Pg(-0.02), fnC: 0, ffC: 0, tailA: 0.4, tailC: 0.8 }, 'in');
+  perf.event(tc + 4, 'land', { x: F.x0 + F.f * 1.2, y: F.gy, part: 'fore', strength: 0.5 });
+  perf.key(tc + 9, { hip: P(0.05, -1.0), archB: 0.08, neck: 0.62 }, 'out');
+  perf.t = tc + 10;
+  return perf.t;
+}
+
+// ---------------------------------------------------------------- fishing strike + splash recoil
+/** crouched on a rock; strikes down with the near forepaw at world x; returns splash time */
+export function strike(perf, o = {}) {
+  const t = perf.t;
+  const F = frameOf(perf);
+  const { P, Pg } = F;
+  const wx = o.x ?? F.x0 + F.f * 1.8, wy = o.y ?? F.gy + 0.8;
+  perf.holdAll(t);
+  // coil
+  perf.key(t + 4, { fn: [F.x0 + F.f * 1.0, F.gy - 0.55], fnC: 1, hip: P(-0.1, -0.78), archB: 0.25, neck: 0.25, hPitch: -0.55, pupil: 1, eyeWide: 0.3, earRot: -0.25 }, 'inout');
+  perf.key(t + 7, {}, 'hold');
+  perf.setTiming(t + 7, 1);
+  // the strike (smear)
+  perf.key(t + 9, { fn: [wx, wy], fnC: 0.2, fnF: 1, hip: P(0.15, -0.72), pitch: -0.25, neck: 0.05, hPitch: -0.7, smear: 0.8 }, 'in');
+  const ts = t + 9;
+  perf.event(ts, 'splash', { x: wx, y: F.gy + 0.3, strength: 1.2, face: true });
+  perf.t = t + 10;
+  return ts;
+}
+export function splashRecoil(perf, o = {}) {
+  const t = perf.t;
+  const F = frameOf(perf);
+  const { P, Pg } = F;
+  perf.holdAll(t);
+  perf.key(t + 2, { smear: 0, eye: 0, earFlat: 0.9, earRot: 0.9, hip: P(-0.55, -0.95), pitch: 0.3, neck: 0.75, hPitch: 0.35, hYaw: 0.9,
+    fn: [F.x0 + F.f * 0.9, F.gy - 0.8], fnC: 1, fnF: 0, archB: 0.4, fluff: 0.6, tailA: 0.9, tailC: 0.2, mouth: 0.3 }, 'out');
+  perf.key(t + 6, { hip: P(-0.65, -0.9) }, 'inout');
+  perf.setTiming(t + 6, 2);
+  // blink-squint, shake the paw
+  perf.key(t + 12, { fn: Pg(0.6), fnC: 0, hip: P(-0.6, -0.95), pitch: 0.12, mouth: 0, fluff: 0.3, hYaw: 0.6 }, 'inout');
+  perf.t = t + 14;
+  return perf.t;
+}

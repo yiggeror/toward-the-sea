@@ -86,6 +86,29 @@ export function drawEventFX(ctx, events, t, cam, env = {}) {
         if (y > e.y) continue;
         drop(ctx, cam, x, y, vx, vy + G * age, 0.012 + 0.012 * h(3), 0.85, water);
       }
+    } else if (e.type === 'splash' && age >= 0 && age < 30) {
+      // crown + droplets (some thrown toward the face)
+      const k = e.strength || 1;
+      const n = Math.round(26 * k);
+      for (let j = 0; j < n; j++) {
+        const h = (q) => hash01(seed + j * 29 + q);
+        const face = e.face && j % 3 === 0;
+        const ang = face ? -Math.PI / 2 - (env.facing || 1) * (0.5 + 0.35 * h(1)) : -Math.PI / 2 + (h(1) - 0.5) * 2.0;
+        const sp = (0.07 + 0.12 * h(2)) * k;
+        const vx = Math.cos(ang) * sp * (face ? 1.3 : 1), vy = Math.sin(ang) * sp * (face ? 1.25 : 1);
+        const x = e.x + vx * age, y = e.y + vy * age + 0.5 * G * age * age;
+        if (y > e.y + 0.1) continue;
+        drop(ctx, cam, x, y, vx, vy + G * age, 0.02 + 0.03 * h(3), 0.9 * (1 - smoothstep(20, 30, age)), water);
+      }
+      if (age < 14) {
+        const [sx, sy] = toScreen(cam, e.x, e.y);
+        const u = age / 14;
+        ctx.strokeStyle = css('#ffffff', 0.7 * (1 - u));
+        ctx.lineWidth = 0.03 * cam.s;
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, (0.2 + 0.9 * u) * cam.s, (0.05 + 0.2 * u) * cam.s, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     } else if (e.type === 'snowpull' && age >= 0 && age < 24) {
       for (let j = 0; j < 8; j++) {
         const h = (k) => hash01(seed + j * 23 + k);
