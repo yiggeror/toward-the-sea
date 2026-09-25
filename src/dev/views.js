@@ -76,6 +76,7 @@ export function sheet(ctx, W, H, q) {
 }
 
 import { CLIPS, clipById } from '../test/clips.js';
+import { drawEventFX, drawGroundMarks } from '../fx/events.js';
 import { drawStage } from '../test/stage.js';
 export function clip(ctx, W, H, q) {
   const c = clipById(q.get('id') || 'jump');
@@ -95,10 +96,13 @@ export function clip(ctx, W, H, q) {
     ctx.beginPath(); ctx.rect(cx0, cy0, cw, ch); ctx.clip();
     const pose = perf.poseAt(fr);
     const camX = c.cam === 'follow' ? pose.hip[0] + 0.5 : (c.camX ?? 0.6);
-    const cam = { x: camX, y: +(q.get('camy') || -1.1), s, cx: cx0 + cw / 2, cy: cy0 + ch * 0.55 };
+    const cam = { x: camX, y: +(q.get('camy') || c.camY || -1.1), s: s * (c.zoom || 1), cx: cx0 + cw / 2, cy: cy0 + ch * 0.55 };
     drawStage(ctx, c, cam, fr, [cx0, cy0, cw, ch], 'back');
+    const env = { ground: perf.ground, facing: pose.facing };
+    drawGroundMarks(ctx, perf.events, perf.drawTime(fr), cam, env);
     actor.draw(ctx, fr, cam);
     drawStage(ctx, c, cam, fr, [cx0, cy0, cw, ch], 'front', perf);
+    drawEventFX(ctx, perf.events, perf.drawTime(fr), cam, env);
     ctx.fillStyle = '#655'; ctx.fillText(`f${fr} (d${perf.drawTime(fr)})`, cx0 + 6, cy0 + 16);
     ctx.restore();
   }
@@ -167,4 +171,39 @@ export async function board(ctx, W, H, q) {
     actor.draw(ctx, fr, cam);
   }
   ctx.fillStyle = '#5a5050'; ctx.fillText('走路（连续 12 帧中每隔 1 帧，一拍二）', 30, 900);
+}
+
+// 12 consecutive frames per row for several clips (self-check evidence)
+export function strips(ctx, W, H, q) {
+  const rows = (q.get('rows') || 'walk:56,run:44,jump:44,pounce:44,shake:48,snow:26').split(',').map((r) => r.split(':'));
+  const n = 12;
+  const rh = H / rows.length, cw = W / n;
+  ctx.fillStyle = '#f4f1ec'; ctx.fillRect(0, 0, W, H);
+  ctx.font = '13px sans-serif';
+  rows.forEach(([id, a], ri) => {
+    const c = clipById(id);
+    const built = c.build();
+    const perf = built.perf;
+    const actor = new CatActor(perf, { env: { wind: built.wind } });
+    for (let i = 0; i < n; i++) {
+      const fr = +a + i;
+      const x0 = i * cw, y0 = ri * rh;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, y0, cw, rh); ctx.clip();
+      const pose = perf.poseAt(fr);
+      const s = rh / 3.1 * (c.zoom ?? 1) * 0.9;
+      const camX = c.cam === 'follow' ? pose.hip[0] + 0.45 : (c.camX ?? 0.6);
+      const cam = { x: camX, y: c.camY ?? -1.05, s, cx: x0 + cw / 2, cy: y0 + rh * 0.58 };
+      drawStage(ctx, c, cam, fr, [x0, y0, cw, rh], 'back');
+      const env = { ground: perf.ground, facing: pose.facing };
+      drawGroundMarks(ctx, perf.events, perf.drawTime(fr), cam, env);
+      actor.draw(ctx, fr, cam);
+      drawStage(ctx, c, cam, fr, [x0, y0, cw, rh], 'front', perf);
+      drawEventFX(ctx, perf.events, perf.drawTime(fr), cam, env);
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.strokeRect(x0 + 0.5, y0 + 0.5, cw - 1, rh - 1);
+      ctx.fillStyle = '#5a5050';
+      ctx.fillText(`${i === 0 ? c.title.split(' ')[0] + '  ' : ''}f${fr}${perf.drawTime(fr) !== fr ? ' =' : ''}`, x0 + 5, y0 + 15);
+      ctx.restore();
+    }
+  });
 }

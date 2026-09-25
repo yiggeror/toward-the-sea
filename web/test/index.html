@@ -1,0 +1,158 @@
+<title>小灰动作测试</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=ZCOOL+XiaoWei&display=swap">
+<style>
+  :root {
+    --ground: #e8ecef;
+    --sheet: #f9faf8;
+    --ink: #23272b;
+    --muted: #66707a;
+    --rule: #cfd7de;
+    --accent: #2d6cb0;
+    --red: #c4473d;
+    --xs-draw: #7c8a96;
+    --xs-hold: #d3dbe2;
+    --btn: #ffffff;
+    --btn-ink: #2b3036;
+    --shadow: 0 1px 2px rgba(30, 40, 50, 0.08), 0 6px 18px rgba(30, 40, 50, 0.06);
+    --f-display: "ZCOOL XiaoWei", "Songti SC", "Noto Serif SC", serif;
+    --f-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #191c20;
+      --ink: #e5e9ed;
+      --muted: #9aa4ae;
+      --rule: #333a42;
+      --accent: #6ea6e0;
+      --red: #e2776c;
+      --xs-draw: #9aa7b3;
+      --xs-hold: #3a424b;
+      --btn: #262b31;
+      --btn-ink: #e5e9ed;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #191c20;
+    --ink: #e5e9ed;
+    --muted: #9aa4ae;
+    --rule: #333a42;
+    --accent: #6ea6e0;
+    --red: #e2776c;
+    --xs-draw: #9aa7b3;
+    --xs-hold: #3a424b;
+    --btn: #262b31;
+    --btn-ink: #e5e9ed;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: grid; gap: 34px; }
+  header { display: grid; gap: 10px; }
+  .eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
+  h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0; text-wrap: balance; }
+  h2 { font-family: var(--f-display); font-weight: 400; font-size: 26px; margin: 0; text-wrap: balance; }
+  .lead { max-width: 68ch; margin: 0; color: var(--ink); }
+  .lead b { font-weight: 500; }
+  section { display: grid; gap: 14px; }
+  .sheet { background: var(--sheet); border-radius: 6px; box-shadow: var(--shadow); overflow: hidden; }
+  #modelsheet { display: block; width: 100%; aspect-ratio: 1200 / 590; max-width: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .sw { display: inline-block; width: 4px; border-radius: 1px; }
+  .sw.draw { height: 14px; background: var(--xs-draw); }
+  .sw.hold { height: 5px; background: var(--xs-hold); }
+  .sw.ev { height: 8px; width: 6px; background: var(--red); }
+  .sw.step { height: 5px; width: 6px; background: var(--muted); }
+  .sw.head { height: 16px; width: 3px; background: var(--accent); }
+  #clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 20px; }
+  figure.clip { margin: 0; display: grid; gap: 0; background: var(--sheet); border-radius: 6px; box-shadow: var(--shadow); overflow: hidden; }
+  .stage canvas { display: block; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; }
+  canvas.xsheet { display: block; width: 100%; height: 18px; background: var(--ground); cursor: pointer; border-top: 1px solid var(--rule); }
+  figcaption { display: grid; gap: 8px; padding: 10px 12px 12px; background: var(--ground); border-top: 1px solid var(--rule); }
+  .cap-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .cap-title .zh { font-family: var(--f-display); font-size: 21px; }
+  .cap-title .en { font-size: 13px; color: var(--muted); }
+  .ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .ctrl button, .ctrl select {
+    font: 500 13px/1 var(--f-body); color: var(--btn-ink); background: var(--btn);
+    border: 1px solid var(--rule); border-radius: 4px; height: 30px; min-width: 34px; padding: 0 8px; cursor: pointer;
+  }
+  .ctrl button:hover, .ctrl select:hover { border-color: var(--accent); }
+  .ctrl :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .b-onion { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); margin-left: 4px; cursor: pointer; }
+  .counter { margin-left: auto; font-family: var(--f-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .notes { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+  .notes article { display: grid; gap: 8px; align-content: start; }
+  .notes h3 { margin: 0; font-size: 16px; font-weight: 700; }
+  .notes ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 68ch; }
+  .notes li::marker { color: var(--muted); }
+  code { font-family: var(--f-mono); font-size: 0.9em; }
+  footer { font-size: 13px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">去看海吧 · There is a bigger world — Phase 1</div>
+    <h1>小灰 · 角色与动作测试</h1>
+    <p class="lead">这一页的每一帧都由影片使用的同一套程序实时计算：脊柱曲线生成身体轮廓，四条腿由反向动力学落脚，尾巴、耳朵、胡须用弹簧惯性跟随。动作按关键姿势（起势、极端、接触、恢复）编排，大多数动作<b>一拍二</b>，快动作一拍一。每个片段循环播放，可以暂停、逐帧查看、放慢或打开洋葱皮对比前后两张画。</p>
+  </header>
+
+  <section aria-labelledby="h-model">
+    <h2 id="h-model">设定还原</h2>
+    <div class="sheet"><canvas id="modelsheet" aria-label="Xiaohui turnaround and expressions"></canvas></div>
+  </section>
+
+  <section aria-labelledby="h-clips">
+    <h2 id="h-clips">动作片段</h2>
+    <div class="legend" aria-label="timing strip legend">
+      <span><i class="sw draw"></i>新画稿（长条）</span>
+      <span><i class="sw hold"></i>保持帧（短条，一拍二时交替出现）</span>
+      <span><i class="sw step"></i>落脚</span>
+      <span><i class="sw ev"></i>起跳 / 落地 / 惊吓</span>
+      <span><i class="sw head"></i>当前帧（点击时间条可跳转）</span>
+    </div>
+    <div id="clips"></div>
+  </section>
+
+  <section aria-labelledby="h-notes">
+    <h2 id="h-notes">自检记录与已知不足</h2>
+    <div class="notes">
+      <article>
+        <h3>已经逐帧检查过的</h3>
+        <ul>
+          <li>每个片段都抽取连续 12–24 帧做成联系表，确认轮廓每张都在变、支撑脚在地面刻度上不滑动。</li>
+          <li>落脚：着地的爪子固定在世界坐标里，身体越过它移动；起步时由控制器安排先迈哪条腿，停步时补收尾步。</li>
+          <li>接触：身体轮廓不会穿进地面，尾巴坐下时沿地面躺平；跳上台子时每只爪子按自己脚下的高度着地。</li>
+          <li>遮挡：远侧两条腿永远在身体后面并压暗，近侧腿在前；舔毛时前爪提到脸前。</li>
+          <li>次级运动：尾巴、耳朵、胡须是对身体运动的弹簧响应，可随意跳帧，不依赖播放顺序。</li>
+        </ul>
+      </article>
+      <article>
+        <h3>还不够好的地方（下一步继续改）</h3>
+        <ul id="todo">
+          <li>奔跑（袭步）已经有腾空伸展和收拢两个极端，但腾空的高度和“停顿感”还可以更强。</li>
+          <li>睡觉已经能团起来、尾巴绕到身前，但身体轮廓仍偏“面包形”，没有设定图那么圆。</li>
+          <li>转身在最收拢的一张画上翻面（加了拖影），中间还缺一张真正的正面过渡画。</li>
+          <li>甩水的水珠已经有了，身体本身的甩动幅度还偏小，毛的抖动可以更夸张。</li>
+          <li>还没有做光照：夜景的轮廓光、环境反光会在场景阶段加入。</li>
+          <li>正面、背面坐姿是单独绘制的画稿，与侧面骨骼之间靠切换画稿衔接。</li>
+          <li>纯侧脸时五官挤在脸前，最好看的是 3/4 侧脸，影片里会尽量避开纯侧脸。</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <footer>快捷键：← → 逐帧（作用于屏幕上第一个片段）。源代码在仓库 <code>src/</code>，本页由 <code>tools/build-web.mjs</code> 打包。</footer>
+</div>
+<script type="module" src="bundle.js"></script>

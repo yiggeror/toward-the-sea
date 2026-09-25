@@ -25,22 +25,22 @@ export const CLIPS = [
   { id: 'stalk', title: '潜行 Stalk', cam: 'follow', build() {
     const perf = mk(); locomote(perf, { gait: 'stalk', dist: 4.5 }); A.wait(perf, 20); return { perf };
   } },
-  { id: 'jump', title: '跳跃 Jump (onto a ledge)', cam: 'static', camX: 2.4, props: [{ type: 'box', x0: 3.6, x1: 8, h: 1.1 }], build() {
+  { id: 'jump', title: '跳跃 Jump (onto a ledge)', cam: 'static', camX: 2.9, zoom: 0.6, camY: -1.55, props: [{ type: 'box', x0: 3.6, x1: 8, h: 1.1 }], build() {
     const g = (x) => (x > 3.6 && x < 8 ? -1.1 : 0);
     const perf = mk({ ground: g }); A.wait(perf, 6); A.jump(perf, { dx: 4.1, dy: -1.1, h: 0.45, wiggle: 1, flight: 11 }); A.wait(perf, 20); return { perf };
   } },
-  { id: 'pounce', title: '扑 Pounce (play)', cam: 'static', camX: 2.0, build() {
+  { id: 'pounce', title: '扑 Pounce (play)', cam: 'static', camX: 2.2, zoom: 0.72, camY: -1.25, build() {
     const perf = mk(); A.wait(perf, 4); A.pounce(perf, { dx: 2.6, wiggle: 3 }); A.wait(perf, 16); return { perf };
   } },
-  { id: 'sit', title: '坐下 Sit down / stand', cam: 'static', camX: 0.6, build() {
+  { id: 'sit', title: '坐下 Sit down / stand', cam: 'static', camX: 0.6, zoom: 0.85, camY: -1.35, build() {
     const perf = mk(); A.wait(perf, 6); A.sit(perf); A.wait(perf, 10);
     A.look(perf, perf.t, 8, { yaw: 1.2, lookX: -0.2 }); perf.t += 20; A.blink(perf, perf.t); perf.t += 12;
     A.look(perf, perf.t, 8, { yaw: 0.35, lookX: 0.1 }); perf.t += 14; A.standUp(perf); A.wait(perf, 10); return { perf };
   } },
-  { id: 'groom', title: '舔毛 Groom', cam: 'static', camX: 0.5, build() {
+  { id: 'groom', title: '舔毛 Groom', cam: 'static', camX: 0.5, zoom: 0.85, camY: -1.35, build() {
     const perf = mk(); A.wait(perf, 4); A.sit(perf); A.wait(perf, 6); A.groom(perf, { licks: 4 }); A.wait(perf, 10); return { perf };
   } },
-  { id: 'stretch', title: '伸懒腰 Stretch + yawn', cam: 'static', camX: 1.2, build() {
+  { id: 'stretch', title: '伸懒腰 Stretch + yawn', cam: 'static', camX: 1.3, zoom: 0.85, build() {
     const perf = mk(); A.wait(perf, 6); A.stretch(perf); A.wait(perf, 12); return { perf };
   } },
   { id: 'sleep', title: '睡觉 Curl up & sleep', cam: 'static', camX: 0.8, build() {
@@ -57,7 +57,7 @@ export const CLIPS = [
   { id: 'wind', title: '顶风 Walking into wind', cam: 'follow', wind: -1.2, build() {
     const perf = mk(); locomote(perf, { gait: 'wind', dist: 3.2 }); A.wait(perf, 12); return { perf, wind: (t) => [-1.2 - 0.4 * Math.sin(t * 0.13), 0.05] };
   } },
-  { id: 'startle', title: '惊吓 Startled by thunder', cam: 'static', camX: 0.6, build() {
+  { id: 'startle', title: '惊吓 Startled by thunder', cam: 'static', camX: 0.6, zoom: 0.8, camY: -1.45, build() {
     const perf = mk(); A.wait(perf, 12); A.startle(perf); A.wait(perf, 16); return { perf };
   } },
   { id: 'turn', title: '转身 Turn around', cam: 'static', camX: 0.6, build() {

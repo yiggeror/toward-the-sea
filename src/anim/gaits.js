@@ -44,23 +44,23 @@ export const GAITS = {
   },
   // rotary gallop: hinds land, push (extended flight), fores land, push (gathered flight)
   run: {
-    S: 3.3, C: 11, beta: 0.3, height: 0.98, gallop: true,
+    S: 3.6, C: 12, beta: 0.26, height: 0.98, gallop: true,
     phase: { hf: 0, hn: 0.08, ff: 0.44, fn: 0.53 },
     neutral: { fn: 1.25, ff: 1.12, hn: 0.3, hf: 0.2 },
     swing: {
-      fore: [[0, 0, 0, 0], [0.12, -0.02, 0.14, 0.9], [0.35, 0.18, 0.34, 1.0], [0.62, 0.62, 0.3, 0.45], [0.85, 0.95, 0.12, 0.05], [1, 1, 0, 0]],
-      hind: [[0, 0, 0, 0], [0.14, -0.04, 0.16, 0.85], [0.42, 0.35, 0.36, 1.0], [0.7, 0.8, 0.22, 0.5], [0.9, 0.97, 0.07, 0.1], [1, 1, 0, 0]],
+      fore: [[0, 0, 0, 0], [0.12, -0.04, 0.2, 0.95], [0.35, 0.2, 0.38, 1.0], [0.62, 0.66, 0.36, 0.3, 0.7], [0.85, 0.96, 0.16, 0.0, 1.0], [1, 1, 0, 0]],
+      hind: [[0, 0, 0, 0], [0.14, -0.16, 0.3, 0.7], [0.42, 0.3, 0.42, 1.0], [0.7, 0.8, 0.26, 0.5], [0.9, 0.97, 0.08, 0.1], [1, 1, 0, 0]],
     },
     body: [
       // gathered at hind landing -> extending during hind stance -> extended flight -> fores land -> gather
-      [0.0, 0.06, -0.04, 0.42, 0.1, 0.84],
-      [0.12, 0.1, 0.04, 0.2, 0.05, 0.92],
-      [0.3, -0.1, -0.08, -0.18, -0.06, 1.14],
-      [0.4, -0.28, -0.18, -0.28, -0.1, 1.2],
-      [0.5, -0.04, 0.08, -0.12, -0.02, 1.08],
-      [0.62, 0.04, 0.1, 0.18, 0.06, 0.94],
-      [0.78, -0.1, -0.12, 0.4, 0.14, 0.84],
-      [0.9, -0.14, -0.2, 0.5, 0.16, 0.8],
+      [0.0, 0.08, -0.06, 0.45, 0.12, 0.82],
+      [0.12, 0.1, 0.02, 0.2, 0.05, 0.92],
+      [0.28, -0.18, -0.14, -0.2, -0.08, 1.16],
+      [0.4, -0.42, -0.3, -0.32, -0.12, 1.24],
+      [0.5, -0.16, 0.02, -0.14, -0.04, 1.1],
+      [0.62, 0.06, 0.1, 0.2, 0.06, 0.94],
+      [0.78, -0.12, -0.14, 0.42, 0.15, 0.84],
+      [0.9, -0.2, -0.26, 0.52, 0.18, 0.8],
     ],
     neck: [[0.0, -0.05], [0.3, 0.05], [0.5, -0.08], [0.78, 0.02]],
     pitchBase: 0.02,
@@ -258,12 +258,17 @@ export function locomote(perf, opts) {
     const cN = L.leg + 'C';
     perf.key(t0 + tl, { [L.leg]: from, [cN]: 0 }, 'linear');
     const liftK = clamp(Math.abs(to[0] - from[0]) / (S * 0.9), 0.3, 1.2) * liftScale;
+    const rN = L.fore ? L.leg + 'F' : null;
     for (let r = 1; r < sw.length - 1; r++) {
-      const [tf, pf, lift, curl] = sw[r];
+      const [tf, pf, lift, curl, reach] = sw[r];
       const x = lerp(from[0], to[0], pf), gy = lerp(from[1], to[1], pf);
-      perf.key(t0 + tl + dur * tf, { [L.leg]: [x, gy - lift * liftK], [cN]: curl * clamp(liftK * 1.2, 0.4, 1) }, 'linear');
+      const k = { [L.leg]: [x, gy - lift * liftK], [cN]: curl * clamp(liftK * 1.2, 0.4, 1) };
+      if (rN) k[rN] = reach || 0;
+      perf.key(t0 + tl + dur * tf, k, 'linear');
     }
-    perf.key(t0 + tl + dur, { [L.leg]: to, [cN]: 0 }, 'linear');
+    const kEnd = { [L.leg]: to, [cN]: 0 };
+    if (rN) kEnd[rN] = 0;
+    perf.key(t0 + tl + dur, kEnd, 'linear');
     perf.event(t0 + tl + dur, 'step', { leg: L.leg, x: to[0], y: to[1], gait: opts.gait, surface: opts.surface, strength: L.fore ? 0.8 : 1 });
   };
   const dt = 0.5;

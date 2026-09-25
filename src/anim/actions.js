@@ -208,7 +208,7 @@ export function pounce(perf, o = {}) {
   // apex & dive
   const landX = F.x0 + f * dx;
   const gL = perf.ground(landX);
-  const apexHip = [lerp(hipTo[0], landX, 0.5), gL - 1.7];
+  const apexHip = [lerp(hipTo[0], landX, 0.5), gL - 1.42];
   perf.key(to + 4, { hip: apexHip, pitch: -0.05, len: 1.22, smear: 0,
     fn: bodyRel(f, apexHip, -0.05, 1.6, 0.4), ff: bodyRel(f, apexHip, -0.05, 1.5, 0.45),
     hn: bodyRel(f, apexHip, -0.05, -0.6, 0.75), hf: bodyRel(f, apexHip, -0.05, -0.66, 0.72), tailA: 0.35, tailC: 0.5 }, 'inout');
@@ -343,7 +343,7 @@ export function curlSleep(perf, o = {}) {
     hn: Pg(0.5), hf: Pg(0.42), fn: Pg(1.05), ff: Pg(0.98), fnC: 0.5, ffC: 0.5, neck: 0.3, hPitch: -0.1, eye: 0.6 }, 'inout');
   perf.key(t + 22, { hip: P(0.25, -0.42), pitch: -0.1, len: 0.88, archB: 0.85, archF: 0.9, neck: -0.35, hPitch: -0.55, hYaw: 0.7, hRoll: 0.25,
     fn: Pg(0.72, -0.02), ff: Pg(0.62, -0.02), fnC: 0.8, ffC: 0.8, eye: 0.2, earRot: 0.4,
-    tailA: -0.9, tailC: 2.6, tailK: 0.9, tailFront: 1 }, 'inout');
+    tailA: -1.25, tailC: -2.5, tailK: -0.6, tailFront: 1 }, 'inout');
   perf.key(t + 30, { eye: 0, earRot: 0.3, earFlat: 0.1 }, 'inout');
   perf.event(t + 22, 'liedown', {});
   perf.t = t + 34;
@@ -487,7 +487,9 @@ export function turnAround(perf, o = {}) {
   // flip facing on the most gathered drawing
   const nf = -f;
   const cx = x0 + f * 0.45;
+  perf.key(t + 7.5, { smear: 0.7 }, 'linear');
   perf.key(t + 8, { facing: nf, hip: [cx - nf * -0.1, gy - 0.93], hYaw: 1.55 }, 'hold');
+  perf.key(t + 10, { smear: 0 }, 'linear');
   perf.key(t + 9, { len: 0.6, fn: [cx + nf * 0.5, gy], ff: [cx + nf * 0.4, gy], hn: [cx - nf * 0.2, gy], hf: [cx - nf * 0.3, gy] }, 'inout');
   // unfold into new direction
   const hx = cx - nf * 0.45;
