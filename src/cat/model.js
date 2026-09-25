@@ -2,14 +2,14 @@
 // Proportions/colours follow reference/xiaohui-model-sheet.png.
 
 export const PAL = {
-  line: '#4a4240', // warm dark grey line
+  line: '#3a3333', // clean dark line (simplified sheet)
   lineSoft: '#6d6562',
   white: '#f7efe7', // warm off-white fur
   whiteShade: '#e0d5cd',
   grey: '#9b938f', // main grey fur (sheet swatch #9c9490)
   greyLight: '#b4aca7',
   greyShade: '#857d7a',
-  stripe: '#8b8480', // tabby stripes (subtle, like the sheet)
+  stripe: '#8a8380', // darker grey patches (soft)
   stripeDark: '#6b6461',
   pink: '#e8bfb6', // inner ear / nose (sheet swatch #e7c2b9)
   pinkDeep: '#d9a39b',
@@ -20,7 +20,7 @@ export const PAL = {
   pupil: '#2c3033',
   mouth: '#6b3f3c',
   tongue: '#e6a39c',
-  whisker: '#8d8481',
+  whisker: '#3f3838',
 };
 
 // Skeleton (rest pose, standing, facing +x, y-down world).
@@ -37,8 +37,9 @@ export const M = {
   // neck / head
   neckLen: 0.3,
   headOffset: [0.2, 0.2, 0], // head centre relative to neck end (head-local, y-up)
+  headScale: 1.2, // simplified design: bigger head relative to the body
   // tail
-  tailLen: 1.9,
+  tailLen: 1.75,
   tailSegs: 14,
   // body widths used for 3/4 tricks
   farLegShift: [-0.05, -0.05], // far legs root offset (x,y) in local frame (depth cheat)
@@ -49,45 +50,51 @@ export const M = {
 // 'S' shoulder (a = distance along shoulder tangent), 'N' head-local 3D point.
 // v = offset along dorsal normal (H units, + = back/up).
 export const TORSO = [
-  ['H', -0.36, 0.2],
-  ['H', -0.1, 0.36],
-  ['M', 0.22, 0.35],
-  ['M', 0.5, 0.3],
-  ['M', 0.78, 0.3],
-  ['S', -0.08, 0.35],
-  ['S', 0.1, 0.33],
-  ['N', -0.32, -0.12, 0], // nape
-  ['N', 0.02, -0.37, 0], // throat
-  ['S', 0.3, 0.02],
-  ['S', 0.37, -0.25],
-  ['S', 0.23, -0.52],
-  ['S', -0.04, -0.63],
-  ['M', 0.68, -0.58],
-  ['M', 0.44, -0.47],
-  ['M', 0.2, -0.46],
-  ['H', 0.02, -0.45],
-  ['H', -0.3, -0.35],
-  ['H', -0.47, -0.08],
+  ['H', -0.4, 0.24],
+  ['H', -0.12, 0.43],
+  ['M', 0.22, 0.43],
+  ['M', 0.5, 0.39],
+  ['M', 0.78, 0.39],
+  ['S', -0.22, 0.4],
+  ['W', -0.02, 0.4, 'f'], // far scapula
+  ['W', 0.1, 0.38, 'n'], // near scapula
+  ['N', -0.3, -0.12, 0], // nape
+  ['N', 0.0, -0.34, 0], // throat
+  ['S', 0.36, 0.0],
+  ['S', 0.43, -0.28],
+  ['S', 0.29, -0.58],
+  ['S', -0.02, -0.68],
+  ['M', 0.66, -0.64],
+  ['M', 0.42, -0.6],
+  ['M', 0.18, -0.58],
+  ['H', 0.0, -0.56],
+  ['H', -0.32, -0.44],
+  ['H', -0.53, -0.1],
 ];
 
 // Grey saddle lower boundary (v) sampled along u (spine fraction, extended).
 // The saddle covers everything dorsal of this line.
 export const SADDLE = [
-  [-0.5, -0.36],
-  [-0.22, -0.32],
-  [-0.02, -0.24],
-  [0.1, -0.3],
-  [0.2, -0.18],
-  [0.36, -0.2],
-  [0.44, -0.27],
-  [0.56, -0.15],
-  [0.7, -0.12],
-  [0.8, -0.02],
-  [0.9, -0.1],
-  [0.98, 0.05],
+  [-0.5, -0.42],
+  [-0.24, -0.36],
+  [-0.06, -0.26],
+  [0.08, -0.34],
+  [0.22, -0.22],
+  [0.36, -0.26],
+  [0.5, -0.18],
+  [0.62, -0.24],
+  [0.74, -0.1],
+  [0.86, -0.16],
+  [0.96, 0.02],
   [1.08, 0.18],
   [1.2, 0.3],
   [1.45, 0.4],
+];
+// soft darker patches inside the grey (simplified sheet): [u, v, rx(u units), ry(H)]
+export const PATCHES = [
+  [0.02, 0.2, 0.2, 0.18],
+  [0.4, 0.26, 0.16, 0.14],
+  [0.74, 0.22, 0.14, 0.15],
 ];
 // Tabby stripes on the torso: [u at top, u at bottom, v top, v bottom, width]
 export const STRIPES = [
@@ -101,11 +108,11 @@ export const STRIPES = [
 
 // Head model (head-local 3D, y-up, x forward, z = cat's left side).
 export const HEAD = {
-  cranium: { c: [0, 0, 0], r: [0.47, 0.42, 0.49] },
-  cheeks: { c: [0.06, -0.19, 0.3], r: [0.34, 0.28, 0.31] },
-  muzzle: { c: [0.36, -0.175, 0], r: [0.18, 0.14, 0.185] },
-  chin: { c: [0.3, -0.29, 0], r: [0.12, 0.075, 0.11] },
-  eye: { c: [0.385, 0.0, 0.225], n: [1, 0.04, 0.52], r: 0.148 },
-  nose: [0.515, -0.105, 0],
-  earBase: { f: [0.2, 0.36, 0.1], b: [-0.16, 0.24, 0.39], tip: [0.03, 0.84, 0.47], depth: 0.13 },
+  cranium: { c: [0, 0, 0], r: [0.48, 0.44, 0.53] },
+  cheeks: { c: [0.04, -0.17, 0.31], r: [0.36, 0.3, 0.33] },
+  muzzle: { c: [0.3, -0.17, 0], r: [0.17, 0.13, 0.2] },
+  chin: { c: [0.26, -0.28, 0], r: [0.12, 0.07, 0.12] },
+  eye: { c: [0.405, -0.05, 0.245], n: [1, 0.0, 0.62], r: 0.085 },
+  nose: [0.47, -0.125, 0],
+  earBase: { f: [0.18, 0.38, 0.1], b: [-0.2, 0.24, 0.44], tip: [0.02, 0.8, 0.5], depth: 0.12 },
 };

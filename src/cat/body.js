@@ -1,5 +1,5 @@
 // Torso, legs, paws and tail drawing for the side-view rig.
-import { M, TORSO, SADDLE, STRIPES, PAL } from './model.js';
+import { M, TORSO, SADDLE, STRIPES, PATCHES, PAL } from './model.js';
 import {
   add, sub, mul, norm, rot, dir, lerp, lerpV, clamp, smoothstep, DEG, TAU, dist, angLerp, noise1, hash01,
 } from '../core/math.js';
@@ -14,7 +14,10 @@ function boil(pts, seed, amp) {
 export function torsoPoints(sk) {
   const pts = [];
   for (const e of TORSO) {
-    if (e[0] === 'N') {
+    if (e[0] === 'W') {
+      const b = e[3] === 'n' ? sk.scapN : sk.scapF;
+      pts.push(sk.anchor('S', e[1] - b * 0.3, e[2] + b));
+    } else if (e[0] === 'N') {
       const q = sk.head.proj([e[1], e[2], e[3]]);
       pts.push([q[0], q[1]]);
     } else pts.push(sk.anchor(e[0], e[1], e[2]));
@@ -37,22 +40,26 @@ export function drawTorso(ctx, sk, st) {
   const sad = saddlePath(sk);
   ctx.fillStyle = st.grey;
   ctx.fill(sad);
-  // stripes inside saddle
+  // soft darker patches inside the saddle (cloud-like, no stripes)
   ctx.save();
   ctx.clip(sad);
-  for (const [u0, u1, v0, v1, w] of STRIPES) {
-    const a = sk.anchor('M', u0, v0 + 0.1), b = sk.anchor('M', (u0 + u1) / 2 + 0.015, (v0 + v1) / 2), c = sk.anchor('M', u1, v1);
-    brushLine(ctx, [a, b, c], w * sk.vScale, st.stripe, { taperIn: 0.05, taperOut: 0.7, seed: Math.round(u0 * 100) });
+  ctx.fillStyle = st.stripe;
+  for (const [u, v, ru, rv] of PATCHES) {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const wob = 1 + 0.12 * Math.sin(a * 3 + u * 9);
+      pts.push(sk.anchor('M', u + Math.cos(a) * ru * wob, v + Math.sin(a) * rv * wob));
+    }
+    const pp = new Path2D();
+    smoothTo(pp, pts, true);
+    ctx.fill(pp);
   }
-  // dorsal darker line
-  const dl = [];
-  for (let u = -0.2; u <= 1.02; u += 0.12) dl.push(sk.anchor('M', u, 0.27));
-  brushLine(ctx, dl, 0.07 * sk.vScale, st.stripe, { taperIn: 0.2, taperOut: 0.25, seed: 5 });
   ctx.restore();
   // belly shade (soft cel shadow near the ventral edge)
   if (st.shade) {
     const sh = [];
-    for (let u = -0.35; u <= 1.25; u += 0.08) sh.push(sk.anchor('M', u, -0.5));
+    for (let u = -0.35; u <= 1.25; u += 0.08) sh.push(sk.anchor('M', u, -0.6));
     for (let u = 1.25; u >= -0.35; u -= 0.16) sh.push(sk.anchor('M', u, -1.2));
     const sp = new Path2D();
     smoothTo(sp, sh, true);
@@ -89,18 +96,19 @@ function saddlePath(sk) {
 
 // ---------- legs ----------
 const FORE_PTS = [
-  ['h', 0.02, 0.19], ['h', 0.55, 0.15], ['f', 0.06, 0.1], ['f', 0.5, 0.078], ['f', 0.93, 0.066],
-  ['m', 0.55, 0.058], ['m', 0.55, -0.062],
-  ['f', 0.95, -0.072], ['f', 0.52, -0.085], ['f', 0.14, -0.1],
-  ['h', 0.98, -0.14], ['h', 0.55, -0.18], ['h', 0.05, -0.2],
+  ['h', 0.02, 0.22], ['h', 0.55, 0.19], ['f', 0.06, 0.13], ['f', 0.5, 0.105], ['f', 0.93, 0.092],
+  ['m', 0.55, 0.08], ['m', 0.55, -0.085],
+  ['f', 0.95, -0.098], ['f', 0.52, -0.11], ['f', 0.14, -0.125],
+  ['h', 0.98, -0.16], ['h', 0.55, -0.21], ['h', 0.05, -0.22],
 ];
 const HIND_PTS = [
-  ['fe', 0.1, 0.3], ['fe', 0.68, 0.2], ['ti', 0.03, 0.11], ['ti', 0.5, 0.074], ['ti', 0.95, 0.062],
-  ['me', 0.35, 0.054], ['me', 0.86, 0.05],
-  ['me', 0.86, -0.054], ['me', 0.35, -0.058], ['me', 0.03, -0.085],
-  ['ti', 0.9, -0.095], ['ti', 0.62, -0.1], ['ti', 0.28, -0.15],
-  ['fe', 0.92, -0.22], ['fe', 0.58, -0.3], ['fe', 0.18, -0.33], ['fe', -0.14, -0.12],
+  ['fe', 0.1, 0.34], ['fe', 0.66, 0.26], ['ti', 0.03, 0.15], ['ti', 0.5, 0.1], ['ti', 0.95, 0.085],
+  ['me', 0.35, 0.078], ['me', 0.86, 0.072],
+  ['me', 0.86, -0.076], ['me', 0.35, -0.08], ['me', 0.03, -0.105],
+  ['ti', 0.9, -0.118], ['ti', 0.62, -0.13], ['ti', 0.28, -0.19],
+  ['fe', 0.92, -0.28], ['fe', 0.58, -0.37], ['fe', 0.18, -0.39], ['fe', -0.14, -0.14],
 ];
+let THIGH_K = 1;
 function bonePt(A, B, t, off) {
   const d = norm(sub(B, A));
   const front = [d[1], -d[0]];
@@ -114,9 +122,11 @@ export function legPoints(leg) {
       out.push(bonePt(A, B, t, o));
     }
   } else {
+    // sitting: the thigh bunches into a big round haunch
+    const k = 1 + 0.38 * (leg.flat || 0);
     for (const [b, t, o] of HIND_PTS) {
       const [A, B] = b === 'fe' ? [leg.root, leg.knee] : b === 'ti' ? [leg.knee, leg.hock] : [leg.hock, leg.ball];
-      out.push(bonePt(A, B, t, o));
+      out.push(bonePt(A, B, t, b === 'fe' ? o * k : o));
     }
   }
   return out;
@@ -124,8 +134,10 @@ export function legPoints(leg) {
 function pawShape(leg) {
   // digit pad oval + toe bumps, oriented by pawAng
   const a = leg.pawAng;
-  const L = leg.fore ? 0.118 : 0.128, Hh = leg.fore ? 0.074 : 0.07;
-  const c = leg.paw;
+  const L = leg.fore ? 0.15 : 0.158, Hh = leg.fore ? 0.092 : 0.088;
+  // pad sits on the contact point: raise the oval by its half height
+  const up = rot([0, -Hh * 0.92], a);
+  const c = [leg.paw[0] + up[0], leg.paw[1] + up[1]];
   const R = (x, y) => { const r = rot([x, y], a); return [c[0] + r[0], c[1] + r[1]]; };
   // outline: sole flat-ish, top rounded with toes
   const pts = [
@@ -187,9 +199,11 @@ export function drawLeg(ctx, leg, st, opts = {}) {
     if (opts.saddle) ctx.fill(opts.saddle);
     ctx.save();
     ctx.clip(gp);
-    for (const [t, w] of [[0.2, 0.07], [0.45, 0.06]]) {
-      brushLine(ctx, [bonePt(A, B, t - 0.14, 0.34), bonePt(A, B, t + 0.02, 0.0), bonePt(A, B, t + 0.08, -0.32)], w, st.stripe, { taperIn: 0.2, taperOut: 0.6, seed: 9 + t * 10 });
-    }
+    const dp = [bonePt(A, B, -0.1, 0.1), bonePt(A, B, 0.1, -0.28), bonePt(A, B, 0.38, -0.2), bonePt(A, B, 0.3, 0.12)];
+    const dpp = new Path2D();
+    smoothTo(dpp, dp, true);
+    ctx.fillStyle = st.stripe;
+    ctx.fill(dpp);
     ctx.restore();
   } else if (opts.saddle) {
     ctx.fillStyle = st.grey;
@@ -225,7 +239,7 @@ export function drawLeg(ctx, leg, st, opts = {}) {
 // ---------- tail ----------
 export function tailWidth(t) {
   // full width (H units) along the tail (0 root .. 1 tip)
-  return lerp(0.22, 0.25, smoothstep(0, 0.35, t)) * (1 - 0.16 * smoothstep(0.55, 1, t));
+  return lerp(0.26, 0.3, smoothstep(0, 0.35, t)) * (1 - 0.1 * smoothstep(0.6, 1, t));
 }
 export function tailOutline(pts, fluff = 0) {
   const n = pts.length;
@@ -271,8 +285,8 @@ export function drawTail(ctx, pts, st, fluff = 0) {
     ctx.fillStyle = color;
     ctx.fill(p);
   };
-  for (const c of [0.34, 0.48, 0.61, 0.73, 0.84]) ring(c - 0.035, c + 0.035, st.stripe);
-  ring(0.92, 1.0, st.stripeDark);
+  for (const c of [0.42, 0.62, 0.8]) ring(c - 0.06, c + 0.05, st.stripe);
+  ring(0.9, 1.0, st.stripeDark);
   ctx.beginPath();
   ctx.arc(tip[0], tip[1], wTip * 1.3, 0, TAU);
   ctx.fillStyle = st.stripeDark;

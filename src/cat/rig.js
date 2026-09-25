@@ -28,7 +28,9 @@ export function defaultPose() {
     hnM: 0, hfM: 0, // hind metatarsus flat on the ground (sitting) 0..1
     fnF: 0, ffF: 0, // fore "reach": straighten wrist forward (for reaching/pounce) 0..1
     // tail intention
-    tailA: 0.5, tailC: 0.9, tailK: 0.9, tailTone: 1, tailWave: 0, tailWaveP: 0,
+    tailA: 0.5, tailC: 0.9, tailK: 0.9, tailTone: 1, tailWave: 0, tailWaveP: 0, tailWorld: 0, tailFront: 0,
+    fnTop: 0, // draw near foreleg over the head (grooming)
+    smear: 0, // smear/multiples amount for fast frames
     // ears: swivel (0 fwd .. 1 side/back), flatten (0 up .. 1 flat), per-ear offsets
     earRot: 0.1, earFlat: 0, earLR: 0, earRR: 0,
     // face
@@ -118,9 +120,14 @@ export function computeSkeleton(pose) {
   // volume preservation: thinner when stretched
   const vScale = clamp(1 / Math.sqrt(Math.max(0.3, lp.len)), 0.75, 1.35) * (1 + 0.04 * lp.breath);
 
+  const chestK = lp.chest || 0;
   const anchor = (kind, a, v) => {
     if (kind === 'H') return add(add(sp.P, mul(sp.t0, a)), mul(sp.n0, v));
-    if (kind === 'S') return add(add(sp.S, mul(sp.t1, a)), mul(sp.n1, v));
+    if (kind === 'S') {
+      // twisting the chest toward the viewer bulges the front/under chest
+      const bulge = v < 0.05 ? chestK * 0.07 * Math.min(1, (0.05 - v) * 3) : 0;
+      return add(add(sp.S, mul(sp.t1, a + bulge)), mul(sp.n1, v));
+    }
     const f = sp.at(a);
     return add(f.p, mul(f.n, v * vScale));
   };
@@ -129,14 +136,15 @@ export function computeSkeleton(pose) {
   const neckBase = anchor('S', 0.1, 0.14);
   const nd = rot(sp.t1, -lp.neck);
   const neckEnd = add(neckBase, mul(nd, M.neckLen * lp.neckLen));
-  const hb = headBasis(lp.hYaw, lp.hPitch, lp.hRoll);
+  const hb = headBasis(lp.hYaw + (lp.chest || 0) * 0.35, lp.hPitch, lp.hRoll);
+  const HS = M.headScale || 1;
   const ho = M.headOffset;
-  const off3 = add3(add3(mul3(hb.f, ho[0]), mul3(hb.u, ho[1])), mul3(hb.l, ho[2]));
+  const off3 = mul3(add3(add3(mul3(hb.f, ho[0]), mul3(hb.u, ho[1])), mul3(hb.l, ho[2])), HS);
   const headC = [neckEnd[0] + off3[0], neckEnd[1] - off3[1]];
-  const head = { c: headC, basis: hb, depth: off3[2] };
-  // project head-local 3D point to world 2D (and depth)
+  const head = { c: headC, basis: hb, depth: off3[2], s: HS };
+  // project head-local 3D point to world 2D (and depth); scaled by head size
   head.proj = (p) => {
-    const w = add3(add3(mul3(hb.f, p[0]), mul3(hb.u, p[1])), mul3(hb.l, p[2]));
+    const w = add3(add3(mul3(hb.f, p[0] * HS), mul3(hb.u, p[1] * HS)), mul3(hb.l, p[2] * HS));
     return [headC[0] + w[0], headC[1] - w[1], w[2]];
   };
   head.vec = (p) => {
@@ -170,13 +178,22 @@ export function computeSkeleton(pose) {
     // the ball follows the hock if the leg could not reach
     const ball = r2.reached ? B : add(r2.end, sub(B, A));
     const paw = add(ball, sub(T, B));
-    legs[name] = { root, knee: r2.joint, hock: r2.end, ball, paw, pawAng, c, fore: false };
+    legs[name] = { root, knee: r2.joint, hock: r2.end, ball, paw, pawAng, c, fore: false, flat: clamp(flat, 0, 1) };
   };
-  const fs = [farShift[0], farShift[1]];
+  // chest twist toward viewer spreads the fore pair (far leg shows more)
+  const fs = [farShift[0] - (lp.chest || 0) * 0.14, farShift[1] - Math.abs(lp.chest || 0) * 0.03];
   fore('fn', shoulderJ, lp.fn, lp.fnC, lp.fnF || 0);
   fore('ff', add(shoulderJ, fs), lp.ff, lp.ffC, lp.ffF || 0);
   hind('hn', hipJ, lp.hn, lp.hnC, lp.hnM);
   hind('hf', add(hipJ, fs), lp.hf, lp.hfC, lp.hfM);
+
+  // scapula roll: when a foreleg's elbow rises toward the shoulder the blade
+  // pokes above the back line (strong when stalking / pushing into wind)
+  const scap = (L) => {
+    const drop = (L.elbow[1] - L.root[1]) * Math.cos(0) ;
+    return clamp((0.36 - drop) * 0.9, 0, 0.22);
+  };
+  const scapN = scap(legs.fn), scapF = scap(legs.ff);
 
   // ---- tail root frame ----
   const tailRoot = anchor('H', -0.33, 0.13);
@@ -184,7 +201,7 @@ export function computeSkeleton(pose) {
   const tailBaseAng = Math.atan2(back[1], back[0]); // pointing backwards
 
   return {
-    pose: lp, facing, spine: sp, anchor, vScale, neckBase, neckEnd, neckDir: nd, head, legs,
+    pose: lp, facing, spine: sp, anchor, vScale, neckBase, neckEnd, neckDir: nd, head, legs, scapN, scapF,
     shoulderJ, hipJ, tailRoot, tailBaseAng,
   };
 }

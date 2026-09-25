@@ -10,7 +10,8 @@ import { smoothTo, brushLine, fillStroke, clipOutside, css, mix } from '../core/
 // ---------- projection helpers ----------
 function ellipse2D(head, c, r) {
   const b = head.basis;
-  const cols = [mul3(b.f, r[0]), mul3(b.u, r[1]), mul3(b.l, r[2])];
+  const k = head.s || 1;
+  const cols = [mul3(b.f, r[0] * k), mul3(b.u, r[1] * k), mul3(b.l, r[2] * k)];
   // 2x3 matrix rows: x = col.x, y = -col.y
   let a = 0, bb = 0, cc = 0;
   for (const k of cols) {
@@ -56,21 +57,58 @@ function sphN(p, r = HEAD.cranium.r) {
   return norm3([p[0] / (r[0] * r[0]), p[1] / (r[1] * r[1]), p[2] / (r[2] * r[2])]);
 }
 
-// Project marking polygon given in (lam, phi) degrees; back-facing points are
-// pushed onto (and slightly past) the projected cranium limb.
+// Project a marking region given in (lam, phi) degrees, clipped to the visible
+// hemisphere: hidden runs are replaced by the short arc along the (pushed)
+// projected cranium limb between the exit and re-entry crossings.
 function projMark(head, cran, pts, push = 1.4) {
+  const n = pts.length;
+  const P3 = pts.map(([lamD, phiD]) => sph(lamD * DEG, phiD * DEG));
+  const vis = P3.map((p) => head.vec(sphN(p))[2]);
+  if (vis.every((z) => z <= 0)) return null;
+  const limbPt = (w) => {
+    // w: world direction (screen coords from head.vec) of a limb crossing
+    const d = norm([w[0], w[1]]);
+    const r = ellRadius(cran, d) * push;
+    return [cran.cx + d[0] * r, cran.cy + d[1] * r];
+  };
   const out = [];
-  for (const [lamD, phiD] of pts) {
-    const p = sph(lamD * DEG, phiD * DEG);
-    const nW = head.vec(sphN(p));
-    const w = head.proj(p);
-    if (nW[2] < 0.02) {
-      const d = norm([w[0] - cran.cx, w[1] - cran.cy]);
-      const r = ellRadius(cran, d) * push;
-      out.push([cran.cx + d[0] * r, cran.cy + d[1] * r]);
-    } else out.push([w[0], w[1]]);
+  let start = vis.findIndex((z) => z > 0);
+  let exitW = null;
+  for (let k = 0; k <= n; k++) {
+    const i = (start + k) % n, j = (start + k + 1) % n;
+    const a = P3[i], b = P3[j];
+    const za = vis[i], zb = vis[j];
+    if (za > 0 && k < n) {
+      const q = head.proj(a);
+      if (pts[i][1] <= -84) {
+        // bottom cap: extend past the cranium so chin/cheeks are covered
+        const d = norm([q[0] - cran.cx, q[1] - cran.cy]);
+        const r = ellRadius(cran, d) * push;
+        out.push([cran.cx + d[0] * r, cran.cy + d[1] * r]);
+      } else out.push([q[0], q[1]]);
+    }
+    if (k === n) break;
+    if ((za > 0) !== (zb > 0)) {
+      const t = za / (za - zb);
+      const c3 = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+      const w = head.vec(sphN(c3));
+      if (za > 0) exitW = w;
+      else if (exitW) {
+        // arc along the limb from exit to entry (short way)
+        const a0 = Math.atan2(exitW[1], exitW[0]), a1 = Math.atan2(w[1], w[0]);
+        let da = a1 - a0;
+        while (da > Math.PI) da -= TAU;
+        while (da < -Math.PI) da += TAU;
+        const steps = Math.max(2, Math.ceil(Math.abs(da) / 0.2));
+        for (let s2 = 0; s2 <= steps; s2++) {
+          const ang = a0 + (da * s2) / steps;
+          out.push(limbPt([Math.cos(ang), Math.sin(ang)]));
+        }
+        exitW = null;
+      }
+    }
   }
-  return out;
+  return out.length >= 3 ? out : null;
 }
 
 // white face region boundary elevation (deg) as function of |azimuth| (deg)
@@ -87,7 +125,7 @@ function faceB(lamAbs) {
   return -80;
 }
 // blaze half-width (deg azimuth) as function of elevation (deg)
-const BLAZE_W = [[-40, 28], [-10, 19], [4, 14], [16, 9.5], [30, 5.5], [44, 2.6], [56, 0.8]];
+const BLAZE_W = [[-40, 30], [-10, 22], [2, 17], [12, 12], [24, 7], [36, 3.2], [46, 0.8]];
 function blazeW(phi) {
   for (let i = 1; i < BLAZE_W.length; i++) {
     if (phi <= BLAZE_W[i][0]) {
@@ -124,7 +162,7 @@ function earGeom(head, side, pose) {
   bf = R3(bf); bb = R3(bb); tip = R3(tip);
   // opening normal (points toward the front face of the ear)
   let nrm = norm3(cross3(sub3(tip, bb), sub3(bf, bb)));
-  if (side < 0) nrm = mul3(nrm, -1);
+  if (side > 0) nrm = mul3(nrm, -1);
   // cone body: base ellipse (along base line x depth behind the opening)
   const a1 = mul3(sub3(bf, bb), 0.5), a2 = mul3(nrm, -eb.depth);
   const P = (p) => head.proj(p);
@@ -144,10 +182,10 @@ function earGeom(head, side, pose) {
     side, bf: P(bf), bb: P(bb), tip: P(tip), cup: P(cup), base: P(base),
     facing: nW[2], depth: P(base)[2],
     // points slightly inside for the pink inner ear
-    in1: P(add3(mul3(bf, 0.78), mul3(tip, 0.22))),
-    in2: P(add3(mul3(bb, 0.8), mul3(tip, 0.2))),
-    inTip: P(add3(mul3(tip, 0.84), mul3(base, 0.16))),
-    inBase: P(add3(mul3(base, 0.92), mul3(tip, 0.08))),
+    in1: P(add3(mul3(bf, 0.9), mul3(tip, 0.1))),
+    in2: P(add3(add3(mul3(bb, 0.7), mul3(tip, 0.18)), mul3(bf, 0.12))),
+    inTip: P(add3(mul3(tip, 0.9), mul3(base, 0.1))),
+    inBase: P(add3(mul3(base, 0.96), mul3(tip, 0.04))),
   };
 }
 function convexHull(pts) {
@@ -171,7 +209,8 @@ function earPath(e) {
   // add points near tip on both edges so the tip stays pointed but rounded slightly
   const t = ring[0], a = ring[1], b = ring[ring.length - 1];
   const near = (q, k) => [t[0] + (q[0] - t[0]) * k, t[1] + (q[1] - t[1]) * k];
-  const pts = [near(b, 0.06), t, near(a, 0.06), ...ring.slice(1)];
+  const tipC = [(near(a, 0.1)[0] + near(b, 0.1)[0]) / 2 * 0.35 + t[0] * 0.65, (near(a, 0.1)[1] + near(b, 0.1)[1]) / 2 * 0.35 + t[1] * 0.65];
+  const pts = [near(b, 0.14), tipC, near(a, 0.14), ...ring.slice(1)];
   smoothTo(p, pts, true);
   return p;
 }
@@ -186,7 +225,7 @@ function eyeFrame(head, side, pose) {
   up3 = norm3(sub3(up3, mul3(out3, dot3(up3, out3))));
   const c = head.proj(c3);
   const ah = head.vec(out3), av = head.vec(up3), nW = head.vec(n3);
-  const r = E.r * (1 + 0.12 * (pose.eyeWide || 0));
+  const r = E.r * (head.s || 1) * (1 + 0.12 * (pose.eyeWide || 0));
   return {
     side, c: [c[0], c[1]], z: c[2], r,
     ax: [ah[0] * r, ah[1] * r], ay: [-av[0] * r, -av[1] * r], // ay points "up" on screen for v+
@@ -225,107 +264,56 @@ function toEye(ef, dx, dy) {
   return [(av[1] * dx - av[0] * dy) / det, (-ax[1] * dx + ax[0] * dy) / det];
 }
 function drawEye(ctx, ef, pose, st) {
-  if (ef.facing < -0.15) return;
-  const open = clamp(pose.eye, 0, 1) * (1 - clamp(pose.happy, 0, 1));
-  const vis = smoothstep(-0.15, 0.2, ef.facing);
+  if (ef.facing < -0.12) return;
+  const vis = smoothstep(-0.12, 0.18, ef.facing);
+  // per-eye openness (wink: + closes the near/left eye, - the other)
+  const wink = pose.wink || 0;
+  const wk = ef.side > 0 ? Math.max(0, wink) : Math.max(0, -wink);
+  const open = clamp(pose.eye, 0, 1) * (1 - clamp(pose.happy, 0, 1)) * (1 - wk);
+  const dash = clamp(pose.lid || 0, 0, 1);
   ctx.save();
   ctx.transform(ef.ax[0], ef.ax[1], -ef.ay[0], -ef.ay[1], ef.c[0], ef.c[1]);
-  // in this frame: (u, v) with v up -> screen
-  const lw = st.lw / ef.r; // line width in eye units (approx)
-  const shape = eyeShape();
-  if (open > 0.04) {
-    // clip to open region
-    ctx.save();
-    const clip = new Path2D();
-    const N = 24;
-    clip.moveTo(-1.2, -1.3);
-    for (let i = 0; i <= N; i++) {
-      const u = -1 + (2 * i) / N;
-      clip.lineTo(u * 1.02, upperLid(u, open, pose.lid, ef.side));
-    }
-    clip.lineTo(1.2, -1.3);
-    clip.closePath();
-    ctx.clip(clip);
-    const ep = new Path2D();
-    smoothTo(ep, shape, true);
-    ctx.clip(ep);
-    // sclera hint + iris
-    ctx.fillStyle = css(mix(PAL.iris, st.irisTint || PAL.iris, 0.5));
-    ctx.fill(ep);
-    const g = ctx.createRadialGradient(0, -0.25, 0.05, 0, 0, 1.05);
-    g.addColorStop(0, css(PAL.irisLight));
-    g.addColorStop(0.55, css(PAL.iris));
-    g.addColorStop(0.9, css(PAL.irisDark));
-    g.addColorStop(1, css(PAL.irisDark));
-    ctx.fillStyle = g;
-    ctx.fill(ep);
-    // pupil
-    const pw = lerp(0.14, 0.62, clamp(pose.pupil, 0, 1));
-    const ph = lerp(0.78, 0.7, clamp(pose.pupil, 0, 1));
-    // gaze given in screen-ish terms (lookX + = forward/right, lookY + = up)
-    const gz = toEye(ef, (pose.lookX || 0) * ef.r, -(pose.lookY || 0) * ef.r);
-    const gx = clamp(gz[0] * 0.3, -0.36, 0.36);
-    const gy = clamp(gz[1] * 0.26, -0.3, 0.3);
+  const lw = st.lw / ef.r;
+  // gaze nudges the dot a little inside its socket
+  const gz = toEye(ef, (pose.lookX || 0) * ef.r, -(pose.lookY || 0) * ef.r);
+  const gx = clamp(gz[0] * 0.18, -0.22, 0.22), gy = clamp(gz[1] * 0.16, -0.2, 0.2);
+  const size = (1 + 0.28 * (pose.eyeWide || 0)) * (0.92 + 0.2 * clamp(pose.pupil ?? 0.45, 0, 1));
+  const rx = 0.62 * size, ry = 0.8 * size;
+  ctx.globalAlpha = vis;
+  if (open > 0.12 && dash < 0.6) {
+    // solid dot, squashed vertically while blinking
+    const k = Math.min(1, open * 1.15);
+    ctx.fillStyle = st.eyeColor || '#2b2727';
     ctx.beginPath();
-    if (pw < 0.35) {
-      // vesica-shaped slit
-      ctx.moveTo(gx, gy + ph);
-      ctx.quadraticCurveTo(gx + pw * 1.9, gy, gx, gy - ph);
-      ctx.quadraticCurveTo(gx - pw * 1.9, gy, gx, gy + ph);
-    } else ctx.ellipse(gx, gy, pw, ph, 0, 0, TAU);
-    ctx.fillStyle = css(PAL.pupil);
+    ctx.ellipse(gx, gy - (1 - k) * 0.25, rx, Math.max(0.12, ry * k), 0, 0, TAU);
     ctx.fill();
-    // soft shade under upper lid
-    ctx.fillStyle = css('#3c4447', 0.28);
-    ctx.beginPath();
-    ctx.ellipse(0, 0.95, 1.3, 0.42, 0, 0, TAU);
-    ctx.fill();
-    ctx.restore();
-    // highlights (screen-space up-left offset expressed roughly in eye space)
-    const hs = st.highlight ?? 1;
-    if (hs > 0) {
-      ctx.save();
-      ctx.clip(clip);
-      const h1 = toEye(ef, -0.3 * ef.r, -0.36 * ef.r), h2 = toEye(ef, 0.3 * ef.r, 0.38 * ef.r);
-      ctx.fillStyle = css('#ffffff', 0.95 * hs);
+    // tiny catch-light (only visible when eyes are big/shiny)
+    const hl = (st.highlight ?? 1) * clamp((size - 1.0) * 3 + 0.35, 0, 1) * k;
+    if (hl > 0.02) {
+      const h1 = toEye(ef, -0.22 * ef.r, -0.3 * ef.r);
+      ctx.fillStyle = css('#ffffff', 0.92 * hl);
       ctx.beginPath();
-      ctx.ellipse(gx * 0.5 + clamp(h1[0], -0.5, 0.5), gy * 0.5 + clamp(h1[1], -0.5, 0.5), 0.21, 0.18, 0, 0, TAU);
+      ctx.ellipse(gx + clamp(h1[0], -0.35, 0.35), gy + clamp(h1[1], -0.35, 0.35), 0.24 * size, 0.26 * size, 0, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = css('#ffffff', 0.7 * hs);
-      ctx.beginPath();
-      ctx.ellipse(gx * 0.5 + clamp(h2[0], -0.55, 0.55), gy * 0.5 + clamp(h2[1], -0.55, 0.55), 0.08, 0.07, 0, 0, TAU);
-      ctx.fill();
-      ctx.restore();
     }
-    // upper lid line (thick), with a flick at the outer corner
-    const lidPts = [];
-    for (let i = 0; i <= 14; i++) {
-      const u = -1.02 + (2.06 * i) / 14;
-      lidPts.push([u, upperLid(clamp(u, -1, 1), open, pose.lid, ef.side) + 0.02]);
-    }
-    lidPts.push([1.22, upperLid(1, open, pose.lid, ef.side) + 0.16]);
-    const w = Math.max(lw * 2.2, 0.12);
-    fillStroke(ctx, lidPts, (i, t) => w * (0.35 + 0.65 * Math.sin(Math.min(1, t * 1.4) * Math.PI * 0.5)) * (t > 0.9 ? (1 - t) * 10 * 0.8 + 0.2 : 1), css(PAL.line, vis));
-    // lower lid thin line
-    const low = [];
-    for (let i = 0; i <= 10; i++) {
-      const u = -0.75 + (1.6 * i) / 10;
-      low.push([u, -0.98 * Math.sqrt(Math.max(0, 1 - u * u)) + 0.05 * u - 0.02]);
-    }
-    fillStroke(ctx, low, (i, t) => lw * 0.9 * Math.sin(t * Math.PI), css(PAL.lineSoft, 0.8 * vis));
+  } else if (dash >= 0.6) {
+    // flat dash (squint / sulky / wink)
+    const tilt = (pose.lidTilt || 0) * 0.25;
+    fillStroke(ctx, [[-0.75, 0.05 - tilt], [0, 0.0], [0.75, 0.05 + tilt]], (i, t) => 0.42 * Math.sin(0.25 + t * (Math.PI - 0.5)), st.eyeColor || '#2b2727');
   } else {
-    // closed eye: sleepy (downward arc) or happy (upward arc ^)
-    const happy = clamp(pose.happy, 0, 1);
+    // closed: happy arc (convex up) or relaxed/sleepy arc (convex down)
+    const happy = Math.max(clamp(pose.happy, 0, 1), wk > 0.5 && (pose.happy || 0) > 0.3 ? 1 : 0);
     const pts = [];
     for (let i = 0; i <= 12; i++) {
       const u = -0.95 + (1.9 * i) / 12;
-      const sleepy = -0.12 - 0.22 * (1 - u * u);
-      const hap = -0.3 + 0.42 * (1 - u * u);
+      const sleepy = -0.05 - 0.32 * (1 - u * u);
+      const hap = -0.35 + 0.55 * (1 - u * u);
       pts.push([u, lerp(sleepy, hap, happy)]);
     }
-    const w = Math.max(lw * 2, 0.11);
-    fillStroke(ctx, pts, (i, t) => w * Math.sin(0.15 + t * (Math.PI - 0.3)), css(PAL.line, vis));
+    const w = Math.max(lw * 2.4, 0.34);
+    fillStroke(ctx, pts, (i, t) => w * Math.sin(0.2 + t * (Math.PI - 0.4)), st.eyeColor || '#2b2727');
   }
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
@@ -344,12 +332,31 @@ export function buildHead(sk) {
   return { head, pose, cran, cheekL, cheekR, muz, chin, ells, earL, earR, eyeL, eyeR };
 }
 
-function headUnionPath(g, fluff) {
-  const p = new Path2D();
-  for (const e of g.ells) {
-    p.moveTo(e.cx + Math.cos(e.rot) * e.rx, e.cy + Math.sin(e.rot) * e.rx);
-    p.ellipse(e.cx, e.cy, e.rx, e.ry, e.rot, 0, TAU);
+function resampleClosed(pts, n) {
+  const L = [0];
+  for (let i = 1; i <= pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i % pts.length][0] - pts[i - 1][0], pts[i % pts.length][1] - pts[i - 1][1]));
+  const total = L[L.length - 1];
+  const out = [];
+  let j = 0;
+  for (let k = 0; k < n; k++) {
+    const d = (total * k) / n;
+    while (j < pts.length - 1 && L[j + 1] < d) j++;
+    const a = pts[j], b = pts[(j + 1) % pts.length];
+    const u = (d - L[j]) / ((L[j + 1] - L[j]) || 1);
+    out.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]);
   }
+  return out;
+}
+export function headOutline(g) {
+  const pts = [];
+  for (const e of g.ells) for (let i = 0; i < 40; i++) pts.push(ellPoint(e, (i / 40) * TAU));
+  const hull = convexHull(pts);
+  return resampleClosed(hull, 30);
+}
+function headUnionPath(g, fluff, tufts = false) {
+  const p = new Path2D();
+  smoothTo(p, headOutline(g), true);
+  if (!tufts) return p;
   // cheek fur tufts on the silhouette (lower cheeks)
   const k = 1 + 0.5 * (fluff || 0);
   for (const e of [g.cheekL, g.cheekR]) {
@@ -459,12 +466,13 @@ function drawMouth(ctx, g, st) {
   const smile = pose.smile || 0;
   // facing of the muzzle front
   const fW = head.vec([1, -0.25, 0]);
+  if (fW[2] < -0.35) return; // muzzle faces away: no nose/mouth
   const vis = smoothstep(-0.5, 0.1, fW[2] + 0.55);
   // nose
   const nt = [N[0], N[1] + 0.012, 0];
-  const nl = P([N[0] - 0.012, N[1] + 0.022, 0.048]);
-  const nr = P([N[0] - 0.012, N[1] + 0.022, -0.048]);
-  const nb = P([N[0] + 0.004, N[1] - 0.034, 0]);
+  const nl = P([N[0] - 0.01, N[1] + 0.018, 0.038]);
+  const nr = P([N[0] - 0.01, N[1] + 0.018, -0.038]);
+  const nb = P([N[0] + 0.004, N[1] - 0.026, 0]);
   const ntp = P(nt);
   const nose = new Path2D();
   smoothTo(nose, [nl, [(nl[0] + nr[0]) / 2 + (ntp[0] - (nl[0] + nr[0]) / 2) * 0.3, (nl[1] + nr[1]) / 2 - 0.01], nr, nb], true);
@@ -507,8 +515,8 @@ function drawMouth(ctx, g, st) {
   } else {
     const arm = (s) => {
       const a = P(midp);
-      const b = P([N[0] - 0.02, N[1] - 0.1 + smile * 0.03, 0.035 * s]);
-      const c = P([N[0] - 0.05, N[1] - 0.098 + smile * 0.05, 0.062 * s]);
+      const b = P([N[0] - 0.02, N[1] - 0.1 + smile * 0.012, (0.035 + smile * 0.012) * s]);
+      const c = P([N[0] - 0.05, N[1] - 0.098 + smile * 0.05, (0.062 + smile * 0.02) * s]);
       return [a, b, c];
     };
     ctx.globalAlpha = vis;
@@ -521,14 +529,12 @@ function drawMouth(ctx, g, st) {
 
 export function drawHead(ctx, g, st) {
   const pose = g.pose;
-  const headPath = headUnionPath(g, pose.fluff);
+  const headPath = headUnionPath(g, pose.fluff, st.tufts);
   const ears = [g.earL, g.earR].sort((a, b) => a.depth - b.depth);
   const cz = g.cran.z;
   // ears behind head
   for (const e of ears) if (e.depth < cz - 0.12) drawEar(ctx, e, st, null);
-  // far whiskers (the side facing away)
   const farSide = g.head.basis.l[2] >= 0 ? -1 : 1;
-  drawWhiskers(ctx, g, farSide, st);
   // head mass
   ctx.lineJoin = 'round';
   ctx.lineWidth = st.lw * 2;
@@ -544,18 +550,22 @@ export function drawHead(ctx, g, st) {
   for (let lam = 178; lam >= -178; lam -= 30) face.push([lam, -88]);
   const facePoly = projMark(g.head, g.cran, face, 1.5);
   ctx.fillStyle = st.white;
-  const fp = new Path2D();
-  smoothTo(fp, facePoly, true);
-  ctx.fill(fp);
+  if (facePoly) {
+    const fp = new Path2D();
+    smoothTo(fp, facePoly, true);
+    ctx.fill(fp);
+  }
   // blaze
   const bl = [];
   for (let ph = -40; ph <= 56; ph += 6) bl.push([blazeW(ph), ph]);
   bl.push([0, 60]);
   for (let ph = 56; ph >= -40; ph -= 6) bl.push([-blazeW(ph), ph]);
   const blp = projMark(g.head, g.cran, bl, 1.0);
-  const bp = new Path2D();
-  smoothTo(bp, blp, true);
-  ctx.fill(bp);
+  if (blp) {
+    const bp = new Path2D();
+    smoothTo(bp, blp, true);
+    ctx.fill(bp);
+  }
   // soft grey transition shade on white under the chin
   // stripes
   const stripe = (pts, w) => {
@@ -573,13 +583,11 @@ export function drawHead(ctx, g, st) {
     brushLine(ctx, pp, w, st.stripe, { taperIn: 0.35, taperOut: 0.6, seed: pts.length });
     ctx.globalAlpha = 1;
   };
-  for (const s of [1, -1]) {
-    stripe([[11 * s, 44], [12 * s, 32], [13 * s, 22]], 0.05);
-    stripe([[22 * s, 47], [24 * s, 36], [27 * s, 27]], 0.045);
-    stripe([[34 * s, 44], [37 * s, 34], [41 * s, 27]], 0.04);
-    stripe([[50 * s, -3], [66 * s, -8], [84 * s, -6]], 0.045);
-    stripe([[54 * s, -15], [70 * s, -21], [88 * s, -21]], 0.04);
-    stripe([[6 * s, 62], [9 * s, 74], [12 * s, 86]], 0.035);
+  if (st.faceStripes) {
+    for (const s of [1, -1]) {
+      stripe([[11 * s, 44], [12 * s, 32], [13 * s, 22]], 0.05);
+      stripe([[22 * s, 47], [24 * s, 36], [27 * s, 27]], 0.045);
+    }
   }
   ctx.restore();
   // ears in front
@@ -591,6 +599,11 @@ export function drawHead(ctx, g, st) {
   for (const ef of eyes) drawEye(ctx, ef, pose, st);
   ctx.restore();
   drawMouth(ctx, g, st);
+  // whiskers emerge from the cheek edge: only the part outside the face shows
+  ctx.save();
+  clipOutside(ctx, headPath);
+  drawWhiskers(ctx, g, farSide, st);
   drawWhiskers(ctx, g, -farSide, st);
+  ctx.restore();
   return headPath;
 }

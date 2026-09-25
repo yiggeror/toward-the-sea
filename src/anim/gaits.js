@@ -24,6 +24,7 @@ export const GAITS = {
     ],
     neck: [[0.0, 0], [0.31, -0.05], [0.5, 0], [0.81, -0.05]],
     pitchBase: 0.05,
+    pose: { tailA: 0.55, tailC: 1.1, tailK: 0.9, tailTone: 1 },
   },
   trot: {
     S: 1.9, C: 14, beta: 0.46, height: 1.0,
@@ -39,32 +40,34 @@ export const GAITS = {
     ],
     neck: [[0.0, 0.0], [0.08, -0.05], [0.26, 0.03], [0.5, 0.0], [0.58, -0.05], [0.76, 0.03]],
     pitchBase: 0.04,
+    pose: { tailA: 0.45, tailC: 0.9, tailK: 0.7, tailTone: 1 },
   },
   // rotary gallop: hinds land, push (extended flight), fores land, push (gathered flight)
   run: {
-    S: 3.3, C: 11, beta: 0.3, height: 0.98,
+    S: 3.3, C: 11, beta: 0.3, height: 0.98, gallop: true,
     phase: { hf: 0, hn: 0.08, ff: 0.44, fn: 0.53 },
     neutral: { fn: 1.25, ff: 1.12, hn: 0.3, hf: 0.2 },
     swing: {
-      fore: [[0, 0, 0, 0], [0.12, -0.02, 0.1, 0.9], [0.35, 0.18, 0.28, 1.0], [0.62, 0.62, 0.22, 0.45], [0.85, 0.95, 0.1, 0.05], [1, 1, 0, 0]],
-      hind: [[0, 0, 0, 0], [0.14, -0.04, 0.12, 0.85], [0.42, 0.35, 0.3, 1.0], [0.7, 0.8, 0.18, 0.5], [0.9, 0.97, 0.06, 0.1], [1, 1, 0, 0]],
+      fore: [[0, 0, 0, 0], [0.12, -0.02, 0.14, 0.9], [0.35, 0.18, 0.34, 1.0], [0.62, 0.62, 0.3, 0.45], [0.85, 0.95, 0.12, 0.05], [1, 1, 0, 0]],
+      hind: [[0, 0, 0, 0], [0.14, -0.04, 0.16, 0.85], [0.42, 0.35, 0.36, 1.0], [0.7, 0.8, 0.22, 0.5], [0.9, 0.97, 0.07, 0.1], [1, 1, 0, 0]],
     },
     body: [
       // gathered at hind landing -> extending during hind stance -> extended flight -> fores land -> gather
-      [0.0, 0.04, -0.06, 0.42, 0.1, 0.84],
-      [0.12, 0.08, 0.02, 0.2, 0.05, 0.92],
-      [0.3, -0.02, -0.02, -0.18, -0.06, 1.14],
-      [0.4, -0.1, -0.02, -0.28, -0.1, 1.2],
-      [0.5, -0.02, 0.07, -0.12, -0.02, 1.08],
-      [0.62, 0.02, 0.06, 0.18, 0.06, 0.94],
-      [0.78, -0.06, -0.08, 0.4, 0.14, 0.84],
-      [0.9, -0.08, -0.14, 0.5, 0.16, 0.8],
+      [0.0, 0.06, -0.04, 0.42, 0.1, 0.84],
+      [0.12, 0.1, 0.04, 0.2, 0.05, 0.92],
+      [0.3, -0.1, -0.08, -0.18, -0.06, 1.14],
+      [0.4, -0.28, -0.18, -0.28, -0.1, 1.2],
+      [0.5, -0.04, 0.08, -0.12, -0.02, 1.08],
+      [0.62, 0.04, 0.1, 0.18, 0.06, 0.94],
+      [0.78, -0.1, -0.12, 0.4, 0.14, 0.84],
+      [0.9, -0.14, -0.2, 0.5, 0.16, 0.8],
     ],
     neck: [[0.0, -0.05], [0.3, 0.05], [0.5, -0.08], [0.78, 0.02]],
     pitchBase: 0.02,
+    pose: { tailA: 0.12, tailC: 0.3, tailK: 0.25, tailTone: 1, tailWorld: 0.65, earRot: 0.45, earFlat: 0.15 },
   },
   stalk: {
-    S: 0.78, C: 40, beta: 0.74, height: 0.66,
+    S: 0.78, C: 40, beta: 0.74, height: 0.8,
     phase: { hn: 0, fn: 0.25, hf: 0.5, ff: 0.75 },
     neutral: { fn: 1.22, ff: 1.12, hn: 0.0, hf: -0.1 },
     swing: {
@@ -76,8 +79,9 @@ export const GAITS = {
       [0.5, 0.0, 0.0, -0.08, -0.06, 1.04], [0.75, 0.0, 0.02, -0.1, -0.06, 1.05],
     ],
     neck: [[0, 0]],
-    pitchBase: -0.08,
+    pitchBase: -0.1,
     pulse: 0.42, // fraction of each quarter-cycle spent holding (stop-and-go)
+    pose: { tailA: -0.1, tailC: 0.15, tailK: 0.6, tailTone: 1, neck: 0.12, hPitch: -0.12, earRot: -0.15, pupil: 0.8, whisk: 0.7 },
   },
   // leaning into a strong headwind: low, short effortful steps
   wind: {
@@ -95,6 +99,7 @@ export const GAITS = {
     neck: [[0, -0.2], [0.25, -0.24], [0.5, -0.2], [0.75, -0.24]],
     pitchBase: -0.1,
     pulse: 0.25,
+    pose: { tailA: -0.35, tailC: -0.2, tailK: 0, tailTone: 0.7, neck: 0.3, hPitch: -0.25, earRot: 0.8, earFlat: 0.6, eye: 0.45 },
   },
   // tired plodding walk (wasteland)
   tired: {
@@ -112,6 +117,7 @@ export const GAITS = {
     ],
     neck: [[0.0, -0.3], [0.33, -0.38], [0.5, -0.3], [0.83, -0.38]],
     pitchBase: 0.02,
+    pose: { tailA: -0.2, tailC: 0.3, tailK: 0.4, tailTone: 0.6, hPitch: -0.15, earRot: 0.35, eye: 0.7 },
   },
 };
 
@@ -221,6 +227,14 @@ export function locomote(perf, opts) {
 
   perf.holdAll(t0);
   if (pose.facing !== f) perf.key(t0, { facing: f }, 'hold');
+  const gp = Object.assign({}, G.pose || {}, opts.pose || {});
+  if (Object.keys(gp).length) {
+    const blend = opts.poseBlend ?? 10;
+    const neckGp = gp.neck;
+    delete gp.neck;
+    perf.move(t0, t0 + blend, gp, 'inout');
+    if (neckGp !== undefined && opts.neck === undefined) opts = Object.assign({}, opts, { neck: neckGp });
+  }
 
   // ---- stepping controller ----
   const swingDur = Math.max(4, (1 - G.beta) * C);

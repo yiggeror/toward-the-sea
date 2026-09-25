@@ -12,11 +12,11 @@ export const GROUPS = {
   ff: ['ff', 'ffC', 'ffF'],
   hn: ['hn', 'hnC', 'hnM'],
   hf: ['hf', 'hfC', 'hfM'],
-  tail: ['tailA', 'tailC', 'tailK', 'tailTone', 'tailWave', 'tailWaveP'],
+  tail: ['tailA', 'tailC', 'tailK', 'tailTone', 'tailWave', 'tailWaveP', 'tailWorld', 'tailFront'],
   ears: ['earRot', 'earFlat', 'earLR', 'earRR'],
   eyes: ['eye', 'eyeWide', 'pupil', 'lookX', 'lookY', 'lid', 'happy'],
   mouth: ['mouth', 'mouthW', 'smile', 'tongue', 'whisk'],
-  misc: ['fluff', 'breath', 'facing'],
+  misc: ['fluff', 'breath', 'facing', 'fnTop', 'smear'],
 };
 const SPLINE = { body: ['hip'], fn: ['fn'], ff: ['ff'], hn: ['hn'], hf: ['hf'] };
 export const LEGS = ['fn', 'ff', 'hn', 'hf'];

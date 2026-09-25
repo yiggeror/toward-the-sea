@@ -48,7 +48,8 @@ function tailFrame(p) {
 function targetAngles(p, base, out) {
   const N = out.length;
   const tone = clamp(p.tailTone ?? 1, 0, 1);
-  const b = base + p.tailA;
+  // tailWorld: stabilise the tail base in world space (fast gaits)
+  const b = angLerp(base, PI, clamp(p.tailWorld || 0, 0, 1)) + p.tailA;
   for (let i = 0; i < N; i++) {
     const s = (i + 0.5) / N;
     let a = b + p.tailC * s + p.tailK * s * s * s;
@@ -97,7 +98,7 @@ export function tailAngles(perf, t, env = {}) {
         const ax = r0[0] - 2 * r1[0] + r2[0], ay = r0[1] - 2 * r1[1] + r2[1];
         const dx = Math.cos(a), dy = Math.sin(a);
         const cr = dx * ay - dy * ax;
-        a += -clamp(cr * 55 * s, -0.9, 0.9);
+        a += -clamp(cr * 26 * s, -0.45, 0.45);
       }
       acc += w[k] * a;
       wsum += w[k];

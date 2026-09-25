@@ -41,12 +41,14 @@ milestone so work can resume in a new session.
 
 ## Next
 
-1. Remaining gaits verified by contact sheets: trot, run (gallop), stalk.
-2. Actions (key-pose sequences): jump, pounce, sit down, groom, stretch, sleep
-   curl, shake-off (water), snow step, wind walk, startle.
-3. Front / back sitting views, expressions sheet (9 expressions).
-4. Test page `web/test.html` (loopable clips, frame step, onion skin).
-5. Self-check contact sheets, then send to user.
+1. Test page `web/test.html` (loopable clips, frame step, onion skin).
+2. Polish pass on every clip with contact sheets (sleep curl, pounce, gallop).
+3. Self-check, publish test page, send to user with a list of shortcomings.
+
+Done in this phase so far: walk/trot/gallop/stalk/wind/tired gaits; actions
+jump, pounce, sit/stand, groom, stretch+yawn, curl-sleep+breathing, shake,
+paw flick, snow first step, startle, turn-around; front/back sitting views;
+12 expressions; ground constraints (torso never sinks, tail lies on ground).
 
 ## Known issues
 
@@ -54,6 +56,14 @@ milestone so work can resume in a new session.
 - Torso stripes are simple; thigh patch reads as a separate disc.
 
 ## Key decisions
+
+- **Design v2 (user feedback, 2026-09-25):** the realistic iris eyes read as
+  uncanny. Switched to the simplified sheet `reference/xiaohui-model-sheet-v2-simplified.png`:
+  solid black dot eyes (closed = arcs/dashes), round wide head (smoothed convex
+  hull of the head ellipsoids), big pink ears, plump pear body, soft cloud-like
+  grey patches instead of tabby stripes, thin clean lines, whiskers only
+  outside the face. Body chubbiness is done in the drawing layer (bigger head
+  `headScale`, deeper torso outline, thicker limbs) so all gaits/actions stay valid.
 
 - Everything is procedural JS + Canvas 2D; the same code renders the web player
   (real-time) and the MP4 (headless Chromium, frame by frame → ffmpeg).

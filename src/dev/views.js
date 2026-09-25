@@ -74,3 +74,97 @@ export function sheet(ctx, W, H, q) {
     ctx.restore();
   }
 }
+
+import { CLIPS, clipById } from '../test/clips.js';
+import { drawStage } from '../test/stage.js';
+export function clip(ctx, W, H, q) {
+  const c = clipById(q.get('id') || 'jump');
+  const built = c.build();
+  const perf = built.perf;
+  const actor = new CatActor(perf, { env: { wind: built.wind } });
+  const a = +(q.get('a') || 0), n = +(q.get('n') || 12), cols = +(q.get('cols') || 4), step = +(q.get('step') || 1);
+  const rows = Math.ceil(n / cols);
+  const cw = W / cols, ch = H / rows;
+  const s = +(q.get('s') || Math.min(cw, ch) / 3.4);
+  ctx.font = '14px sans-serif';
+  window.__info = `end=${perf.end.toFixed(0)}`;
+  for (let i = 0; i < n; i++) {
+    const fr = a + i * step;
+    const cx0 = (i % cols) * cw, cy0 = Math.floor(i / cols) * ch;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(cx0, cy0, cw, ch); ctx.clip();
+    const pose = perf.poseAt(fr);
+    const camX = c.cam === 'follow' ? pose.hip[0] + 0.5 : (c.camX ?? 0.6);
+    const cam = { x: camX, y: +(q.get('camy') || -1.1), s, cx: cx0 + cw / 2, cy: cy0 + ch * 0.55 };
+    drawStage(ctx, c, cam, fr, [cx0, cy0, cw, ch], 'back');
+    actor.draw(ctx, fr, cam);
+    drawStage(ctx, c, cam, fr, [cx0, cy0, cw, ch], 'front', perf);
+    ctx.fillStyle = '#655'; ctx.fillText(`f${fr} (d${perf.drawTime(fr)})`, cx0 + 6, cy0 + 16);
+    ctx.restore();
+  }
+}
+
+import { drawCatFront, drawCatBack, drawPortrait, EXPRESSIONS } from '../cat/views.js';
+export function exprs(ctx, W, H, q) {
+  const s = +(q.get('s') || 150);
+  const n = EXPRESSIONS.length;
+  const cols = +(q.get('cols') || 5);
+  const cw = W / cols, ch = H / Math.ceil(n / cols);
+  ctx.font = '18px sans-serif'; ctx.fillStyle = '#655';
+  EXPRESSIONS.forEach((e, i) => {
+    const cx = (i % cols) * cw + cw / 2, cy = Math.floor(i / cols) * ch + ch * 0.52;
+    drawPortrait(ctx, e.p, { x: cx, y: cy, scale: s });
+    ctx.fillStyle = '#655'; ctx.fillText(e.zh + ' ' + e.id, cx - 50, Math.floor(i / cols) * ch + ch - 12);
+  });
+}
+export function turnaround(ctx, W, H, q) {
+  const s = +(q.get('s') || 150);
+  const gy = H * 0.86;
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+  drawCatFront(ctx, { breath: 0 }, { x: W * 0.13, y: gy, scale: s });
+  // side sitting via rig
+  const p = defaultPose();
+  Object.assign(p, { hip: [-0.16, -0.47], pitch: 1.27, len: 1.1, neckLen: 1.05, archB: 0.34, archF: -0.18, neck: 0.28, hPitch: 0.02, hYaw: 0.25,
+    hnM: 1, hfM: 1, hn: [0.32, 0], hf: [0.24, 0], fn: [0.54, 0], ff: [0.44, 0], tailA: -0.72, tailC: 2.3, tailK: 1.0 });
+  drawCat(ctx, p, { x: W * 0.36, y: gy, scale: s, ground: () => 0 });
+  drawCatBack(ctx, { tail: 0.6 }, { x: W * 0.62, y: gy, scale: s });
+  drawCatFront(ctx, { hYaw: -0.45 }, { x: W * 0.86, y: gy, scale: s });
+}
+
+// preview board for the user: turnaround + expressions + motion strip
+export async function board(ctx, W, H, q) {
+  ctx.fillStyle = '#f4efe7'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#4a4040'; ctx.font = '28px serif';
+  ctx.fillText('小灰 Hui — 简化版重绘（程序生成）', 30, 44);
+  // row 1 turnaround
+  const s1 = 92, gy = 400;
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.beginPath(); ctx.moveTo(20, gy); ctx.lineTo(W - 20, gy); ctx.stroke();
+  drawCatFront(ctx, {}, { x: 160, y: gy, scale: s1 });
+  const p = defaultPose();
+  Object.assign(p, { hip: [-0.16, -0.47], pitch: 1.27, len: 1.1, neckLen: 1.05, archB: 0.34, archF: -0.18, neck: 0.28, hYaw: 0.55,
+    hnM: 1, hfM: 1, hn: [0.32, 0], hf: [0.24, 0], fn: [0.54, 0], ff: [0.44, 0], tailA: -0.72, tailC: 2.3, tailK: 1.0 });
+  drawCat(ctx, p, { x: 420, y: gy, scale: s1, ground: () => 0 });
+  drawCatBack(ctx, { tail: 0.6 }, { x: 700, y: gy, scale: s1 });
+  drawCatFront(ctx, { hYaw: -0.45 }, { x: 960, y: gy, scale: s1 });
+  ctx.font = '18px serif'; ctx.fillStyle = '#5a5050';
+  ['正面', '侧面', '背面', '3/4 视角'].forEach((t, i) => ctx.fillText(t, [140, 400, 680, 930][i], gy + 30));
+  // row 2 expressions
+  const ex = EXPRESSIONS.slice(0, 8);
+  ex.forEach((e, i) => {
+    const cx = 90 + i * 140, cy = 560;
+    ctx.save(); ctx.beginPath(); ctx.rect(cx - 70, cy - 130, 140, 190); ctx.clip();
+    drawPortrait(ctx, Object.assign({ noBody: true }, e.p), { x: cx, y: cy, scale: 88 });
+    ctx.restore();
+    ctx.fillStyle = '#5a5050'; ctx.fillText(e.zh, cx - 20, cy + 95);
+  });
+  // row 3 motion strip: walk frames
+  const perf = buildGait('walk', 9);
+  const actor = new CatActor(perf);
+  for (let i = 0; i < 6; i++) {
+    const fr = 56 + i * 2;
+    const pose = perf.poseAt(fr);
+    const cam = { x: pose.hip[0] + 0.5, y: -0.9, s: 60, cx: 110 + i * 190, cy: 820 };
+    actor.draw(ctx, fr, cam);
+  }
+  ctx.fillStyle = '#5a5050'; ctx.fillText('走路（连续 12 帧中每隔 1 帧，一拍二）', 30, 900);
+}

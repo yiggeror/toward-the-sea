@@ -7,7 +7,7 @@ import { css, mix, rgb } from '../core/draw.js';
 import { angLerp, clamp, smoothstep, PI, lerp } from '../core/math.js';
 
 export function makeStyle(scale, opts = {}) {
-  const lwPx = opts.lwPx ?? clamp(scale * 0.03, 1.1, 4.2);
+  const lwPx = opts.lwPx ?? clamp(scale * 0.0145, 1.05, 3.2);
   const tint = opts.tint; // optional multiply tint for far parts
   const c = (hexc) => (tint ? css(mix(hexc, mix(hexc, tint, 1), opts.tintAmt ?? 0.18)) : css(hexc));
   return {
@@ -34,7 +34,7 @@ export function makeStyle(scale, opts = {}) {
 // Static tail shape from the pose's intention parameters (no dynamics).
 export function tailTargetAngles(sk, pose) {
   const N = M.tailSegs;
-  const base = sk.tailBaseAng + pose.tailA;
+  const base = angLerp(sk.tailBaseAng, PI, clamp(pose.tailWorld || 0, 0, 1)) + pose.tailA;
   const out = new Array(N);
   const tone = clamp(pose.tailTone ?? 1, 0, 1);
   for (let i = 0; i < N; i++) {
@@ -52,26 +52,51 @@ export function tailSegLens() {
   return new Array(N).fill(M.tailLen / N);
 }
 
-// opts: { x, y, scale, tailAngles?, style overrides }
+// Keep the tail above the ground: segments that would dip under it are laid
+// along the ground surface instead (tail radius clearance).
+export function tailOnGround(pts, ground, seg) {
+  const out = [pts[0].slice()];
+  const r = 0.1;
+  for (let i = 1; i < pts.length; i++) {
+    const prev = out[i - 1];
+    let dx = pts[i][0] - pts[i - 1][0], dy = pts[i][1] - pts[i - 1][1];
+    let p = [prev[0] + dx, prev[1] + dy];
+    const gy = ground(p[0]) - r;
+    if (p[1] > gy) {
+      // slide along the ground keeping the segment length
+      const L = seg[i - 1];
+      const hx = Math.sign(dx || 1) * Math.sqrt(Math.max(1e-6, L * L - Math.min(L * L, (gy - prev[1]) ** 2)));
+      p = [prev[0] + hx, Math.min(gy, prev[1] + Math.abs(dy))];
+      if (p[1] > gy) p[1] = gy;
+    }
+    out.push(p);
+  }
+  return out;
+}
+
+// opts: { x, y, scale, tailAngles?, ground?, style overrides }
 export function drawCat(ctx, pose, opts = {}) {
   const sk = computeSkeleton(pose);
   const scale = opts.scale || 60;
   const st = makeStyle(scale, opts);
   const stFar = makeStyle(scale, Object.assign({}, opts, { tint: '#5d5a68', tintAmt: 0.28 }));
   const angles = opts.tailAngles || tailTargetAngles(sk, sk.pose);
-  const tpts = tailPoints(sk.tailRoot, angles, tailSegLens());
+  let tpts = tailPoints(sk.tailRoot, angles, tailSegLens());
+  if (opts.ground) tpts = tailOnGround(tpts, (xl) => opts.ground(xl * sk.facing), tailSegLens());
   ctx.save();
   ctx.translate(opts.x || 0, opts.y || 0);
   ctx.scale(scale * sk.facing, scale);
-  const tailFront = opts.tailFront ?? false;
+  const tailFront = opts.tailFront ?? (sk.pose.tailFront > 0.5);
+  const fnTop = sk.pose.fnTop > 0.5;
   drawLeg(ctx, sk.legs.hf, stFar);
   drawLeg(ctx, sk.legs.ff, stFar);
   if (!tailFront) drawTail(ctx, tpts, st, sk.pose.fluff);
   const torsoPath = drawTorso(ctx, sk, st);
   drawLeg(ctx, sk.legs.hn, st, { bodyPath: torsoPath, saddle: torsoPath.saddle });
-  drawLeg(ctx, sk.legs.fn, st, { bodyPath: torsoPath, saddle: torsoPath.saddle });
+  if (!fnTop) drawLeg(ctx, sk.legs.fn, st, { bodyPath: torsoPath, saddle: torsoPath.saddle });
   const hg = buildHead(sk);
   drawHead(ctx, hg, st);
+  if (fnTop) drawLeg(ctx, sk.legs.fn, st, { bodyPath: torsoPath, saddle: torsoPath.saddle });
   if (tailFront) drawTail(ctx, tpts, st, sk.pose.fluff);
   ctx.restore();
   return sk;
