@@ -243,7 +243,7 @@ export function sit(perf, o = {}) {
     hnM: 1, hfM: 1, hn: Pg(0.32), hf: Pg(0.24), fn: Pg(0.54), ff: Pg(0.44), tailA: -0.55, tailC: 1.2, tailK: 0.6 }, 'out');
   perf.event(d2, 'sit', { x: F.x0, y: F.gy });
   // overshoot & settle; tail curls forward around the paws
-  perf.key(d2 + 4, { pitch: 1.3, hip: P(-0.16, -0.48), neck: 0.26 }, 'inout');
+  perf.key(d2 + 4, { pitch: 1.3, hip: P(-0.16, -0.48), neck: 0.26, neckLen: 1.05 }, 'inout');
   perf.key(d2 + 9, { pitch: 1.27, hip: P(-0.16, -0.47), neck: 0.28 }, 'inout');
   perf.key(d2 + 16, { tailA: -0.72, tailC: 2.3, tailK: 1.0, tailFront: o.tailFront ? 1 : 0 }, 'inout');
   perf.t = d2 + 16;
@@ -251,7 +251,7 @@ export function sit(perf, o = {}) {
 }
 export function sitPose(F) {
   return {
-    hip: F.P(-0.16, -0.43), pitch: 1.16, len: 0.98, archB: 0.36, archF: -0.14, neck: 0.22, hPitch: 0.02,
+    hip: F.P(-0.16, -0.47), pitch: 1.27, len: 1.1, neckLen: 1.05, archB: 0.34, archF: -0.18, neck: 0.28, hPitch: 0.02,
     hnM: 1, hfM: 1, hn: F.Pg(0.32), hf: F.Pg(0.24), fn: F.Pg(0.54), ff: F.Pg(0.44),
     tailA: -0.72, tailC: 2.3, tailK: 1.0,
   };

@@ -207,3 +207,56 @@ export function strips(ctx, W, H, q) {
     }
   });
 }
+
+import { cardArt } from '../film/postcard.js';
+export function carry(ctx, W, H, q) {
+  const perf = buildGait(q.get('gait') || 'walk', 9);
+  const wears = [0, 0.4, 0.65, 0.95];
+  for (let i = 0; i < 4; i++) {
+    const actor = new CatActor(perf, { carry: { wear: wears[i] } });
+    const fr = 50 + i * 3;
+    const pose = perf.poseAt(fr);
+    actor.draw(ctx, fr, { x: pose.hip[0] + 0.6, y: -1.0, s: 95, cx: 220 + i * 390, cy: 330 });
+    ctx.fillStyle = '#655'; ctx.font = '16px sans-serif'; ctx.fillText('wear ' + wears[i], 120 + i * 390, 470);
+  }
+  // card art sheet
+  const ws = [0, 0.2, 0.35, 0.5, 0.6, 0.75, 0.9];
+  ws.forEach((w, i) => {
+    const art = cardArt(w, 320);
+    ctx.drawImage(art, 30 + i * 225, 520, 210, 210 * art.height / art.width);
+    ctx.fillText('wear ' + w, 30 + i * 225, 700);
+  });
+}
+
+// shot preview: contact sheet of one shot (or the whole film) at chosen frames
+import { buildFilm } from '../film/film.js';
+export async function shotsheet(ctx, W, H, q) {
+  const tl = await buildFilm();
+  const name = q.get('shot');
+  const cols = +(q.get('cols') || 4), rows = +(q.get('rows') || 3);
+  const n = cols * rows;
+  const cw = Math.floor(W / cols), ch = Math.floor(cw * 9 / 16);
+  let frames = [];
+  if (name) {
+    const s = tl.shots.find((x) => x.name === name);
+    const a = +(q.get('a') ?? 0), b = +(q.get('b') ?? s.dur - 1);
+    const step = q.get('step') ? +q.get('step') : (b - a) / (n - 1);
+    for (let i = 0; i < n; i++) frames.push(Math.round(s.start + a + i * step));
+  } else {
+    const a = +(q.get('a') ?? 0), step = +(q.get('step') || Math.floor(tl.length / n));
+    for (let i = 0; i < n; i++) frames.push(Math.min(tl.length - 1, a + i * step));
+  }
+  const off = new OffscreenCanvas(cw, ch);
+  const g = off.getContext('2d');
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+  frames.forEach((f, i) => {
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#000'; g.fillRect(0, 0, cw, ch);
+    const r = tl.draw(g, f, cw, ch);
+    const x = (i % cols) * cw, y = Math.floor(i / cols) * (ch + 22);
+    ctx.drawImage(off, x, y);
+    ctx.fillStyle = '#ddd'; ctx.font = '14px sans-serif';
+    ctx.fillText(`${r.shot.name}  f${r.local} (g${f})`, x + 4, y + ch + 16);
+  });
+  window.__info = `film ${tl.length} frames ${(tl.length / 24).toFixed(1)}s`;
+}

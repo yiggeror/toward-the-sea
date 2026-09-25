@@ -136,3 +136,30 @@ export function applyFaceDynamics(perf, t, pose, env = {}) {
   }
   return pose;
 }
+
+// Swing of a card held in the mouth: hangs forward-down, trails behind when
+// the body accelerates, flutters in wind. Returns { ang, bend } (local frame).
+export function cardSwing(perf, t, env = {}) {
+  const K = 18;
+  const w = springWeights(9, 0.28, K);
+  let acc = 0;
+  for (let k = 0; k < K; k++) {
+    const p0 = perf.poseAt(t - k, false), p1 = perf.poseAt(t - k - 1, false);
+    const f = p0.facing < 0 ? -1 : 1;
+    const vx = (p0.hip[0] - p1.hip[0]) * f, vy = p0.hip[1] - p1.hip[1];
+    acc += w[k] * (-vx * 4.2 + vy * 2.5 + (p0.hPitch || 0) * 0.6);
+  }
+  let ang = 0.42 + clamp(acc, -1.1, 0.9);
+  let bend = clamp(acc * 0.6, -0.8, 0.8);
+  if (env.wind) {
+    const wv = env.wind(t);
+    const now = perf.poseAt(t, true);
+    const f = now.facing < 0 ? -1 : 1;
+    const into = -wv[0] * f;
+    const mag = Math.hypot(wv[0], wv[1]);
+    ang -= clamp(into * 0.5, -0.9, 0.9);
+    ang += Math.sin(t * 1.9 + noise1(t * 0.3, 3) * 3) * 0.12 * mag;
+    bend += Math.sin(t * 2.7) * 0.5 * clamp(mag, 0, 1.2);
+  }
+  return { ang, bend };
+}

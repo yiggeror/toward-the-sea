@@ -3,26 +3,39 @@ import { computeSkeleton, tailPoints } from './rig.js';
 import { buildHead, drawHead } from './head.js';
 import { drawTorso, drawLeg, drawTail } from './body.js';
 import { PAL, M } from './model.js';
-import { css, mix, rgb } from '../core/draw.js';
+import { css, mix, rgb, mulc, screenc } from '../core/draw.js';
 import { angLerp, clamp, smoothstep, PI, lerp } from '../core/math.js';
 
 export function makeStyle(scale, opts = {}) {
   const lwPx = opts.lwPx ?? clamp(scale * 0.0145, 1.05, 3.2);
-  const tint = opts.tint; // optional multiply tint for far parts
-  const c = (hexc) => (tint ? css(mix(hexc, mix(hexc, tint, 1), opts.tintAmt ?? 0.18)) : css(hexc));
+  // scene light: multiply by a tint (coloured ambient), then lift (screen) for readability
+  const L = opts.light;
+  const far = opts.farShade;
+  const flat = opts.flatColor;
+  const shade = (hexc) => {
+    if (flat) return flat;
+    let col = rgb(hexc);
+    if (L && L.amt > 0) col = mix(col, mulc(col, L.tint), L.amt);
+    if (L && L.lift) col = screenc(col, L.lift);
+    if (far) col = mix(col, mulc(col, far.tint), far.amt);
+    return css(col);
+  };
+  const lineCol = flat || (L && L.line ? L.line : opts.lineColor || PAL.line);
   return {
     lw: lwPx / scale,
-    line: css(opts.lineColor || PAL.line),
-    lineRGB: rgb(opts.lineColor || PAL.line),
-    lineSoftC: css(PAL.lineSoft, 0.8),
-    white: c(PAL.white),
-    grey: c(PAL.grey),
-    stripe: c(PAL.stripe),
-    stripeDark: c(PAL.stripeDark),
-    pink: c(PAL.pink),
-    pinkPad: c(PAL.pinkPad),
-    whisker: css(opts.whiskerColor || PAL.whisker, 0.9),
-    shade: opts.shade === false ? null : css('#6f6a7a', 0.13),
+    line: css(lineCol),
+    lineRGB: rgb(lineCol),
+    lineSoftC: flat || css(PAL.lineSoft, 0.8),
+    white: shade(PAL.white),
+    grey: shade(PAL.grey),
+    stripe: shade(PAL.stripe),
+    stripeDark: shade(PAL.stripeDark),
+    pink: shade(PAL.pink),
+    pinkPad: shade(PAL.pinkPad),
+    eyeColor: flat || '#2b2727',
+    whisker: flat || css(opts.whiskerColor || lineCol, 0.85),
+    shade: flat || opts.shade === false ? null : css('#6f6a7a', 0.13),
+    lineSoftFlat: flat,
     boil: opts.boil ?? 0,
     boilSeed: opts.boilSeed ?? 1,
     whiskerWind: opts.whiskerWind,
@@ -79,7 +92,7 @@ export function drawCat(ctx, pose, opts = {}) {
   const sk = computeSkeleton(pose);
   const scale = opts.scale || 60;
   const st = makeStyle(scale, opts);
-  const stFar = makeStyle(scale, Object.assign({}, opts, { tint: '#5d5a68', tintAmt: 0.28 }));
+  const stFar = makeStyle(scale, Object.assign({}, opts, { farShade: { tint: '#b3afc2', amt: 0.55 } }));
   const angles = opts.tailAngles || tailTargetAngles(sk, sk.pose);
   let tpts = tailPoints(sk.tailRoot, angles, tailSegLens());
   if (opts.ground) tpts = tailOnGround(tpts, (xl) => opts.ground(xl * sk.facing), tailSegLens());
@@ -94,10 +107,12 @@ export function drawCat(ctx, pose, opts = {}) {
   const torsoPath = drawTorso(ctx, sk, st);
   drawLeg(ctx, sk.legs.hn, st, { bodyPath: torsoPath, saddle: torsoPath.saddle });
   if (!fnTop) drawLeg(ctx, sk.legs.fn, st, { bodyPath: torsoPath, saddle: torsoPath.saddle });
+  if (opts.beforeHead) opts.beforeHead(ctx, sk, st);
   const hg = buildHead(sk);
   drawHead(ctx, hg, st);
   if (fnTop) drawLeg(ctx, sk.legs.fn, st, { bodyPath: torsoPath, saddle: torsoPath.saddle });
   if (tailFront) drawTail(ctx, tpts, st, sk.pose.fluff);
+  if (opts.after) opts.after(ctx, sk, st);
   ctx.restore();
   return sk;
 }
