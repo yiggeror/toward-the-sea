@@ -8,6 +8,8 @@ HQ Ogg preview to audio/src/<name>.ogg. Metadata goes to audio/sources.json,
 which tools/credits.py turns into CREDITS.md.
 
 usage: python3 tools/fetch_sounds.py [name ...]
+       python3 tools/fetch_sounds.py --exact   # re-download exactly the files in
+                                               # audio/sources.json (reproducible)
 """
 import json
 import os
@@ -61,6 +63,21 @@ SOUNDS = {
     'whoosh': ('soft whoosh', 0.3, 4, None),
     'tumbleweed': ('dry leaves rolling', 2, 30, None),
     'purr': ('cat purr', 3, 60, None),
+    # second round: replacements and missing effects
+    'snow_wind': ('cold wind snow field ambience', 20, 600, None),
+    'can_drop2': ('tin can fall', 0.3, 8, None),
+    'paper_flap': ('paper flapping', 0.5, 30, None),
+    'rain_tin': ('rain tin roof', 20, 600, None),
+    'dry_rustle': ('dry grass rustle', 2, 40, None),
+    'steps_grass': ('footsteps grass', 2, 60, None),
+    'crickets_field': ('crickets field night', 20, 600, None),
+    'birds_dawn': ('dawn chorus birds', 20, 600, None),
+    'rain_forest': ('rain on leaves', 20, 600, None),
+    'wind_soft': ('soft wind ambience', 20, 600, None),
+    'sea_gentle': ('gentle waves shore', 20, 600, None),
+    'crickets_night': ('crickets chirping night', 20, 400, None),
+    'rain_storm': ('heavy rain storm outdoor', 30, 400, None),
+    'rain_grass': ('rain falling on grass', 20, 400, None),
 }
 
 UA = {'User-Agent': 'Mozilla/5.0 (toward-the-sea sound fetcher; contact via repo)'}
@@ -123,9 +140,28 @@ def probe_duration(data):
         return None
 
 
+def exact(meta):
+    """download the recorded previews again (no searching)"""
+    for name, info in meta.items():
+        path = os.path.join(OUT, name + '.ogg')
+        if os.path.exists(path):
+            continue
+        try:
+            data = get(info['preview'], binary=True)
+        except Exception as e:
+            print(f'{name}: download failed: {e}')
+            continue
+        with open(path, 'wb') as f:
+            f.write(data)
+        print(f'{name}: {info["title"]} by {info["author"]} -> {len(data) // 1024} KB')
+        time.sleep(0.3)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     meta = json.load(open(META)) if os.path.exists(META) else {}
+    if sys.argv[1:] == ['--exact']:
+        return exact(meta)
     names = sys.argv[1:] or list(SOUNDS)
     for name in names:
         query, dmin, dmax, prefer = SOUNDS[name]
@@ -147,6 +183,8 @@ def main():
                 continue
             if info['license'] != 'CC0' or not info['preview']:
                 continue
+            if info['duration'] is not None and not (dmin <= info['duration'] <= dmax):
+                continue  # the page already says it is the wrong length
             try:
                 data = get(info['preview'], binary=True)
             except Exception:

@@ -1,6 +1,7 @@
 // Sequence 1 — the city on a rainy night: discovery of the postcard, the
 // decision, and the run out of town (ending at dawn on the city's edge).
 import { shot } from '../film/shot.js';
+import { TITLE, ITALIC } from '../film/fonts.js';
 import { makeCat, follow, ramp, screenLayer, layer, at, inScale, scaled, sittingPose } from '../film/kit.js';
 import { CardProp } from '../film/prop.js';
 import { drawCard, cardArt } from '../film/postcard.js';
@@ -833,12 +834,12 @@ function s1_10() {
         if (a <= 0) return;
         const u = W / 1920;
         ctx.fillStyle = css('#3e3548', 0.85 * a);
-        ctx.font = `${96 * u}px "ZCOOL XiaoWei", "WenQuanYi Zen Hei", "Noto Serif SC", serif`;
+        ctx.font = `${104 * u}px ${TITLE}`;
         ctx.textAlign = 'left';
-        ctx.fillText('去看海吧', 1180 * u, 260 * u);
-        ctx.font = `italic ${34 * u}px Georgia, "Times New Roman", serif`;
+        ctx.fillText('去看海吧', 1180 * u, 262 * u);
+        ctx.font = `italic 500 ${40 * u}px ${ITALIC}`;
         ctx.fillStyle = css('#4e4458', 0.8 * a);
-        ctx.fillText('There is a bigger world', 1186 * u, 320 * u);
+        ctx.fillText('There is a bigger world', 1188 * u, 322 * u);
       }));
       S.extraEvents = [{ t: 0, type: 'amb', name: 'dawn_edge' }];
     },

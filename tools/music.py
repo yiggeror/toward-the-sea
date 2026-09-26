@@ -224,6 +224,21 @@ def cues():
     out['sea'] = wet(theme(bars=9, vel=0.5, arpeggio='broken', pad_vel=0.35, bell_top=True), 0.38, ir)
     # the beach: brighter, an octave up, block chords, lighter
     out['beach'] = wet(theme(bars=8, vel=0.38, octave=1, arpeggio='block', pad_vel=0.18), 0.4, ir)
+    # the postcard found: the theme's first four notes on piano and bell,
+    # over a faint D add9 pad (a promise of the melody that comes at the sea)
+    disc = np.zeros((int(14 * SR), 2))
+    place(disc, pad([n('D3'), n('A3'), n('E4'), n('F#4')], 6.5, 0.16, attack=2.2, release=4), 0)
+    for t0, name, d in ((0.6, 'A4', 0.9), (1.35, 'D5', 0.6), (1.95, 'E5', 0.9), (2.9, 'F#5', 3.4)):
+        place(disc, piano(n(name), d, 0.34), t0)
+        place(disc, bell(n(name) + 12, 0.05), t0)
+    out['discover'] = wet(disc, 0.5, ir)
+    # the postcard lost: the same four notes falling, in B minor, left unresolved
+    loss = np.zeros((int(20 * SR), 2))
+    place(loss, pad([n('B2'), n('F#3'), n('D4')], 9, 0.18, attack=3, release=6), 0)
+    for t0, name, d in ((1.2, 'F#5', 1.4), (2.8, 'E5', 1.2), (4.2, 'D5', 1.6), (6.4, 'C#5', 4.0)):
+        place(loss, piano(n(name), d, 0.3), t0)
+    place(loss, piano(n('B3'), 5, 0.22), 6.4)
+    out['loss'] = wet(loss, 0.55, ir)
     # end credits: solo piano reprise ending on D add9
     end = theme(bars=4, vel=0.4, arpeggio='broken')
     tail = np.zeros((int(10 * SR), 2))

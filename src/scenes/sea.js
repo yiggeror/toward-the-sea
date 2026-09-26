@@ -2,6 +2,7 @@
 // Sequence 8 — the sea (the view matches the postcard).
 // Sequence 9 — the beach at sunrise: first waves, play, pull back.
 import { shot } from '../film/shot.js';
+import { TITLE, ITALIC } from '../film/fonts.js';
 import { makeCat, follow, ramp, screenLayer, at, standingPose, sittingPose } from '../film/kit.js';
 import { CardProp } from '../film/prop.js';
 import { drawCard, cardArt } from '../film/postcard.js';
@@ -983,15 +984,15 @@ function credits() {
         const u = W / 1920;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#efe6da';
-        ctx.font = `${84 * u}px "ZCOOL XiaoWei", "WenQuanYi Zen Hei", serif`;
+        ctx.font = `${92 * u}px ${TITLE}`;
         ctx.fillText('去看海吧', W / 2, H * 0.42);
-        ctx.font = `italic ${30 * u}px Georgia, serif`;
+        ctx.font = `italic 500 ${38 * u}px ${ITALIC}`;
         ctx.fillStyle = '#b9ad9f';
-        ctx.fillText('There is a bigger world', W / 2, H * 0.49);
-        ctx.font = `${22 * u}px "WenQuanYi Zen Hei", sans-serif`;
+        ctx.fillText('There is a bigger world', W / 2, H * 0.495);
+        ctx.font = `${26 * u}px ${TITLE}`;
         ctx.fillStyle = '#8f8579';
-        ctx.fillText('逐帧程序动画 · 全部画面由代码实时绘制', W / 2, H * 0.62);
-        ctx.fillText('声音素材见 CREDITS', W / 2, H * 0.66);
+        ctx.fillText('逐帧程序动画 · 每一帧画面都由代码绘制', W / 2, H * 0.62);
+        ctx.fillText('原创配乐由程序合成 · 音效来自 Freesound 的 CC0 素材 · 详见 CREDITS', W / 2, H * 0.665);
       }));
     },
   });
