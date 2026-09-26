@@ -634,7 +634,7 @@ def act2(S, T):
         S.put('perc', timp('F#1', 0.6), st)
         S.put('strings', strings(['F#3', 'A#3', 'C#4', 'E4'], 0.3, 0.4, attack=0.01, release=0.4), st)
     # B14: under the roof: the pulse stops; soft piano chords with the rain
-    t = sh('B14')
+    t = evin('shelter', 'B14') or sh('B14')
     if t is not None:
         for i, (bs, tones) in enumerate([('B1', ['D4', 'F#4', 'C#5']), ('G1', ['D4', 'F#4', 'B4']), ('D2', ['D4', 'F#4', 'A4']), ('A1', ['C#4', 'E4', 'A4'])]):
             at = t + 1.2 + i * bar * 0.9

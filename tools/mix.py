@@ -431,7 +431,7 @@ def src(name):
     return x
 
 
-SHOT_SURFACE = {'A16': 'pavement', 'A18': 'grass', 'B14': 'pavement', 'B16a': 'snow', 'B16b': 'snow', 'C4c': 'dirt', 'C4e': 'dirt'}
+SHOT_SURFACE = {'A16': 'pavement', 'A18': 'grass', 'B14': 'dirt', 'B16a': 'snow', 'B16b': 'snow', 'C4c': 'dirt', 'C4e': 'dirt'}
 SURFACE = {'act1': 'wet', 'act2': 'grass', 'act3': 'grass', 'act5': 'sand', 'city': 'wet', 'forest': 'grass', 'storm': 'grass', 'night': 'wood', 'waste': 'dirt', 'snow': 'snow',
            'cape': 'grass', 'sea': 'grass', 'beach': 'sand'}
 
@@ -478,7 +478,8 @@ def main():
 
     # rain across the storm: starts at rain_start, heavy through 3.4-3.6
     rs = next((e for e in ev if e['type'] == 'rain_start'), None)
-    storm_end = next((s['start'] + s['dur'] for s in shots if s['name'] in ('B13', '3.5')), None)
+    shel = next((e['t'] for e in ev if e['type'] == 'shelter'), None)
+    storm_end = shel if shel is not None else next((s['start'] + s['dur'] for s in shots if s['name'] in ('B13', '3.5')), None)
     if rs and storm_end:
         t0, t1 = rs['t'] / fps, storm_end / fps
         env = None

@@ -11,6 +11,7 @@ import { drawCatBack } from '../cat/views.js';
 import { stars, moon } from '../env/sky.js';
 import { rain, snow } from '../env/weather.js';
 import { stormSky, STORM } from './storm.js';
+import { HILL, STORMPAL, gale, B12, B13, B14 } from './storm3.js';
 import { CardProp } from '../film/prop.js';
 import { drawCard } from '../film/postcard.js';
 import { locomote } from '../anim/gaits.js';
@@ -411,9 +412,6 @@ function B9(kind, i) {
 }
 
 // ---- B10 behind it, climbing into the wind; the sky darkens ----------------
-const HILL = woodsLayout({ seed: 21, d0: -60, d1: 520, density: 0, treeGap: 25, cover: 1500, kinds: { grass: 0.9, flower: 0.04, stone: 0.06 }, pathAmp: 1.5, pathW: 2.2, gy: (x, d) => -0.16 * clamp(d, 0, 120) });
-const STORMPAL = { haze: '#8e97a6', hazeFar: '#a4acb8', ground: '#4f6145', groundFar: '#7c8a7a', path: '#8a8068', grass: ['#566a47', '#6b8058', '#7a8f63', '#8ea173'], flowers: ['#d8d4c8', '#cfc27a', '#b7a0b0', '#a9a0c8'], sun: '#dfe6ff', moss: '#5a6a44', stone: '#7a7a74', stoneLit: '#9a9a92' };
-const gale = (x, t) => -0.9 - 0.4 * Math.max(0, Math.sin(x * 0.05 + t * 0.2)) - 0.1 * Math.sin(t * 0.7 + x);
 function B10() {
   return shot({
     name: 'B10', dur: BEAT * 8, unit: 90, anchor: [0.5, 0.64], grade: { vignette: 0.42, vignetteColor: '#1f2530', grain: 0.4, tint: '#b3bccb', tintAmt: 0.2 },
@@ -714,9 +712,7 @@ export function shots() {
     B1(), B2(), B3(), B4(), B5(), B6(), B8(),
     B9('grass', 0), B9('leaves', 1), B9('mud', 2), B9('gravel', 3),
     B10(), B11(),
-    retime('3.4', { name: 'B12', from: 40, dur: BEAT * 8 }),
-    retime('3.5', { name: 'B13', from: 50, dur: BEAT * 4 }),
-    retime('3.6', { name: 'B14', from: 46, dur: BEAT * 10 }),
+    B12(), B13(), B14(),
     retime('4.1', { name: 'B15a', from: 70, dur: BEAT * 6 }),
     retime('4.2', { name: 'B15b', from: 90, dur: BEAT * 4 }),
     B15dream(), B15wake(),
