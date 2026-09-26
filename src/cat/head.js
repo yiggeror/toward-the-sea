@@ -299,7 +299,9 @@ function drawEye(ctx, ef, pose, st) {
   const lw = st.lw / ef.r;
   ctx.globalAlpha *= vis;
   const gz = toEye(ef, (pose.lookX || 0) * ef.r, -(pose.lookY || 0) * ef.r);
-  const gx = clamp(gz[0] * 0.18, -0.22, 0.22), gy = clamp(gz[1] * 0.16, -0.2, 0.2);
+  // cross-eyed: each pupil slides toward the nose
+  const cross = clamp(pose.cross || 0, 0, 1);
+  const gx = clamp(gz[0] * 0.18 - cross * 0.85, -1, 0.5), gy = clamp(gz[1] * 0.16 - cross * 0.22, -0.4, 0.2);
   const size = (1 + 0.28 * (pose.eyeWide || 0) + 0.14 * sparkle + 0.06 * tear) * (0.92 + 0.2 * clamp(pose.pupil ?? 0.45, 0, 1));
   const rx = 0.62 * size, ry = 0.8 * size;
   const arc = (pts, w) => fillStroke(ctx, pts, (i, t) => w * Math.sin(0.2 + t * (Math.PI - 0.4)), ink);
@@ -344,6 +346,31 @@ function drawEye(ctx, ef, pose, st) {
         ctx.beginPath();
         ctx.ellipse(gx, cy - ey * 0.95, rx * 1.1, ey * (0.25 + 0.3 * tear), 0, 0, TAU);
         ctx.fill();
+        ctx.restore();
+      }
+      // a reflection in the eye (the sea on the card): sky above a horizon, sea
+      // below, a bright sun and the white fleck of a lighthouse
+      const refl = clamp(pose.reflect || 0, 0, 1);
+      if (refl > 0.02) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(gx, cy, rx, ey, 0, 0, TAU);
+        ctx.clip();
+        const hz = cy + ey * 0.05;
+        const sg = ctx.createLinearGradient(0, cy + ey, 0, hz);
+        sg.addColorStop(0, css('#5f86b8', 0.5 * refl));
+        sg.addColorStop(1, css('#b9dcf0', 0.75 * refl));
+        ctx.fillStyle = sg;
+        ctx.fillRect(gx - rx, hz, rx * 2, ey * 1.2);
+        const wg = ctx.createLinearGradient(0, hz, 0, cy - ey);
+        wg.addColorStop(0, css('#7fb8dc', 0.8 * refl));
+        wg.addColorStop(1, css('#1d3f6a', 0.5 * refl));
+        ctx.fillStyle = wg;
+        ctx.fillRect(gx - rx, cy - ey, rx * 2, hz - (cy - ey));
+        ctx.fillStyle = css('#ffffff', 0.85 * refl);
+        ctx.fillRect(gx + rx * 0.3, hz, rx * 0.07, ey * 0.22);
+        ctx.fillStyle = css('#e8f6ff', 0.6 * refl);
+        ctx.fillRect(gx - rx, hz - ey * 0.02, rx * 2, ey * 0.04);
         ctx.restore();
       }
       // highlights: key light upper-left (screen), a small bounce lower-right

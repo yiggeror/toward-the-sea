@@ -14,7 +14,7 @@ export const GROUPS = {
   hf: ['hf', 'hfC', 'hfM'],
   tail: ['tailA', 'tailC', 'tailK', 'tailTone', 'tailWave', 'tailWaveP', 'tailWorld', 'tailFront'],
   ears: ['earRot', 'earFlat', 'earLR', 'earRR'],
-  eyes: ['eye', 'eyeWide', 'pupil', 'lookX', 'lookY', 'lid', 'lidTilt', 'happy', 'wink', 'sparkle', 'tear', 'squeeze', 'sad'],
+  eyes: ['eye', 'eyeWide', 'pupil', 'lookX', 'lookY', 'lid', 'lidTilt', 'happy', 'wink', 'sparkle', 'tear', 'squeeze', 'sad', 'cross', 'reflect'],
   mouth: ['mouth', 'mouthW', 'smile', 'tongue', 'whisk', 'wobble', 'blush', 'puff', 'whiskDroop'],
   misc: ['fluff', 'breath', 'facing', 'fnTop', 'smear'],
 };

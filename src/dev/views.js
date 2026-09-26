@@ -108,7 +108,7 @@ export function clip(ctx, W, H, q) {
   }
 }
 
-import { drawCatFront, drawCatBack, drawPortrait, EXPRESSIONS } from '../cat/views.js';
+import { drawCatFront, drawCatBack, drawPortrait, EXPRESSIONS, fullFace } from '../cat/views.js';
 export function exprs(ctx, W, H, q) {
   const s = +(q.get('s') || 150);
   const n = EXPRESSIONS.length;
@@ -386,4 +386,43 @@ export async function layerdebug(ctx, W, H, q) {
   }
   s.layers = all;
   s.post = post;
+}
+
+// pose lab: candidate poses from src/dev/poses.js side by side, large
+export async function poselab(ctx, W, H, q) {
+  const { POSES } = await import('./poses.js?' + Date.now());
+  const cols = +(q.get('cols') || 2);
+  const rows = Math.ceil(POSES.length / cols);
+  const cw = W / cols, ch = H / rows;
+  const s = +(q.get('s') || ch / 3.2);
+  ctx.fillStyle = '#f4f1ec';
+  ctx.fillRect(0, 0, W, H);
+  POSES.forEach((c, i) => {
+    const x0 = (i % cols) * cw, y0 = Math.floor(i / cols) * ch;
+    const p = Object.assign(defaultPose(), c.pose);
+    ground(ctx, W, 0);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath(); ctx.moveTo(x0 + 10, y0 + ch * 0.85); ctx.lineTo(x0 + cw - 10, y0 + ch * 0.85); ctx.stroke();
+    drawCat(ctx, p, { x: x0 + cw * 0.45, y: y0 + ch * 0.85, scale: s });
+    ctx.fillStyle = '#655'; ctx.font = '18px sans-serif';
+    ctx.fillText(c.name, x0 + 12, y0 + 24);
+  });
+}
+
+export async function portraitlab(ctx, W, H, q) {
+  const { PORTRAITS } = await import('./poses.js?' + Date.now());
+  const cols = +(q.get('cols') || 2);
+  const rows = Math.ceil(PORTRAITS.length / cols);
+  const cw = W / cols, ch = H / rows;
+  ctx.fillStyle = '#2a3048';
+  ctx.fillRect(0, 0, W, H);
+  PORTRAITS.forEach((c, i) => {
+    const x0 = (i % cols) * cw, y0 = Math.floor(i / cols) * ch;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, y0, cw, ch); ctx.clip();
+    drawPortrait(ctx, fullFace(Object.assign({ breath: 0.5 }, c.p)), { x: x0 + cw * 0.5, y: y0 + ch * 0.62, scale: ch * 0.55 });
+    ctx.restore();
+    ctx.fillStyle = '#ddd'; ctx.font = '18px sans-serif';
+    ctx.fillText(c.name, x0 + 12, y0 + 24);
+  });
 }

@@ -241,20 +241,21 @@ export function sit(perf, o = {}) {
   perf.key(d, { hip: P(-0.18, -0.6), pitch: 0.55, len: 0.96, archB: 0.18, archF: -0.05, neck: 0.5,
     hnM: 0.6, hfM: 0.6, hn: Pg(0.18), hf: Pg(0.1), tailA: -0.2, tailC: 0.3 }, 'inout');
   const d2 = t + 17;
-  perf.key(d2, { hip: P(-0.16, -0.46), pitch: 1.24, len: 1.1, neckLen: 1.05, archB: 0.34, archF: -0.18, neck: 0.3, hPitch: 0.02,
-    hnM: 1, hfM: 1, hn: Pg(0.32), hf: Pg(0.24), fn: Pg(0.54), ff: Pg(0.44), tailA: -0.55, tailC: 1.2, tailK: 0.6 }, 'out');
+  // a compact sit: pelvis low, spine compressed and steep, front legs straight
+  perf.key(d2, { hip: P(-0.16, -0.43), pitch: 1.08, len: 0.76, neckLen: 1.0, archB: 0.34, archF: -0.08, neck: 0.44, hPitch: 0.02,
+    hnM: 1, hfM: 1, hn: Pg(0.12), hf: Pg(0.05), fn: Pg(0.42), ff: Pg(0.33), tailA: -0.55, tailC: 1.2, tailK: 0.6 }, 'out');
   perf.event(d2, 'sit', { x: F.x0, y: F.gy });
   // overshoot & settle; tail curls forward around the paws
-  perf.key(d2 + 4, { pitch: 1.3, hip: P(-0.16, -0.48), neck: 0.26, neckLen: 1.05 }, 'inout');
-  perf.key(d2 + 9, { pitch: 1.27, hip: P(-0.16, -0.47), neck: 0.28 }, 'inout');
+  perf.key(d2 + 4, { pitch: 1.15, hip: P(-0.16, -0.45), neck: 0.4, neckLen: 1.0, len: 0.74 }, 'inout');
+  perf.key(d2 + 9, { pitch: 1.12, hip: P(-0.16, -0.44), neck: 0.42 }, 'inout');
   perf.key(d2 + 16, { tailA: -0.72, tailC: 2.3, tailK: 1.0, tailFront: o.tailFront ? 1 : 0 }, 'inout');
   perf.t = d2 + 16;
   return perf.t;
 }
 export function sitPose(F) {
   return {
-    hip: F.P(-0.16, -0.47), pitch: 1.27, len: 1.1, neckLen: 1.05, archB: 0.34, archF: -0.18, neck: 0.28, hPitch: 0.02,
-    hnM: 1, hfM: 1, hn: F.Pg(0.32), hf: F.Pg(0.24), fn: F.Pg(0.54), ff: F.Pg(0.44),
+    hip: F.P(-0.16, -0.44), pitch: 1.12, len: 0.74, neckLen: 1.0, archB: 0.34, archF: -0.08, neck: 0.42, hPitch: 0.02,
+    hnM: 1, hfM: 1, hn: F.Pg(0.12), hf: F.Pg(0.05), fn: F.Pg(0.42), ff: F.Pg(0.33),
     tailA: -0.72, tailC: 2.3, tailK: 1.0,
   };
 }

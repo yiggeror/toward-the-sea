@@ -52,6 +52,8 @@ export function defaultPose() {
     lidTilt: 0, // + angry (inner corner low) .. - sad (outer corner low)
     wink: 0, // + closes the left eye, - the right one
     sparkle: 0, // shiny wide "wonder" eyes
+    cross: 0, // cross-eyed (looking at something on the nose)
+    reflect: 0, // the sea mirrored in the eyes
     tear: 0, // watery eyes (0.6+: a tear rolls)
     squeeze: 0, // > < eyes
     sad: 0, // worried slant + droop

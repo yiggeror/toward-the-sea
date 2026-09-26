@@ -199,7 +199,7 @@ export function fullFace(p) {
   return Object.assign({
     eye: 1, eyeWide: 0, pupil: 0.45, lookX: 0, lookY: 0, lid: 0, lidTilt: 0, happy: 0, mouth: 0, mouthW: 0, smile: 0, tongue: 0,
     whisk: 0, fluff: 0, earRot: 0.1, earFlat: 0, earLR: 0, earRR: 0,
-    wink: 0, sparkle: 0, tear: 0, squeeze: 0, sad: 0, blush: 0, wobble: 0, puff: 0, whiskDroop: 0,
+    wink: 0, sparkle: 0, tear: 0, squeeze: 0, sad: 0, blush: 0, wobble: 0, puff: 0, whiskDroop: 0, cross: 0, reflect: 0,
   }, p);
 }
 

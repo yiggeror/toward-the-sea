@@ -149,7 +149,23 @@ export class CatActor {
         drawCard(g, grip[0], grip[1], { ang: sw.ang, ax: 0.16, ay: 0.04, sx: Math.max(0.18, yawK), bend: sw.bend, wear, scale: carry.scale ?? 1.2, px: s * 1.2 > 300 ? 512 : s * 1.2 > 150 ? 256 : 128 });
       };
     }
-    const sk = drawCat(ctx, pose, Object.assign({ beforeHead,
+    // the card stuck on the face (the gust slaps it there): drawn over the head,
+    // square to the camera, sliding down as the paws push it off
+    let after;
+    if (carry && carry.face) {
+      const fc = carry.face(t);
+      if (fc) {
+        const wear = typeof carry.wear === 'function' ? carry.wear(t) : carry.wear || 0;
+        after = (g, sk2) => {
+          const c = sk2.head.proj([0.26, 0.02 - (fc.slide || 0) * 0.95, 0.3]);
+          g.save();
+          g.globalAlpha *= fc.alpha ?? 1;
+          drawCard(g, c[0], c[1], { ang: fc.ang || 0, ax: 0.5, ay: 0.5, sx: -1, bend: fc.bend || 0, wear, scale: 1.25, px: s * 1.3 > 300 ? 512 : 256 });
+          g.restore();
+        };
+      }
+    }
+    const sk = drawCat(ctx, pose, Object.assign({ beforeHead, after,
       x: cam.cx - cam.x * s,
       y: cam.cy - cam.y * s,
       scale: s,

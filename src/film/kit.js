@@ -29,8 +29,8 @@ export function sittingPose(x, f = 1, ground = () => 0, over = {}) {
   const gy = (dx) => ground(x + f * dx);
   Object.assign(p, {
     facing: f,
-    hip: [x - f * 0.16, gy(0) - 0.47], pitch: 1.27, len: 1.1, neckLen: 1.05, archB: 0.34, archF: -0.18, neck: 0.28, hPitch: 0.02,
-    hnM: 1, hfM: 1, hn: [x + f * 0.32, gy(0.32)], hf: [x + f * 0.24, gy(0.24)], fn: [x + f * 0.54, gy(0.54)], ff: [x + f * 0.44, gy(0.44)],
+    hip: [x - f * 0.16, gy(0) - 0.44], pitch: 1.12, len: 0.74, neckLen: 1.0, archB: 0.34, archF: -0.08, neck: 0.42, hPitch: 0.02,
+    hnM: 1, hfM: 1, hn: [x + f * 0.12, gy(0.12)], hf: [x + f * 0.05, gy(0.05)], fn: [x + f * 0.42, gy(0.42)], ff: [x + f * 0.33, gy(0.33)],
     tailA: -0.72, tailC: 2.3, tailK: 1.0,
   }, over);
   return p;
