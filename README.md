@@ -38,14 +38,18 @@ python3 tools/fetch_sounds.py --exact        # -> audio/src/*.ogg
 python3 tools/mix.py --report                # -> build/mix.wav（--report 打印每个镜头各声部的响度）
 
 # 4. 逐帧渲染并封装（3 个无头页面并行，每帧原始 RGBA 通过 WebSocket 送进 ffmpeg）
-node tools/render.mjs --timeline film --w 1920 --h 1080 --jobs 3 --crf 17 --preset slow \
+#    --ss 2：每一帧先按 3840×2160 绘制再滤波缩小到 1080p（超采样抗锯齿，
+#    半分辨率/四分之一分辨率的模糊、泛光、倒影缓冲也随之翻倍）
+node tools/render.mjs --timeline film --w 1920 --h 1080 --ss 2 --jobs 3 --crf 16 --preset slow \
   --audio build/mix.wav --out build/film_1080p.mp4
+#    只看某几帧：node tools/frame.mjs --shots 8.3,9.4 --u 0.5 --ss 2  （PNG 输出到 build/frames）
 
 # 5. 由混音实际用到的录音生成 CREDITS.md
 python3 tools/credits.py
 ```
 
-渲染是确定性的：同样的代码得到同样的画面和声音。在 4 核机器上 1080p 全片约 20–35 分钟。
+渲染是确定性的：同样的代码得到同样的画面和声音，所以也可以只重渲某一段（`--from/--to`）再无损拼接。
+在 4 核机器上，2× 超采样的 1080p 全片约 60 分钟（不超采样约 25 分钟）。
 
 ## 它是怎么做的 · How it works
 

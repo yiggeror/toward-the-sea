@@ -409,7 +409,7 @@ function s3_6() {
   return shot({
     name: '3.6', dur: 232, unit: 36, anchor: [0.5, 0.64],
     post: stormPost, grade: { vignette: 0.45, vignetteColor: '#1d2129', grain: 0.5, tint: '#aab2c2', tintAmt: 0.22 },
-    cam: { x: 7, y: -12, z: 1 },
+    cam: { x: 7, y: -9.4, z: 1 }, // the ground stays in frame while the cat runs in
     setup(S) {
       stormSky(S, { cloudSpeed: 20, dark: true });
       const wind = hills(S, { trees: true });

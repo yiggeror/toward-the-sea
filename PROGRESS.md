@@ -5,10 +5,10 @@ resume in a new session.
 
 ## Status
 
-**v1.0 — final film rendered** (1920×1080, 24 fps, 11 826 frames = 8:12.75,
-H.264 CRF 17 + AAC 256 kb/s, mix at −18 LUFS / −1.5 dBFS peak).
-Files: `video/` (see README). Everything is reproducible from source (README →
-Regenerate).
+**v1.0 — final film** (1920×1080, 24 fps, 11 826 frames = 8:12.75, every frame
+drawn at 3840×2160 and filtered down, H.264 CRF 16 + AAC 256 kb/s, mix at
+−18 LUFS / −1.5 dBFS peak). Files: `video/` (see README). Everything is
+reproducible from source (README → Regenerate).
 
 ## Phases
 
@@ -58,6 +58,25 @@ Regenerate).
   sunrise sea view; shallow water, foam and wet-sand reflections on the beach.
 - *"The web player is optional, the video is required and must look good."*
   → effort went into the rendered film; the player still works from source.
+- *"Real-time playback is not needed — don't lose image quality or detail for
+  it."* → offline quality mode: `render.mjs --ss 2` draws every frame at 2×
+  and filters it down (all half/quarter-size post buffers double with it);
+  pixel-clamped widths, blurs and grain follow a per-frame `DPX` scale so the
+  look is identical, only cleaner; reflections sample at twice the density;
+  the bloom downsample is area-filtered (no flickering highlights); x264
+  `aq-mode=3` keeps dark gradients clean. With render time no object, a
+  detail pass followed: a meandering stream with banks, pebbles and
+  reflections (2.4); rugged `crag()` rock for the chase outcrop, the ridge's
+  sea-cliff edge and the 8.3 ledge; surf along the cape's waterline; and a
+  rebuilt beach — its floor painted one pixel row at a time (seamless dry →
+  wet → glossy → run-up sheet → shallows → sea), swell crests that roll in and
+  break, lacy foam, shells, footprints the waves wash away, the cat mirrored
+  in wet sand, a rocky headland with a proper lighthouse, and a true dolly-back
+  for the last shot (the far coast keeps its size while the cat dwindles).
+- Bugs found in the QA sweep and fixed: hind paws landing beside the stepping
+  stones (legs stretched into the water, 2.4); the running cat cut off by the
+  bottom of the frame (3.6); the cat trotting out to sea in 9.5 (locomote
+  distances are absolute, jumps are facing-relative).
 
 ## Key decisions
 
@@ -92,8 +111,9 @@ Regenerate).
 ## Performance
 
 1080p frame cost in headless Chromium (software raster): median ≈ 127 ms,
-p90 ≈ 163 ms (`node tools/bench.mjs 1920 1080`). With 3 parallel pages and
-x264 `slow` on 4 cores the full film renders at 6–11 fps (≈ 25–30 min).
+p90 ≈ 163 ms (`node tools/bench.mjs 1920 1080`); about 2.4× that when
+supersampled. With 3 parallel pages and x264 `slow` on 4 cores the full film
+renders at 6–11 fps plain, ≈ 3.5 fps at `--ss 2` (≈ 60 min).
 
 ## Known limitations / ideas for a next pass
 
