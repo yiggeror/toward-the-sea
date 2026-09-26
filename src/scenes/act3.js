@@ -66,7 +66,7 @@ function C1() {
         const h = P.poseAt(t, false).hip;
         return [(h[0] + 5) * 0.8, (capeGy(0, pd + h[0]) - capeGy(0, pd - 5)) * 0.8];
       };
-      S.extraEvents = [{ t: 0, type: 'amb', name: 'cape_wind' }, { t: 0, type: 'music_cape' }];
+      S.extraEvents = [{ t: 0, type: 'amb', name: 'cape_wind' }, { t: 0, type: 'music_cape' }, { t: 6, type: 'paper_flutter', dur: 110, amt: 0.6 }];
     },
   });
 }
@@ -109,7 +109,7 @@ function C2() {
       cu.key(tSnatch, { squeeze: 0 }, 'hold');
       cu.key(tSnatch + 3, { hYaw: 0.35, hPitch: 0.3, lookX: 0.6, lookY: 0.6, eyeWide: 1, lid: 0, mouth: 0.6, mouthW: 0.2, earFlat: 0.1, earRot: -0.1 }, 'out');
       cu.emote(tSnatch + 2, 'exclaim', { dur: 20 });
-      S.extraEvents = [{ t: tSnatch, type: 'card_snatch' }, { t: tSnatch, type: 'music_chase' }];
+      S.extraEvents = [{ t: 0, type: 'paper_flutter', dur: tSnatch, amt: 1 }, { t: tSnatch, type: 'card_snatch' }, { t: tSnatch, type: 'music_chase' }];
     },
   });
 }
@@ -170,7 +170,7 @@ function C4b() {
   const T = 40;
   return shot({
     name: 'C4b', dur: T, unit: 90, anchor: [0.5, 0.6], grade: capeGrade(0.2), post: capePost(0.1),
-    cam: { yaw: Math.PI, x: 0, y: -1.2 + capeGy(0, 44), z: 1, dz: 0, px: 0, pd: 44 - 20 + 20, pitch: 0.12 },
+    cam: { yaw: Math.PI, x: 0, y: -0.5 + capeGy(0, 64), z: 1, dz: 0, px: 0, pd: 44, pitch: 0.02 },
     setup(S) {
       capeSet(S, { dawn: 0.2, split: 6, windDir: -1, clearItems: 7, edgeKeep: 0.2 });
       // the camera looks back down the slope (toward −d); d grows toward us
@@ -408,7 +408,7 @@ function D3() {
         ctx.restore();
       }));
       const cat = viewCat(S, { z: 1, mode: 'back', gait: 'walk', light: () => ({ tint: '#e0d0d8', amt: 0.25, lift: '#1c1822' }), rim: () => ({ color: '#ffe6c0', dir: [0, -1], alpha: 0.95, width: 0.06 }), shadow: false,
-        init: { x: 0.2, d: d0, y: capeGy(0, d0), stride: 0.8, tail: 0.6, tailLow: 0.4, hPitch: 0.25, earRot: -0.1 } });
+        init: { x: 0.2, d: d0, y: capeGy(0, d0), stride: 0.8, tail: 0.6, tailLow: 1, tailSway: 0.25, hPitch: 0.25, earRot: -0.1 } });
       for (let k = 1; k <= 6; k++) {
         const d = lerp(d0, d1, k / 6);
         cat.key((T * k) / 6, { d, y: capeGy(0, d) }, 'linear');

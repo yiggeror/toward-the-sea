@@ -3,7 +3,7 @@
 // perspective camera (film/persp.js), so the same wood can be seen down the
 // path, across it, from the grass, or looking up. Painter's order by camera
 // distance; aerial haze by distance.
-import { toCam, projC, P3, S3, fill3, path3, line3, floorY, nearC } from '../film/persp.js';
+import { toCam, projC, P3, S3, fill3, path3, line3, floorY, nearC, camPos, fillUnder } from '../film/persp.js';
 import { css, mix } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
@@ -226,12 +226,18 @@ export function drawWoods(ctx, view, L, o = {}) {
     const flat = L.gy(0, L.d0) === 0 && L.gy(0, (L.d0 + L.d1) / 2) === 0 && L.gy(0, L.d1) === 0;
     if (flat) fill3(ctx, view, floorY(0, -400, 400, L.d0, L.d1 + 400), g);
     else {
-      // sloped ground: strips between depth samples, far to near
-      // one polygon (no seams between strips): the left edge out, the right back
+      // sloped ground: everything under the silhouette of profile slices
+      // across (constant d) and along (constant x, dense near the lens) the slope
+      const [cx, cd] = camPos(view);
       const ds = [];
       for (let d = L.d0; d <= L.d1 + 200; d += 4) ds.push(d);
-      const poly = [...ds.map((d) => [-400, L.gy(0, d), d]), ...ds.slice().reverse().map((d) => [400, L.gy(0, d), d])];
-      fill3(ctx, view, poly, g);
+      for (const k of [0.5, 1, 2, 3]) for (const sg of [-1, 1]) if (cd + sg * k > L.d0) ds.push(cd + sg * k);
+      ds.sort((a, b) => a - b);
+      const xs = [-400, 400];
+      for (let k = 0.4; k < 800; k *= 1.35) for (const sg of [-1, 1]) if (Math.abs(cx + sg * k) < 400) xs.push(cx + sg * k);
+      const lines = ds.map((d) => [[-400, L.gy(0, d), d], [400, L.gy(0, d), d]]);
+      for (const x of xs) lines.push(ds.map((d) => [x, L.gy(0, d), d]));
+      fillUnder(ctx, view, lines, g);
     }
     if (L.stream) drawStream(ctx, view, L, t, P);
     // the path: a strip following pathX(d)

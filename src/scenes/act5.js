@@ -107,9 +107,50 @@ function E3() {
       P.key(tw + 3, { squeeze: 0, eyeWide: 1, pupil: 0.9, mouth: 0.3, mouthW: 0, fluff: 0.5, tailA: 1.2, tailC: 0.1 }, 'out');
       P.setTiming(tw + 6, 2);
       for (const k of [0, 5, 11]) P.event(tw + k, 'splash', { x: F.x0 + 1.1, y: 0.1, strength: 0.35 });
-      P.key(tw + 24, { hPitch: -0.5, lookY: -0.8 }, 'inout'); // looks down at the water around its paws
-      P.key(tw + 44, { hPitch: 0.05, lookY: 0.05, hYaw: 1.35, lookX: 0.2 }, 'inout'); // …then at us
       S.extraEvents = waves.filter((w) => w.t >= 0).map((w) => ({ t: w.t, type: 'wave_wash', dur: w.dur }));
+      S.dur = tw + 6; // cut on the hit
+    },
+  });
+}
+// E3p insert at paw height: the sheet of water rushes in around its paws
+function E3p() {
+  const waves = [{ t: -8, dur: 130, reach: -6.5 }];
+  const x0 = -3.2;
+  return shot({
+    name: 'E3p', dur: 54, unit: 360, anchor: [0.5, 0.56], post: beachPost, grade: beachGrade,
+    cam: { x: x0 + 0.9, y: -0.8, z: 1 },
+    setup(S) {
+      beachWorld(S, { rest: 6, waves, slope: 0.3, dunes: false });
+      const cat = makeCat(S, { x: x0, facing: 1, ...catMorning, waterColor: waterC, pose: { hip: [x0 - 0.08, -0.86], archB: 0.25, squeeze: 0, eyeWide: 1, fluff: 0.5, tailA: 1.2, tailC: 0.1 } });
+      const P = cat.perf;
+      const fn = P.curPose().fn, ff = P.curPose().ff;
+      // toes spread and curl as the cold water arrives
+      P.key(4, { fnC: 0.4, ffC: 0.3 }, 'out');
+      P.key(12, { fnC: 0.1, ffC: 0.1 }, 'inout');
+      for (const k of [2, 6, 12, 20]) P.event(k, 'splash', { x: fn[0] + (k % 3) * 0.1, y: 0.05, strength: 0.3 });
+      // water hugging the feet once the front has passed them: a translucent
+      // collar around each paw and a ring of foam
+      S.layers.push(screenLayer(1.2, (ctx, t, W, H, view) => {
+        const edge = swashEdge(t, { rest: 6, waves });
+        const sc = view.scaleAt(1);
+        const X = (x) => view.ox + (x - view.cam.x) * sc, Y = (y) => view.oy + (y - view.cam.y) * sc;
+        for (const [px, k] of [[fn[0], 0], [ff[0], 1], [P.curPose().hn[0], 2], [P.curPose().hf[0], 3]]) {
+          if (px < edge + 0.05) continue;
+          const a = smoothstep(edge + 0.05, edge + 0.6, px);
+          const cx = X(px), cy = Y(0.02);
+          const w = sc * (0.2 + 0.03 * Math.sin(t * 0.4 + k)), h = sc * 0.045;
+          ctx.fillStyle = css('#cfe8ef', 0.55 * a);
+          ctx.beginPath();
+          ctx.ellipse(cx, cy - h * 0.4, w, h, 0, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = css('#ffffff', 0.85 * a);
+          ctx.lineWidth = Math.max(2, sc * 0.012);
+          ctx.beginPath();
+          ctx.ellipse(cx, cy - h * 0.4, w * 1.05, h * 1.1, 0, Math.PI * (0.9 + 0.1 * Math.sin(t * 0.3 + k)), Math.PI * 2.1);
+          ctx.stroke();
+        }
+      }));
+      S.extraEvents = [{ t: 0, type: 'wave_wash', dur: 54 }];
     },
   });
 }
@@ -362,6 +403,6 @@ export function shots() {
   return [
     E1(),
     retime('9.3', { name: 'E2', from: 44, dur: 106 }),
-    E3(), E3b(), E4a(), E4b(), E4c(), E5(), End(),
+    E3(), E3p(), E3b(), E4a(), E4b(), E4c(), E5(), End(),
   ];
 }

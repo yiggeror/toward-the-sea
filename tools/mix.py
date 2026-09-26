@@ -627,6 +627,18 @@ def main():
             env = np.sin(np.pi * np.clip(np.linspace(0, 1, len(x)), 0, 1)) ** 0.8
             x = x * env[:, None]
             M.add('fx', fade(x * db(-27 - loudness(x)), 2.0, 2.5), t)
+        elif ty == 'paper_flutter':
+            # a card thrashing in a gale: rapid flaps, irregular
+            if flaps:
+                dur = e.get('dur', 48) / fps
+                amt = e.get('amt', 1)
+                k = 0
+                tt = 0.0
+                while tt < dur:
+                    x = flaps[int(h01(idx, k) * len(flaps))]
+                    M.add('fx', filt(x, 700, 11000), t + tt, db(-31 + 6 * amt - 5 * h01(k, idx)), 0.25)
+                    tt += 0.07 + 0.12 * h01(idx, k, 'g')
+                    k += 1
         elif ty == 'bird':
             b = src('birds_dawn')
             if b is not None:

@@ -130,6 +130,57 @@ export function line3(ctx, view, pts, color, w, o = {}) {
     ctx.stroke();
   }
 }
+// camera position in world (x, d)
+export function camPos(view) {
+  const c = view.cam;
+  const yaw = c.yaw || 0, cs = Math.cos(yaw), sn = Math.sin(yaw);
+  const f = (c.dz || 0) - view.D;
+  return [(c.px || 0) + c.x * cs + f * sn, (c.pd || 0) - c.x * sn + f * cs];
+}
+/**
+ * Fill everything under the silhouette of a set of 3D polylines (profile
+ * slices of a heightfield): per screen column the highest projected point
+ * wins. Right for terrain seen from any heading, where one outline polygon is
+ * only right looking straight along the slope.
+ */
+export function fillUnder(ctx, view, lines, fill, o = {}) {
+  const W = view.W, H = view.H;
+  const step = o.step ?? Math.max(2, Math.round(W / 960));
+  const n = Math.ceil(W / step) + 1;
+  const top = new Float64Array(n).fill(Infinity);
+  const dn = o.near ?? nearC(view);
+  const hit = (i, y) => {
+    if (i >= 0 && i < n && y < top[i]) top[i] = y;
+  };
+  const seg = (a, b) => {
+    if (a[2] < dn && b[2] < dn) return;
+    if (a[2] < dn) a = lerp3(a, b, (dn - a[2]) / (b[2] - a[2]));
+    else if (b[2] < dn) b = lerp3(b, a, (dn - b[2]) / (a[2] - b[2]));
+    let A = projC(view, a), B = projC(view, b);
+    if (A[0] > B[0]) [A, B] = [B, A];
+    hit(Math.round(A[0] / step), A[1]);
+    hit(Math.round(B[0] / step), B[1]);
+    const dx = B[0] - A[0];
+    if (dx < 1e-9) return;
+    const i0 = Math.max(0, Math.ceil(A[0] / step)), i1 = Math.min(n - 1, Math.floor(B[0] / step));
+    for (let i = i0; i <= i1; i++) hit(i, A[1] + ((B[1] - A[1]) * (i * step - A[0])) / dx);
+  };
+  for (const pts of lines) {
+    let prev = null;
+    for (const p of pts) {
+      const q = toCam(view, p[0], p[1], p[2]);
+      if (prev) seg(prev, q);
+      prev = q;
+    }
+  }
+  ctx.beginPath();
+  ctx.moveTo(-4, H + 4);
+  for (let i = 0; i < n; i++) ctx.lineTo(i * step, clamp(top[i], -4, H + 4));
+  ctx.lineTo(W + 4, H + 4);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
 function lerp3(a, b, u) {
   return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
 }
@@ -164,4 +215,8 @@ export function onPlane(ctx, view, plane, x, y, d, fn, o = {}) {
   fn(ctx);
   ctx.restore();
   return true;
+}
+
+function clamp(v, a, b) {
+  return v < a ? a : v > b ? b : v;
 }
