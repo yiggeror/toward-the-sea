@@ -806,8 +806,8 @@ def act5(S, T):
             S.put('pluck', pizz(nm, 0.26, 0.1), qn + k * 0.2)
     # E3: the game — groove, the flight, the brace, the wash (freeze!)
     t3 = sh('E3')
-    washes = [e for e in T['evs']('wave_wash') if t3 <= e < (T['end']('E3') or 0)]
-    freeze = t3 + 214 / 24
+    hit = T['ev']('wave_hit')
+    freeze = hit if hit is not None else t3 + 214 / 24
     k = 0
     while t3 + (k + 1) * bar < freeze - 1.4:
         groove_bar(S, t3 + k * bar, beat, k, 0.85)

@@ -10,3 +10,5 @@ export const SEQUENCES = [
   { id: 'act3', shots: act3.shots },
   { id: 'act5', shots: act5.shots },
 ];
+// dev-only sets and tests (shown by the shotstrip view, never in the film)
+export const LAB = [{ id: 'lab', shots: () => (act5.labShots ? act5.labShots() : []) }];

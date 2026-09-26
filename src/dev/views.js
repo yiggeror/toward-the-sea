@@ -453,8 +453,8 @@ export async function shotstrip(ctx, W, H, q) {
   const names = (q.get('shots') || '').split(',').filter(Boolean);
   const seqs = (q.get('seq') || '').split(',').filter(Boolean);
   const { Timeline } = await import('../film/timeline.js');
-  const { SEQUENCES: SQ } = await import('../scenes/index.js');
-  const SEQUENCES = q.get('v1') ? (await import('../scenes/v1.js')).V1 : SQ;
+  const { SEQUENCES: SQ, LAB } = await import('../scenes/index.js');
+  const SEQUENCES = q.get('v1') ? (await import('../scenes/v1.js')).V1 : [...SQ, ...(LAB || [])];
   const { loadFonts } = await import('../film/fonts.js');
   await loadFonts();
   const shots = [];

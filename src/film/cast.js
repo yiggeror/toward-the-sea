@@ -55,6 +55,35 @@ export function viewCat(S, o = {}) {
   const cat = {
     track: tr,
     events,
+    distAt,
+    // footfalls from the gait phase (sound, footprints): world x, d of the paw
+    steps(t0, t1, e = {}) {
+      const TD = { walk: [[0.4, 1, 1], [0.9, -1, 1], [0.15, 1, -1], [0.65, -1, -1]], trot: [[0.45, 1, 1], [0.95, -1, 1], [0.95, 1, -1], [0.45, -1, -1]], run: [[0.5, 1, 1], [0.62, -1, 1], [0.05, 1, -1], [0.95, -1, -1]] };
+      let prev = null;
+      for (let t = Math.max(0, t0); t <= t1; t += 0.5) {
+        const k = tr.sample(t);
+        const g = k.gait || gait;
+        const ph = distAt(t) / (CYCLE[g] || 1.3) + (o.phase0 || 0);
+        if (prev !== null && ph > prev && (k.stride ?? 0) > 0.05 && !(k.air > 0.3)) {
+          const a = tr.sample(Math.max(0, t - 1));
+          let ux = k.x - a.x, ud = k.d - a.d;
+          const L = Math.hypot(ux, ud) || 1;
+          ux /= L; ud /= L;
+          const seen = new Set();
+          for (const [td, side, fore] of TD[g] || TD.walk) {
+            const c0 = Math.floor(prev - td), c1 = Math.floor(ph - td);
+            if (c1 <= c0) continue;
+            const key = td.toFixed(2);
+            if (seen.has(key) && g === 'trot') continue;
+            seen.add(key);
+            const x = k.x + ud * side * 0.18 + ux * fore * 0.32, d = k.d - ux * side * 0.18 + ud * fore * 0.32;
+            events.push(Object.assign({ t, type: 'step', gait: g, x3: x, d3: d, strength: g === 'trot' ? 1.2 : 1 }, e));
+          }
+        }
+        prev = ph;
+      }
+      return cat;
+    },
     key(t, part, ease = 'inout') {
       tr.key(t, part, ease);
       return cat;

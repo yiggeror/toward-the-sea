@@ -65,7 +65,7 @@ export function makeCat(S, o = {}) {
       return view.actorCam(d ? view.pOf(d) : 1);
     };
     // marks under the cat
-    S.layers.push({
+    if (o.marks !== false) S.layers.push({
       p: 1, z: (o.z ?? 1) - 0.001,
       draw(ctx, t, view) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
