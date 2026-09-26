@@ -11,10 +11,14 @@
 成片在 [`video/`](video/)，1920×1080、24 fps、H.264 + AAC 立体声，8 分 13 秒。每一帧都先按 3840×2160
 绘制再滤波缩小（2× 超采样），所以线条和细节比直接画 1080p 更干净。
 
-- `video/toward-the-sea_1080p_part1.mp4`
-- `video/toward-the-sea_1080p_part2.mp4`
+| 文件 | 内容 | 时间 |
+|---|---|---|
+| `video/toward-the-sea_1080p_part1.mp4` | 城市、出城、森林、起风 | 0:00–2:43 |
+| `video/toward-the-sea_1080p_part2.mp4` | 暴雨、公交站 | 2:43–3:23 |
+| `video/toward-the-sea_1080p_part3.mp4` | 夜晚、荒原、雪原 | 3:23–5:45 |
+| `video/toward-the-sea_1080p_part4.mp4` | 海角、看见大海、海边、片尾 | 5:45–8:13 |
 
-GitHub 单个文件不能超过 100 MB，所以成片在关键帧处切成两段；两段可以依次单独播放，也可以无损拼回一个完整文件：
+GitHub 单个文件不能超过 100 MB，所以成片（H.264 CRF 19，约 309 MB）在关键帧处切成四段；每段都能单独播放，也可以无损拼回一个完整文件：
 
 ```sh
 cd video && ffmpeg -f concat -safe 0 -i parts.txt -c copy toward-the-sea_1080p.mp4

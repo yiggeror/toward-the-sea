@@ -310,6 +310,20 @@ def pk(x):
     return x / (np.abs(x).max() + 1e-12)
 
 
+def lv(x, target):
+    """scale a one-shot so its loudest 400 ms (K-weighted) sits at `target`
+    LUFS: story sounds are set by how loud they are heard, not by their peak"""
+    if x is None:
+        return None
+    y = x if x.ndim == 2 else st(x)
+    blk, hop = int(0.4 * SR), int(0.05 * SR)
+    z = kweight(np.vstack([y, np.zeros((blk, 2))]))
+    c = np.cumsum(np.vstack([np.zeros((1, 2)), z ** 2]), axis=0)
+    idx = np.arange(0, max(1, len(z) - blk), hop)
+    ms = ((c[idx + blk] - c[idx]) / blk).sum(axis=1).max()
+    return x * db(target - (-0.691 + 10 * np.log10(ms + 1e-12)))
+
+
 # beds per ambience name: [(source, target LUFS, lowpass, highpass, mode)]
 # Each layer is levelled (loud bursts tamed, dropouts lifted) and set to its
 # loudness target; 'peak' layers (drips) are spiky and capped by peak instead.
@@ -477,12 +491,12 @@ def main():
             if seq == 'beach' and sand:
                 M.add('foley', filt(sand[int(hsh * len(sand))], 200, 6000), t, db(-30) * s)
         elif ty in ('drip_hit', 'drop_nose', 'drop_on_card'):
-            M.add('fx', drip, t - 0.03, db(-19 if ty != 'drop_on_card' else -23))
+            M.add('fx', lv(drip, -26 if ty != 'drop_on_card' else -29), t - 0.03)
         elif ty == 'headshake':
-            M.add('foley', cloth, t, db(-24))
-            M.add('foley', pk(droplets(0.6, 10, idx)), t + 0.05, db(-27))
+            M.add('foley', lv(cloth, -26), t)
+            M.add('foley', lv(droplets(0.6, 10, idx), -28), t + 0.05)
         elif ty in ('gust', 'gust_big', 'wind_swell'):
-            M.add('fx', fade(gust, 0.4, 1.0), t - 0.6, db({'gust': -17, 'gust_big': -12, 'wind_swell': -14}[ty]))
+            M.add('fx', lv(fade(gust, 0.4, 1.0), {'gust': -22, 'gust_big': -17, 'wind_swell': -19}[ty]), t - 0.6)
         elif ty in ('paper', 'paper_slide', 'pickup', 'putdown', 'pat'):
             pp = flaps if ty == 'paper' else papers
             if pp:
@@ -496,25 +510,30 @@ def main():
         elif ty == 'can_hit':
             c = load('can_drop2')
             if c is not None:
-                M.add('fx', pk(filt(c, 150, None)), t - 0.02, db(-13), 0.4)
+                M.add('fx', lv(filt(c, 150, None), -17), t - 0.02, 1.0, 0.4)
             else:
                 M.add('fx', pk(clink(1650, idx)), t, db(-14), 0.4)
                 M.add('fx', pk(clink(1900, idx + 1)), t + 0.14, db(-20), 0.4)
         elif ty == 'can_roll':
             for k in range(9):
-                M.add('fx', pk(clink(1500 + 200 * h01(idx, k), idx + k, 0.2)), t + k * 0.21 + 0.05 * h01(k, idx), db(-25 - k * 1.3), 0.45 + k * 0.03)
+                M.add('fx', lv(clink(1500 + 200 * h01(idx, k), idx + k, 0.2), -25 - k * 1.3), t + k * 0.21 + 0.05 * h01(k, idx), 1.0, 0.45 + k * 0.03)
         elif ty in ('rear', 'swat', 'snap', 'near_miss', 'startle'):
             M.add('foley', pk(whoosh(0.22 if ty != 'near_miss' else 0.5, 600, 3500, idx)), t - 0.05, db(-31 if ty != 'near_miss' else -22))
         elif ty in ('sit', 'liedown'):
             M.add('foley', pk(paw('dirt', 1, idx)), t, db(-34))
         elif ty == 'splash' and splash is not None:
-            M.add('fx', filt(splash, 200, None), t - 0.02, db(-15) * max(0.5, min(1.2, e.get('strength', 1))))
+            sst = e.get('strength', 1)
+            target = -24 + 7 * min(1.0, max(0.0, (sst - 0.25) / 0.95))
+            M.add('fx', lv(filt(splash, 200, None), target), t - 0.02)
+            if sst >= 1:  # a face full of water: a second burst and falling drops
+                M.add('fx', lv(filt(splash, 600, None), target - 5), t + 0.06, 1.0, 0.25)
+                M.add('fx', lv(droplets(0.7, 14, idx), target - 7), t + 0.15)
         elif ty == 'flick':
             M.add('foley', pk(droplets(0.25, 3, idx)), t, db(-30))
         elif ty == 'shake':
-            M.add('foley', cloth, t, db(-21))
-            M.add('foley', cloth, t + 0.25, db(-23))
-            M.add('foley', pk(droplets(max(0.5, e.get('dur', 22) / fps + 0.3), 26, idx)), t + 0.1, db(-22))
+            M.add('foley', lv(cloth, -23), t)
+            M.add('foley', lv(cloth, -25), t + 0.25)
+            M.add('foley', lv(droplets(max(0.5, e.get('dur', 22) / fps + 0.3), 26, idx), -24), t + 0.1)
         elif ty == 'thunder_far':
             M.add('fx', pk(filt(load('thunder_far'), 30, 5000)), t, db(-10) * e.get('amt', 1), -0.3)
         elif ty == 'thunder_crack':
@@ -527,7 +546,7 @@ def main():
             x = fade(x[a0:a1], 2.5, 2.5)
             M.add('fx', x * db(-29 - loudness(x)), t + e.get('dur', 110) / fps / 2 - (c - a0) / SR, 1.0, -0.4)
         elif ty == 'owl':
-            M.add('fx', pk(filt(load('owl'), 200, None)[: int(4 * SR)]), t, db(-20), 0.6)
+            M.add('fx', lv(filt(load('owl'), 200, None)[: int(4 * SR)], -25), t, 1.0, 0.6)
         elif ty == 'pant':
             M.add('foley', pk(pant_breath(e.get('dur', 44) / fps, idx)), t, db(-27))
         elif ty == 'lick':
@@ -540,14 +559,14 @@ def main():
         elif ty == 'snowpull' and steps:
             M.add('foley', steps[int(hsh * len(steps))], t, db(-24))
         elif ty == 'sneeze':
-            M.add('foley', pk(sneeze(idx)), t, db(-21))
+            M.add('foley', lv(sneeze(idx), -23), t)
         elif ty == 'shiver':
             M.add('foley', pk(filt(noise(e.get('dur', 30) / fps, idx), 2000, 7000) * (0.5 + 0.5 * np.sin(np.linspace(0, 60, int(e.get('dur', 30) / fps * SR))))), t, db(-36))
         elif ty == 'card_snatch':
             if flaps:
                 for k in range(4):
-                    M.add('fx', filt(flaps[int(h01(idx, k) * len(flaps))], 400, None), t + k * 0.18, db(-17 - k * 3), 0.2 + 0.15 * k)
-            M.add('fx', fade(gust, 0.2, 1.0), t - 0.3, db(-11))
+                    M.add('fx', lv(filt(flaps[int(h01(idx, k) * len(flaps))], 400, None), -20 - k * 3), t + k * 0.18, 1.0, 0.2 + 0.15 * k)
+            M.add('fx', lv(fade(gust, 0.2, 1.0), -15), t - 0.3)
         elif ty in ('skid', 'slide'):
             dur = e.get('dur', 12) / fps + 0.2
             x = filt(noise(dur, idx), 300, 3000) * np.sin(np.pi * np.linspace(0, 1, int(dur * SR))) ** 0.5
@@ -620,6 +639,18 @@ def main():
 
     # ---------------- sum, master
     gains = {'amb': 1.0, 'fx': 1.0, 'foley': 1.0, 'music': 1.0, 'ui': db(4)}
+    # spot effects and foley get their own peak limiters so a clatter or a
+    # splash is contained on its bus and never pumps the ambience or the score
+    M.bus['fx'] = limiter(M.bus['fx'], db(-5.0), release_db_s=60.0)
+    M.bus['foley'] = limiter(M.bus['foley'], db(-8.0), release_db_s=60.0)
+    # and the beds dip a little under them (a sidechain: quick attack, slow release)
+    from scipy.ndimage import uniform_filter1d, maximum_filter1d
+    fxe = uniform_filter1d((M.bus['fx'] ** 2 + M.bus['foley'] ** 2 * 0.5).mean(axis=1), int(0.05 * SR))
+    fdb = 10 * np.log10(fxe + 1e-12)
+    dip = -4.0 * np.clip((fdb + 34) / 12, 0, 1)
+    dip = -maximum_filter1d(-dip, int(0.35 * SR))  # hold through the sound
+    dip = uniform_filter1d(dip, int(0.25 * SR))
+    M.bus['amb'] *= db(dip)[:, None]
     mix = sum(M.bus[k] * gains[k] for k in M.bus)
     mix = mix[: int(L * SR)]
     # final fades: in from black, out at the end
