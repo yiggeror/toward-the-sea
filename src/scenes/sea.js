@@ -500,6 +500,14 @@ function s8_3() {
       // foreground: the cliff top grass and Xiaohui from behind, sitting
       S.layers.push(screenLayer(1, (ctx, t, W, H) => {
         const s = W / 1920;
+        // exposed rock where the turf gives out at the cliff lip
+        const u = H / 40;
+        ctx.save();
+        ctx.scale(u, u);
+        crag(ctx, [[(W * 0.43) / u, 41, 0], [(W * 0.5) / u, (H * 0.874) / u, 0.4], [(W * 0.521) / u, (H * 0.859) / u, 0.3],
+          [(W * 0.533) / u, (H * 0.9) / u, 1], [(W * 0.547) / u, (H * 0.935) / u, 1.2], [(W * 0.541) / u, (H * 0.965) / u, 1.2], [(W * 0.558) / u, 41, 0]],
+        { seed: 3, lit: '#a3949a', mid: '#5f5766', dark: '#2c2934', light: [0.35, -0.94], rough: 0.35, rim: 'rgba(255,207,158,0.6)', rimWidth: 0.09, strata: 4, facets: 10, ao: 0.35 });
+        ctx.restore();
         const cg = ctx.createLinearGradient(0, H * 0.78, 0, H);
         cg.addColorStop(0, '#56654f');
         cg.addColorStop(0.3, '#3d4a45');
@@ -508,7 +516,8 @@ function s8_3() {
         ctx.beginPath();
         ctx.moveTo(0, H * 0.84);
         ctx.quadraticCurveTo(W * 0.25, H * 0.78, W * 0.52, H * 0.86);
-        ctx.lineTo(W * 0.56, H);
+        ctx.quadraticCurveTo(W * 0.505, H * 0.895, W * 0.497, H * 0.93);
+        ctx.quadraticCurveTo(W * 0.482, H * 0.97, W * 0.47, H);
         ctx.lineTo(0, H);
         ctx.fill();
         // the sunrise catches the edge of the cliff top

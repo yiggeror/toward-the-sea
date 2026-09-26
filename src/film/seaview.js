@@ -273,25 +273,50 @@ export function drawSeaView(ctx, x, y, w, h, opts = {}) {
   ctx.lineTo(x + 0.74 * w, y + 0.52 * h);
   ctx.fill();
   ctx.restore();
-  // rocks and restless foam at the cliff foot
+  // rocks and restless surf at the cliff foot
+  // the waterline: the lower edge of the cliff, from the tip down to the frame edge
+  const FOOT = [[0.689, 0.456], [0.705, 0.482], [0.725, 0.503], [0.8, 0.558], [0.9, 0.623], [1.02, 0.72]];
+  const footLen = [0];
+  for (let i = 1; i < FOOT.length; i++) footLen.push(footLen[i - 1] + Math.hypot((FOOT[i][0] - FOOT[i - 1][0]) * w, (FOOT[i][1] - FOOT[i - 1][1]) * h));
+  const foot = (u) => {
+    const L = u * footLen[footLen.length - 1];
+    let i = 1;
+    while (i < FOOT.length - 1 && footLen[i] < L) i++;
+    const k = clamp((L - footLen[i - 1]) / Math.max(1e-6, footLen[i] - footLen[i - 1]), 0, 1);
+    return [x + lerp(FOOT[i - 1][0], FOOT[i][0], k) * w, y + lerp(FOOT[i - 1][1], FOOT[i][1], k) * h + h * 0.002];
+  };
   ctx.fillStyle = pal.cliffShade;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 12; i++) {
+    const [fx, fy] = foot(0.02 + 0.08 * i + 0.04 * hash01(i * 3));
     ctx.beginPath();
-    ctx.ellipse(x + (0.678 + 0.012 * i) * w, y + (0.452 + 0.012 * i) * h, w * (0.006 + 0.004 * hash01(i)), h * 0.006, 0, Math.PI, 0);
+    ctx.ellipse(fx, fy + h * 0.001, w * (0.003 + 0.004 * hash01(i)), h * (0.004 + 0.004 * hash01(i + 9)), 0, Math.PI, 0);
     ctx.fill();
   }
   const surge = 0.5 + 0.5 * Math.sin(t * 0.05);
-  ctx.strokeStyle = css(pal.foam, 0.45 + 0.35 * surge);
-  ctx.lineWidth = Math.max(1, h * (0.003 + 0.003 * surge));
-  ctx.beginPath();
-  ctx.moveTo(x + (0.684 - 0.006 * surge) * w, y + 0.455 * h);
-  ctx.quadraticCurveTo(x + 0.71 * w, y + (0.47 + 0.004 * surge) * h, x + 0.745 * w, y + 0.5 * h);
-  ctx.stroke();
+  // soft white water hugging the foot of the cliff
+  for (const [lw2, a] of [[0.012, 0.12], [0.007, 0.22], [0.0035, 0.5]]) {
+    ctx.strokeStyle = css(pal.foam, a * (0.6 + 0.4 * surge));
+    ctx.lineWidth = Math.max(1, h * lw2 * (0.8 + 0.4 * surge));
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let k = 0; k <= 60; k++) {
+      const [fx, fy] = foot(k / 60);
+      const j = Math.sin(k * 1.7 + t * 0.1) * h * 0.0015;
+      k ? ctx.lineTo(fx, fy + j) : ctx.moveTo(fx, fy + j);
+    }
+    ctx.stroke();
+  }
   if (rich) {
-    ctx.fillStyle = css(pal.foam, 0.4 * surge);
-    for (let i = 0; i < 6; i++) {
+    // foam clumps that bloom and dissolve with each surge
+    for (let i = 0; i < 70; i++) {
+      const [fx, fy] = foot(hash01(i * 7 + 1));
+      const life = (t * 0.03 + hash01(i * 11)) % 1;
+      const a = Math.sin(life * Math.PI) * (0.35 + 0.5 * surge);
+      const r = h * (0.0015 + 0.003 * hash01(i * 5)) * (0.6 + 0.8 * life);
+      ctx.fillStyle = css(pal.foam, a);
       ctx.beginPath();
-      ctx.arc(x + (0.68 + 0.012 * i) * w, y + (0.452 + 0.008 * i - 0.01 * surge * hash01(i)) * h, h * 0.004 * (1 + surge), 0, TAU);
+      ctx.ellipse(fx + (hash01(i * 13) - 0.5) * w * 0.006, fy - h * 0.003 * life * surge + (hash01(i * 17) - 0.5) * h * 0.004, r * 1.6, r, 0, 0, TAU);
       ctx.fill();
     }
   }
