@@ -663,8 +663,23 @@ def act2(S, T):
     # B16: snow — high bells in a white silence
     t = sh('B16a')
     if t is not None:
-        chord_pad(S, t, 'D4', ['A4', 'E5'], 10, 0.1, attack=2.5, release=3, bright=3500)
-        for dt, nm in ((0.5, 'A6'), (2.2, 'E6'), (4.0, 'F#6'), (6.0, 'D6'), (7.6, 'A5'), (8.4, 'D6'), (9.0, 'E6'), (9.6, 'F#6')):
+        sn = evin('sneeze', 'B16s')
+        span = (sh('B16b') or t + 10) - t + 5
+        chord_pad(S, t, 'D4', ['A4', 'E5'], span, 0.1, attack=2.5, release=3, bright=3500)
+        bells = ((0.5, 'A6'), (2.2, 'E6'), (4.0, 'F#6'))
+        if sn:
+            # the flake on the nose: a held breath of two high notes; after the
+            # sneeze a little sparkle of delight, then the snow bells go on
+            land = evin('drop_nose', 'B16s') or sn - 1.2
+            S.put('mallet', glock('B6', 0.07, 0.2, 1.4), land)
+            S.put('mallet', glock('A6', 0.06, -0.2, 1.4), land + 0.5)
+            for k, nm in enumerate(['D6', 'F#6', 'A6', 'D7']):
+                S.put('mallet', glock(nm, 0.08, -0.3 + 0.2 * k, 1.8), sn + 0.6 + k * 0.09)
+            tb = sh('B16b')
+            bells += tuple((tb - t + dt, nm) for dt, nm in ((0.4, 'D6'), (1.8, 'A5'), (2.6, 'D6'), (3.2, 'E6'), (3.8, 'F#6')))
+        else:
+            bells += ((6.0, 'D6'), (7.6, 'A5'), (8.4, 'D6'), (9.0, 'E6'), (9.6, 'F#6'))
+        for dt, nm in bells:
             S.put('mallet', glock(nm, 0.1, -0.3 + 0.1 * (dt % 3), 2.4), t + dt)
 
 

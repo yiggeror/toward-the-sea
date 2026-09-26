@@ -343,7 +343,8 @@ export function drawWoods(ctx, view, L, o = {}) {
       void topY;
     } else {
       const fk = fogK(q[2], fd);
-      if (X < -60 * s || X > view.W + 60 * s || Y > view.H + 60 * s) continue;
+      // plants rooted well off the frame only ever poke stray blades into it
+      if (X < -2.5 * s || X > view.W + 2.5 * s || Y > view.H + 3 * s) continue;
       ctx.save();
       ctx.setTransform(s, 0, 0, s, X, Y);
       const w = wind(it.x, t);

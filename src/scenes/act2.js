@@ -42,14 +42,15 @@ function woodsSet(S, o = {}) {
     glow(ctx, W * sunX, H * 0.05, W * 0.5, '#fff4cc', 0.6);
   }));
   S.layers.push(screenLayer(0.2, (ctx, t, W, H, view) => {
-    drawWoods(ctx, view, WOOD, { t, wind: breeze, only: o.split ? 'far' : undefined, splitD: o.split, clearNear: o.clearNear });
+    drawWoods(ctx, view, WOOD, { t, wind: breeze, only: o.split ? 'far' : undefined, splitD: o.split, clearNear: o.clearNear, clearItems: o.clearItems ?? o.split, edgeKeep: o.edgeKeep ?? 0 });
     fogBand(ctx, W, H, view.oy - H * 0.04, H * 0.2, '#eef3dc', 0.22, t, { seed: 6, speed: 0.2 });
   }));
   S.layers.push(screenLayer(0.25, (ctx, t, W, H) => lightShafts(ctx, W, H, t, { x0: sunX - 0.1, spread: 0.7, n: 7, angle: 0.3, color: WOODS.sun, alpha: 0.12, seed: 7 })));
   if (o.blur) for (let i = n0; i < S.layers.length; i++) Object.assign(S.layers[i], { blur: o.blur, group: 'woods' });
   if (o.split) {
     // the nearest plants, in front of the cat and softly out of focus
-    S.layers.push(Object.assign(screenLayer(1.5, (ctx, t, W, H, view) => drawWoods(ctx, view, WOOD, { t, wind: breeze, only: 'near', splitD: o.split, clearNear: o.clearNear })), { blur: o.nearBlur ?? 6 }));
+    // (only a few, kept to the frame edges — no big blurred blades across the picture)
+    S.layers.push(Object.assign(screenLayer(1.5, (ctx, t, W, H, view) => drawWoods(ctx, view, WOOD, { t, wind: breeze, only: 'near', splitD: o.split, clearNear: o.clearNear, clearItems: o.clearItems ?? o.split, edgeKeep: o.edgeKeep ?? 0 })), { blur: o.nearBlur ?? 3 }));
   }
   S.layers.push(screenLayer(2.5, (ctx, t, W, H) => particles(ctx, W, H, t, { n: 40, seed: 4, color: ['#fff6d8', '#fff0b0'], alpha: 0.7, size: 2.2, vx: 0.25, vy: -0.08, glow: 3, twinkle: 0.06 })));
   S.post = { rays: { pos: [sunX, 0.04], strength: 0.4, length: 0.6, threshold: 0.9, knee: 0.08, samples: 16, tint: '#ffe9a8' }, bloom: { threshold: 0.9, knee: 0.1, strength: 0.35, radius: 20, tint: '#fff2c8' } };
@@ -57,7 +58,7 @@ function woodsSet(S, o = {}) {
 
 // ---- B1 low in the grass: Xiaohui trots toward us down the forest path ----
 function B1() {
-  const dA = 55, dB = -10;
+  const dA = 33, dB = -10;
   return shot({
     name: 'B1', dur: BEAT * 8, unit: 100, anchor: [0.5, 0.62], grade: dayGrade,
     cam: { x: WOOD.pathX(dB - 8) + 1.8, y: -1.3, z: 1, dz: 0 },
@@ -98,8 +99,8 @@ function flutter(S, guide, o = {}) {
 function B2() {
   const dP = 60;
   return shot({
-    name: 'B2', dur: BEAT * 4, unit: 110, anchor: [0.46, 0.6], grade: dayGrade,
-    cam: woodSide(dP, { x: -2, y: -1.5 }),
+    name: 'B2', dur: BEAT * 4, unit: 165, anchor: [0.46, 0.62], grade: dayGrade,
+    cam: woodSide(dP, { x: -2, y: -1.25, yaw: -Math.PI / 2 + 0.45 }),
     setup(S) {
       woodsSet(S, { split: 8, sunX: 0.7, clearNear: 14 });
       const cat = makeCat(S, { x: -6, facing: 1, carry: { wear: 0.06 }, light: catDay, rim: sunRim });
@@ -168,8 +169,8 @@ function B3() {
 function B4() {
   const dP = 80;
   return shot({
-    name: 'B4', dur: BEAT * 8, unit: 125, anchor: [0.46, 0.66], grade: dayGrade,
-    cam: woodSide(dP, { x: 1.5, y: -2.0 }),
+    name: 'B4', dur: BEAT * 8, unit: 150, anchor: [0.46, 0.66], grade: dayGrade,
+    cam: woodSide(dP, { x: 1.5, y: -1.8, yaw: -Math.PI / 2 + 0.3 }),
     setup(S) {
       woodsSet(S, { split: 7, sunX: 0.7, clearNear: 16 });
       let tRel = 1e9;
@@ -621,6 +622,93 @@ function B15wake() {
 
 // ---- B16b from high above: a line of small footprints across the white -----
 const trailX = (d) => 7 * Math.sin(d * 0.045) + 2 * Math.sin(d * 0.13);
+// ---- B16s close-up in the snow: a flake lands on its nose — crossed eyes, as
+// with the butterfly — a sneeze, and then delight: it looks up into the snow
+function B16s() {
+  const T = 84, tLand = 20, tSneeze = 48;
+  return shot({
+    name: 'B16s', dur: T, unit: 100, anchor: [0.5, 0.5],
+    grade: { vignette: 0.3, vignetteColor: '#7d8fae', grain: 0.3, lift: '#e8eef8', liftAmt: 0.05 },
+    post: { bloom: { threshold: 0.88, knee: 0.1, strength: 0.4, radius: 22, tint: '#f4f8ff' } },
+    setup(S) {
+      // the snowfield behind, soft: pale sky, a line of far peaks, white ground
+      S.layers.push(Object.assign(screenLayer(0, (ctx, t, W, H) => {
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, '#a9c2e2');
+        g.addColorStop(0.55, '#e4ecf7');
+        g.addColorStop(0.62, '#f4f7fc');
+        g.addColorStop(1, '#ffffff');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#c3d1e6';
+        ctx.beginPath();
+        ctx.moveTo(0, H * 0.6);
+        for (let i = 0; i <= 16; i++) ctx.lineTo((i / 16) * W, H * (0.6 - 0.05 - 0.07 * Math.abs(Math.sin(i * 1.3) * Math.cos(i * 0.7))));
+        ctx.lineTo(W, H * 0.6);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(160,180,210,0.35)';
+        for (let i = 0; i < 6; i++) ctx.fillRect(0, H * (0.68 + i * 0.05), W, H * 0.012);
+      }), { blur: 10 }));
+      S.layers.push(Object.assign(screenLayer(0.4, (ctx, t, W, H) => snow(ctx, W, H, t, { density: 0.5, wind: 0.15, seed: 9, alpha: 0.7, layers: [[0.3, 0.5], [0.6, 0.7]] })), { blur: 3 }));
+      const cu = closeUp(S, { x: 0.5, y: 0.62, scale: 0.5, drift: 0.6,
+        light: () => ({ tint: '#eef3ff', amt: 0.12, lift: '#101420' }),
+        init: { hYaw: 0.15, hPitch: 0.25, lookY: 0.6, lookX: 0.2, earRot: 0.1, eyeWide: 0.2 } });
+      // watching the flake come down…
+      cu.key(tLand - 4, { hPitch: 0.05, lookY: -0.1, lookX: 0 }, 'inout');
+      // …onto its nose: crossed eyes
+      cu.key(tLand, {}, 'hold');
+      cu.key(tLand + 8, { cross: 1, lookY: -0.45, hPitch: -0.06, eyeWide: 0.35, earLR: 0.25, earRR: 0.25, mouth: 0.06 }, 'inout');
+      cu.key(tSneeze - 12, { cross: 1 }, 'hold');
+      // ah… ah…
+      cu.key(tSneeze - 6, { cross: 0.3, squeeze: 0.7, hPitch: 0.22, mouth: 0.25, mouthW: 0.2, earRot: 0.4, whisk: 0.7 }, 'inout');
+      cu.key(tSneeze - 1, { squeeze: 1, hPitch: 0.3, mouth: 0.35 }, 'in');
+      cu.key(tSneeze + 1, { cross: 0, hPitch: -0.3, mouth: 0.7, mouthW: 0.4, earFlat: 0.6, earRot: 0.7, whisk: -0.8 }, 'out');
+      cu.key(tSneeze + 6, { mouth: 0.1, hPitch: -0.15 }, 'inout');
+      // then it looks up into the falling snow, delighted
+      cu.key(tSneeze + 16, { squeeze: 0, earFlat: 0, earRot: 0, whisk: 0, hPitch: 0.35, lookY: 0.7, happy: 1, smile: 1, mouth: 0.35, mouthW: 0.7, tongue: 0.4, blush: 0.45 }, 'out');
+      cu.emote(tSneeze + 18, 'sparkle', { dur: 26, n: 3 });
+      // the flake, and the puff of crystals in the sneeze
+      S.layers.push(screenLayer(2, (ctx, t, W, H) => {
+        const an = cu.anchor;
+        if (!an) return;
+        const nose = an.P([0.49, -0.1, 0]);
+        const u = an.u / 0.36;
+        const flake = (x, y, r, a) => {
+          ctx.strokeStyle = css('#ffffff', a);
+          ctx.lineWidth = Math.max(1, r * 0.22);
+          ctx.beginPath();
+          for (let i = 0; i < 3; i++) {
+            const ang = (i / 3) * Math.PI + t * 0.03;
+            ctx.moveTo(x - Math.cos(ang) * r, y - Math.sin(ang) * r);
+            ctx.lineTo(x + Math.cos(ang) * r, y + Math.sin(ang) * r);
+          }
+          ctx.stroke();
+          ctx.fillStyle = css('#ffffff', a);
+          ctx.beginPath();
+          ctx.arc(x, y, r * 0.3, 0, TAU);
+          ctx.fill();
+        };
+        if (t < tLand) {
+          const k = t / tLand;
+          flake(nose[0] + Math.sin(t * 0.25) * u * 0.12 * (1 - k), lerp(-H * 0.05, nose[1] - u * 0.07, k), u * 0.055, 0.95);
+        } else if (t < tSneeze) {
+          flake(nose[0], nose[1] - u * 0.07, u * 0.055 * (1 - 0.35 * smoothstep(tLand, tSneeze, t)), 0.95);
+        } else if (t < tSneeze + 12) {
+          const k = (t - tSneeze) / 12;
+          for (let i = 0; i < 14; i++) {
+            const a = -Math.PI * (0.05 + 0.9 * hash01(i * 3)), sp = 0.3 + 0.5 * hash01(i * 7);
+            ctx.fillStyle = css('#ffffff', 0.9 * (1 - k));
+            ctx.beginPath();
+            ctx.arc(nose[0] + Math.cos(a) * k * u * sp, nose[1] + Math.sin(a) * k * u * sp * 0.8 + k * k * u * 0.15, u * 0.012, 0, TAU);
+            ctx.fill();
+          }
+        }
+      }));
+      S.extraEvents = [{ t: tLand, type: 'drop_nose' }, { t: tSneeze, type: 'sneeze' }];
+    },
+  });
+}
+
 function B16b() {
   const T = BEAT * 8;
   return shot({
@@ -716,7 +804,8 @@ export function shots() {
     retime('4.1', { name: 'B15a', from: 70, dur: BEAT * 6 }),
     retime('4.2', { name: 'B15b', from: 90, dur: BEAT * 4 }),
     B15dream(), B15wake(),
-    retime('6.2', { name: 'B16a', from: 30, dur: BEAT * 8, xfade: 20, setup: (s) => { const ev = s.events; s.events = () => [{ t: 0, type: 'amb', name: 'snow' }, ...ev()]; } }),
+    retime('6.2', { name: 'B16a', from: 30, dur: BEAT * 7, xfade: 20, setup: (s) => { const ev = s.events; s.events = () => [{ t: 0, type: 'amb', name: 'snow' }, ...ev()]; } }),
+    B16s(),
     B16b(),
   ];
 }
