@@ -8,6 +8,12 @@ export function rgb(hex) {
   if (Array.isArray(hex)) return hex;
   let c = _cc.get(hex);
   if (c) return c;
+  if (hex.startsWith('rgb')) {
+    const m = hex.match(/[\d.]+/g).map(Number);
+    c = [m[0], m[1], m[2]];
+    _cc.set(hex, c);
+    return c;
+  }
   let h = hex.replace('#', '');
   if (h.length === 3) h = h.split('').map((x) => x + x).join('');
   c = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
@@ -18,6 +24,11 @@ export function css(c, a = 1) {
   c = rgb(c);
   const r = Math.round(clamp(c[0], 0, 255)), g = Math.round(clamp(c[1], 0, 255)), b = Math.round(clamp(c[2], 0, 255));
   return a >= 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${clamp(a, 0, 1).toFixed(4)})`;
+}
+// alpha of a colour string ('rgba(...)' -> its alpha, anything else -> 1)
+export function alphaOf(c) {
+  if (typeof c === 'string' && c.startsWith('rgba')) return +c.match(/[\d.]+/g)[3];
+  return 1;
 }
 export function mix(a, b, t) {
   a = rgb(a); b = rgb(b);

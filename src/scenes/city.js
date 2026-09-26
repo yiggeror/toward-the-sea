@@ -7,6 +7,7 @@ import { drawCard, cardArt } from '../film/postcard.js';
 import { locomote } from '../anim/gaits.js';
 import * as A from '../anim/actions.js';
 import { skyGradient, glow, moon, clouds, stars } from '../env/sky.js';
+import { lampGlow, lightCone, lightPool, fogBand, wetReflection, particles, bokeh } from '../env/light.js';
 import { skyline, facades, wires, pole, streetLamp, car, wall, street, acUnit } from '../env/city.js';
 import { can } from '../env/creatures.js';
 import { profile, fillBelow, haze, groundPlane, groundEllipse } from '../env/terrain.js';
@@ -19,24 +20,25 @@ import { css, mix } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 export const NIGHT = {
-  sky: [[0, '#0b1022'], [0.45, '#18203c'], [0.8, '#2d2f52'], [1, '#463c58']],
-  far: '#1b2136', farWin: ['#b8995c', '#6f84a8', '#caa96a'],
-  mid: '#232a42', midWin: ['#e0b468', '#ecca86', '#93a7cc'],
+  sky: [[0, '#070a1c'], [0.45, '#131a3a'], [0.8, '#28244f'], [1, '#452c58']],
+  far: '#1b1c3a', farWin: ['#ffc66e', '#8fb4ff', '#ffd28a', '#ff9fc0', '#ffe0a8'],
+  mid: '#211f40', midWin: ['#ffcf7a', '#ffe0a0', '#9fc2ff', '#ff9ec4', '#ffd070'],
   fac: {
-    walls: ['#313950', '#373f56', '#2c344c', '#3b3e57'], frame: '#20273a', dark: '#141a29',
-    lit: ['#f1c273', '#f5d99d', '#e7a25c'], ac: '#79819a', acShade: 'rgba(16,20,32,0.38)', pipe: '#222a3c',
-    trim: '#434b64', shadow: 'rgba(6,8,18,0.32)', reflect: 'rgba(150,175,220,0.13)', sign: '#e79f5a',
+    walls: ['#2c2f55', '#34345c', '#2a2b4c', '#3a3560'], frame: '#1b1c36', dark: '#12132a',
+    lit: ['#ffc977', '#ffe2a6', '#ffb070', '#fff0c8'], ac: '#6e7396', acShade: 'rgba(12,12,32,0.4)', pipe: '#1f2140',
+    trim: '#44446e', shadow: 'rgba(6,6,20,0.35)', reflect: 'rgba(170,180,255,0.14)', sign: '#ffb05a',
   },
-  street: { sidewalk: '#2a3143', curb: '#1f2535', road: '#1c2130', joint: 'rgba(0,0,0,0.25)', puddle: '#27344f' },
-  lamp: { pole: '#1a1f2d', light: '#ffd798' },
-  car: { body: '#3a4868', glass: '#19202f', tire: '#11141c', rim: '#58627a', hi: 'rgba(190,210,255,0.22)', tail: '#7e3636', clr: 0.3, glassHi: 'rgba(200,215,255,0.1)' },
-  wall: { wall: '#3a3f55', cap: '#4b516a', line: 'rgba(0,0,0,0.18)', wet: 'rgba(200,215,255,0.12)' },
+  street: { sidewalk: '#262846', curb: '#1a1b32', road: '#171a2e', joint: 'rgba(0,0,0,0.25)', puddle: '#27344f' },
+  lamp: { pole: '#15162a', light: '#ffcf86' },
+  car: { body: '#3b4570', glass: '#161a30', tire: '#0f1020', rim: '#58608a', hi: 'rgba(190,210,255,0.22)', tail: '#9e3a44', clr: 0.3, glassHi: 'rgba(200,215,255,0.1)' },
+  wall: { wall: '#34355a', cap: '#4a4a74', line: 'rgba(0,0,0,0.18)', wet: 'rgba(200,215,255,0.12)' },
 };
 const catNight = {
-  light: () => ({ tint: '#7a84b4', amt: 0.42, lift: '#191d2c' }),
+  light: () => ({ tint: '#727cb6', amt: 0.5, lift: '#171a33' }),
   rim: () => ({ color: '#ffd89c', dir: [0.75, -0.66], alpha: 0.85, width: 0.07 }),
 };
-const nightGrade = { vignette: 0.45, vignetteColor: '#1a1830', grain: 0.5 };
+const nightGrade = { vignette: 0.5, vignetteColor: '#141228', grain: 0.45 };
+const nightPost = { bloom: { threshold: 0.5, knee: 0.3, strength: 0.8, radius: 26, wide: 0.9 } };
 
 // ---- shared night backdrop (depth model) ----------------------------------
 // Street cross-section (depth behind the cat's line on the road, world H):
@@ -45,22 +47,40 @@ const nightGrade = { vignette: 0.45, vignetteColor: '#1a1830', grain: 0.5 };
 export const STREET = { curb: 9, facade: 32, walk: -1.4 };
 function nightBackdrop(S, o = {}) {
   const k = 11;
-  S.layers.push(screenLayer(0, (ctx, t, W, H) => skyGradient(ctx, W, H, NIGHT.sky)));
+  S.layers.push(screenLayer(0, (ctx, t, W, H) => {
+    S.frameLights = [];
+    skyGradient(ctx, W, H, NIGHT.sky);
+    // city light pollution: a warm magenta glow low in the sky
+    const hy = S.view ? S.view.oy + (-60 - S.view.cam.y) * S.view.scaleAt(S.view.pOf(2500)) : H * 0.7;
+    const g = ctx.createLinearGradient(0, hy - H * 0.55, 0, hy + H * 0.1);
+    g.addColorStop(0, 'rgba(120,70,130,0)');
+    g.addColorStop(0.7, 'rgba(170,90,120,0.28)');
+    g.addColorStop(1, 'rgba(255,150,110,0.32)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    stars(ctx, W, H, 60, 7, 0.45, t, 0.7);
+  }));
   S.layers.push(screenLayer(0.01, (ctx, t, W, H) => {
     const [mx, my] = o.moon || [0.18, 0.16];
     moon(ctx, W * mx, H * my + (S.view ? (S.view.cam.y + 30) * S.view.scaleAt(S.view.pOf(40000)) : 0), W * 0.012, '#f6efd6', 0.35);
   }));
   S.layers.push(at(9000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, {
-    seed: 3, n: 6, y: -2400, dy: 600, w: 2600, h: 150, speed: 0.4, wrap: 12000, top: 'rgba(58,62,96,0.55)', shade: 'rgba(38,40,68,0.5)',
+    seed: 3, n: 6, y: -2400, dy: 600, w: 2600, h: 150, speed: 0.4, wrap: 12000, top: 'rgba(92,74,118,0.5)', shade: 'rgba(38,40,68,0.5)',
   })));
-  S.layers.push(at(2500, 0.1, (ctx, t, view, S2, p) => skyline(ctx, view, p, t, {
-    seed: 5, base: 0, hMin: 420, hMax: 1100, minW: 110, maxW: 260, color: NIGHT.far, win: NIGHT.farWin, winP: 0.1, winGap: 22, winGapY: 30, antenna: true, flick: true,
-  })));
-  S.layers.push(at(700, 0.2, (ctx, t, view, S2, p) => skyline(ctx, view, p, t, {
-    seed: 9, base: 0, hMin: 230, hMax: 560, minW: 70, maxW: 150, color: NIGHT.mid, win: NIGHT.midWin, winP: 0.18, winGap: 16, winGapY: 22, flick: true,
-  })));
+  S.layers.push(Object.assign(at(2500, 0.1, (ctx, t, view, S2, p) => skyline(ctx, view, p, t, {
+    seed: 5, base: 0, hMin: 420, hMax: 1100, minW: 110, maxW: 260, color: NIGHT.far, win: NIGHT.farWin, winP: 0.14, winGap: 22, winGapY: 30, antenna: true, flick: true,
+  })), { blur: 1.6, haze: { color: '#4a3f63', amount: 0.3 } }));
+  S.layers.push(Object.assign(at(700, 0.2, (ctx, t, view, S2, p) => skyline(ctx, view, p, t, {
+    seed: 9, base: 0, hMin: 230, hMax: 560, minW: 70, maxW: 150, color: NIGHT.mid, win: NIGHT.midWin, winP: 0.22, winGap: 16, winGapY: 22, flick: true, antenna: true,
+  })), { haze: { color: '#3a3858', amount: 0.16 } }));
+  // mist between the far city and the street
+  S.layers.push(screenLayer(0.3, (ctx, t, W, H, view) => {
+    const y0 = view.oy + (STREET.walk - view.cam.y) * view.scaleAt(view.pOf(STREET.facade));
+    fogBand(ctx, W, H, y0 - H * 0.12, H * 0.35, '#5a5a86', 0.22, t, { seed: 4, speed: 0.4 });
+  }));
   S.layers.push(at(STREET.facade, 0.4, (ctx, t, view, S2, p) => inScale(ctx, view, k, (v) => facades(ctx, v, p, t, {
-    seed: o.facSeed ?? 21, base: STREET.walk / k, hMin: 10, hMax: 17.5, minW: 6, maxW: 10, palette: NIGHT.fac, litP: 0.3, acP: 0.4, balcony: true, shop: true, glowWin: true,
+    seed: o.facSeed ?? 21, base: STREET.walk / k, hMin: 10, hMax: 17.5, minW: 6, maxW: 10, palette: NIGHT.fac, litP: 0.34, acP: 0.4, balcony: true, shop: true, glowWin: true,
+    neon: 0.4, lights: S.frameLights,
   }))));
   if (o.wires !== false) {
     S.layers.push(at(30, 0.45, (ctx, t, view) => {
@@ -85,8 +105,20 @@ function nightStreet(S, o = {}) {
     ctx.fillStyle = NIGHT.street.curb;
     ctx.fillRect(0, Yc0, W, Math.max(1, Yc1 - Yc0));
     groundPlane(ctx, view, { y: 0, bands: [[-2000, STREET.curb, [NIGHT.street.road, '#232838']]] });
+  }));
+  // the wet street mirrors the lit city
+  S.layers.push(screenLayer(0.505, (ctx, t, W, H, view) => {
+    const y0 = view.oy + (STREET.walk - view.cam.y) * view.scaleAt(view.pOf(STREET.facade));
+    if (y0 < H) wetReflection(ctx, W, H, y0, { alpha: 0.62, stretch: 1.25, blur: 1.4, fadeAmt: 0.45, fadeColor: '#0e1120' });
+    // light spilling from shops and signs onto the pavement
+    for (const L of S.frameLights || []) {
+      if (L.y < y0 - 40 || L.x < -L.r * 3 || L.x > W + L.r * 3) continue;
+      lightPool(ctx, L.x, Math.max(L.y, y0) + L.r * 0.12, L.r * 1.6, L.r * 0.22, L.color, 0.22 * L.a);
+    }
+  }));
+  S.layers.push(screenLayer(0.506, (ctx, t, W, H, view) => {
     for (const pd of o.puddles || []) {
-      const e = groundEllipse(ctx, view, pd.x, pd.d ?? 0, pd.w, pd.dz ?? 1.4, NIGHT.street.puddle);
+      const e = groundEllipse(ctx, view, pd.x, pd.d ?? 0, pd.w, pd.dz ?? 1.4, 'rgba(20,28,48,0.35)');
       if (pd.glow) {
         ctx.save();
         ctx.beginPath();
@@ -94,42 +126,48 @@ function nightStreet(S, o = {}) {
         ctx.clip();
         const gx = e.X + (pd.glow - pd.x) * view.scaleAt(view.pOf(pd.d ?? 0));
         const g = ctx.createRadialGradient(gx, e.Y, 0, gx, e.Y, e.rx * 0.9);
-        g.addColorStop(0, css(NIGHT.lamp.light, 0.55));
+        g.addColorStop(0, css(NIGHT.lamp.light, 0.65));
         g.addColorStop(1, css(NIGHT.lamp.light, 0));
+        ctx.globalCompositeOperation = 'screen';
         ctx.fillStyle = g;
         ctx.fillRect(e.X - e.rx, e.Y - e.ry, e.rx * 2, e.ry * 2);
         ctx.restore();
       }
-      // ripple sheen
-      ctx.strokeStyle = 'rgba(210,225,255,0.2)';
-      ctx.lineWidth = Math.max(1, e.ry * 0.08);
-      ctx.beginPath();
+      // ripples from drips
+      ctx.save();
+      ctx.strokeStyle = 'rgba(210,225,255,0.35)';
+      ctx.lineWidth = Math.max(1, e.ry * 0.05);
       for (let i = 0; i < 3; i++) {
-        const yy = e.Y - e.ry * 0.4 + i * e.ry * 0.4;
-        const off = Math.sin(t * 0.04 + i * 2 + pd.x) * e.rx * 0.15;
-        ctx.moveTo(e.X - e.rx * 0.45 + off, yy);
-        ctx.lineTo(e.X + e.rx * 0.05 + off, yy);
+        const per = 34 + i * 9;
+        const tt = t + i * 13 + Math.abs(pd.x) * 7;
+        const a = (tt % per) / per;
+        const cx = e.X + (hash01(i * 7 + Math.floor(tt / per)) - 0.5) * e.rx;
+        ctx.globalAlpha = 1 - a;
+        ctx.beginPath();
+        ctx.ellipse(cx, e.Y, e.rx * 0.08 + a * e.rx * 0.3, (e.rx * 0.08 + a * e.rx * 0.3) * (e.ry / e.rx), 0, 0, TAU);
+        ctx.stroke();
       }
-      ctx.stroke();
+      ctx.restore();
     }
   }));
 }
-// street lamp at (x, depth) on the sidewalk, with light pool
+// street lamp at (x, depth) on the sidewalk, with a misty cone and a pool
 function lamp(S, x, depth = 26, h = 50) {
-  S.layers.push(at(depth, 0.47, (ctx, t) => scaled(ctx, x, STREET.walk, h / 5, () => streetLamp(ctx, 0, 0, 5, NIGHT.lamp, 1, 0))));
+  S.layers.push(at(depth, 0.47, (ctx, t) => scaled(ctx, x, STREET.walk, h / 5, () => {
+    const [hx, hy] = streetLamp(ctx, 0, 0, 5, NIGHT.lamp, 0, 0);
+    // warm wash on the wall behind the lamp
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    glow(ctx, hx, hy + 1.2, 7, '#ff9a55', 0.22);
+    ctx.restore();
+    lightCone(ctx, hx, hy + 0.05, 0.5, 5.4, 0, NIGHT.lamp.light, 0.2);
+    lampGlow(ctx, hx, hy + 0.06, 1.5, NIGHT.lamp.light, 0.95, 0.08);
+    ctx.fillStyle = '#fff4d6';
+    ctx.fillRect(hx - 0.3, hy, 0.6, 0.09);
+  })));
   S.layers.push(screenLayer(0.51, (ctx, t, W, H, view) => {
     const g = groundEllipse(ctx, view, x + h * 0.21, depth - 6, h * 0.5, 10, 'rgba(0,0,0,0)', STREET.walk);
-    const rg = ctx.createRadialGradient(g.X, g.Y, 0, g.X, g.Y, g.rx);
-    rg.addColorStop(0, css(NIGHT.lamp.light, 0.26));
-    rg.addColorStop(1, css(NIGHT.lamp.light, 0));
-    ctx.save();
-    ctx.translate(g.X, g.Y);
-    ctx.scale(1, g.ry / g.rx);
-    ctx.translate(-g.X, -g.Y);
-    ctx.globalCompositeOperation = 'screen';
-    ctx.fillStyle = rg;
-    ctx.fillRect(g.X - g.rx, g.Y - g.rx, g.rx * 2, g.rx * 2);
-    ctx.restore();
+    lightPool(ctx, g.X, g.Y, g.rx, g.ry, NIGHT.lamp.light, 0.34);
   }));
 }
 // falling drips (from eaves / wires) with splash rings — stateless
@@ -165,7 +203,7 @@ const CARK = 4.2; // car scale: 30 H long
 // ---- 1.1 establishing: crane down from the rooftops to the wet street -------
 function s1_1() {
   return shot({
-    name: '1.1', dur: 216, unit: 12, anchor: [0.5, 0.42], fadeIn: 60, grade: nightGrade,
+    name: '1.1', dur: 216, unit: 12, anchor: [0.5, 0.42], fadeIn: 60, grade: nightGrade, post: nightPost,
     cam: { x: -10, y: -205, z: 1 },
     setup(S) {
       S.camera.move(20, 204, { y: -20, x: 6 }, 'inout');
@@ -193,7 +231,7 @@ function s1_1() {
 // ---- 1.2 under the car: crawl out, drip, shake head, look around -----------
 function s1_2() {
   return shot({
-    name: '1.2', dur: 232, unit: 96, anchor: [0.5, 0.6], grade: nightGrade,
+    name: '1.2', dur: 232, unit: 96, anchor: [0.5, 0.6], grade: nightGrade, post: nightPost,
     cam: { x: 2.6, y: -1.25, z: 1 },
     setup(S) {
       nightBackdrop(S, { facSeed: 23, wires: false });
@@ -263,7 +301,7 @@ function s1_2() {
 // ---- 1.3 gust: the postcard tumbles in -------------------------------------
 function s1_3() {
   return shot({
-    name: '1.3', dur: 172, unit: 80, anchor: [0.5, 0.6], grade: nightGrade,
+    name: '1.3', dur: 172, unit: 80, anchor: [0.5, 0.6], grade: nightGrade, post: nightPost,
     cam: { x: 0.8, y: -1.7, z: 1 },
     setup(S) {
       nightBackdrop(S, { facSeed: 27, wires: false });
@@ -313,7 +351,7 @@ function s1_3() {
 // ---- 1.4 approach, sniff, pat — the card flips over -------------------------
 function s1_4() {
   return shot({
-    name: '1.4', dur: 196, unit: 118, anchor: [0.5, 0.6], grade: nightGrade,
+    name: '1.4', dur: 196, unit: 118, anchor: [0.5, 0.6], grade: nightGrade, post: nightPost,
     cam: { x: 1.4, y: -1.35, z: 1 },
     setup(S) {
       nightBackdrop(S, { facSeed: 27, wires: false });
@@ -447,7 +485,7 @@ function portraitTrack(init) {
 }
 function s1_6() {
   return shot({
-    name: '1.6', dur: 150, unit: 380, anchor: [0.5, 0.6], grade: nightGrade,
+    name: '1.6', dur: 150, unit: 380, anchor: [0.5, 0.6], grade: nightGrade, post: nightPost,
     cam: { x: 0, y: -0.3, z: 1 },
     setup(S) {
       S.camera.move(10, 150, { z: 1.05 }, 'inout');
@@ -567,7 +605,7 @@ function alleyUp(ctx, W, H, t, lift) {
 }
 function s1_7() {
   return shot({
-    name: '1.7', dur: 172, unit: 60, anchor: [0.5, 0.5], grade: nightGrade,
+    name: '1.7', dur: 172, unit: 60, anchor: [0.5, 0.5], grade: nightGrade, post: nightPost,
     setup(S) {
       S.layers.push(screenLayer(0, (ctx, t, W, H) => {
         const lift = ramp(t, [[20, 0], [150, H * 0.95]]);
@@ -595,7 +633,7 @@ function s1_7() {
 // ---- 1.8 picks up the postcard ------------------------------------------
 function s1_8() {
   return shot({
-    name: '1.8', dur: 104, unit: 108, anchor: [0.5, 0.6], grade: nightGrade,
+    name: '1.8', dur: 104, unit: 108, anchor: [0.5, 0.6], grade: nightGrade, post: nightPost,
     cam: { x: 1.9, y: -1.4, z: 1 },
     setup(S) {
       nightBackdrop(S, { facSeed: 27, wires: false });
@@ -634,7 +672,7 @@ function runGround(x) {
 }
 function s1_9() {
   return shot({
-    name: '1.9', dur: 440, unit: 60, anchor: [0.45, 0.6], grade: nightGrade,
+    name: '1.9', dur: 440, unit: 60, anchor: [0.45, 0.6], grade: nightGrade, post: nightPost,
     cam: { x: 0, y: -1.6, z: 1 },
     setup(S) {
       nightBackdrop(S, { facSeed: 31, poles: [-120, 160] });
@@ -708,20 +746,26 @@ function s1_9() {
 
 // ---- 1.10 dawn at the edge of the city: title ------------------------------
 const DAWN = {
-  sky: [[0, '#6f86b4'], [0.45, '#a9b5cf'], [0.75, '#e9c7b0'], [1, '#f3d9bf']],
+  sky: [[0, '#4f64a0'], [0.38, '#8f9fcd'], [0.64, '#e9b9b0'], [0.82, '#ffd2a2'], [1, '#fff0cc']],
 };
 function s1_10() {
   return shot({
     name: '1.10', dur: 228, unit: 52, anchor: [0.5, 0.62], xfade: 30,
-    grade: { vignette: 0.25, vignetteColor: '#5a5068', grain: 0.4 },
+    grade: { vignette: 0.28, vignetteColor: '#4a3f5e', grain: 0.35 },
+    post: { bloom: { threshold: 0.8, knee: 0.15, strength: 0.5, radius: 26, tint: '#ffd7a8' }, rays: { pos: [0.78, 0.44], strength: 0.45, length: 0.55, threshold: 0.84, knee: 0.1, tint: '#ffc890' } },
     cam: { x: 6.5, y: -7.5, z: 1 },
     setup(S) {
       S.camera.move(80, 228, { x: 13, y: -4 }, 'inout');
       S.layers.push(screenLayer(0, (ctx, t, W, H) => {
         skyGradient(ctx, W, H, DAWN.sky);
-        glow(ctx, W * 0.8, H * 0.6, W * 0.4, '#ffe2bd', 0.55);
+        glow(ctx, W * 0.78, H * 0.44, W * 0.6, '#ffd9a8', 0.65);
+        lampGlow(ctx, W * 0.78, H * 0.44, W * 0.07, '#fff4dc', 1, 0.3);
+        ctx.fillStyle = '#fff8ea';
+        ctx.beginPath();
+        ctx.arc(W * 0.78, H * 0.44, W * 0.018, 0, TAU);
+        ctx.fill();
       }));
-      S.layers.push(at(20000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 12, n: 6, y: -9000, dy: 3000, w: 16000, h: 900, speed: 1.5, wrap: 90000, top: '#f7e2d2', shade: '#c9b0b6' })));
+      S.layers.push(at(20000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 12, n: 7, y: -3200, dy: 1400, w: 5200, h: 520, speed: 1.2, wrap: 30000, top: '#fbe2d4', shade: '#a996b6', rim: '#fff4ea', glow: '#ffb487', light: [0.7, 0.45] })));
       const hills = profile({ base: 0, amp: 260, freq: 0.0012, seed: 4 });
       const forest = profile({ base: 0, amp: 30, freq: 0.004, seed: 8 });
       S.layers.push(at(3000, 0.1, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, hills, '#a3aec8', 4000, 20)));
@@ -732,6 +776,10 @@ function s1_10() {
       // fields between the city and the woods
       S.layers.push(screenLayer(0.3, (ctx, t, W, H, view) => {
         groundPlane(ctx, view, { y: 0.4, bands: [[-200, 900, ['#7e9366', '#a2af8a']]], lines: [[300, 'rgba(255,240,210,0.25)', 1.2], [120, 'rgba(90,110,70,0.25)', 0.8]] });
+      }));
+      S.layers.push(screenLayer(0.35, (ctx, t, W, H, view) => {
+        const yH = view.oy + (0.4 - view.cam.y) * view.scaleAt(view.pOf(900));
+        fogBand(ctx, W, H, yH, H * 0.12, '#ffe8d6', 0.4, t, { seed: 9, speed: 0.3 });
       }));
       S.layers.push(at(60, 0.4, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: () => 0.4, spacing: 6, h: 3, width: 0.3, colors: ['#879b6f', '#96a97c'], seed: 17, wind: windField({ base: 0.12, gust: 0.25 }), fill: 0.8 })));
       // the last buildings of the city on the left

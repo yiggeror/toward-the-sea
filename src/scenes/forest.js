@@ -9,64 +9,113 @@ import { skyGradient, glow, clouds } from '../env/sky.js';
 import { profile, fillBelow, groundPlane, groundEllipse } from '../env/terrain.js';
 import { tree, treeRow, grass, tufts, rock, water, windField, leafyPlant } from '../env/nature.js';
 import { lightShafts, motes } from '../env/weather.js';
+import { lampGlow, fogBand, particles, glints, bokeh } from '../env/light.js';
 import { butterfly, butterflyPos, fish } from '../env/creatures.js';
 import { Track } from '../core/tracks.js';
 import { css, mix } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 export const FOREST = {
-  sky: [[0, '#b7dbe0'], [0.55, '#e3efd4'], [1, '#f5eecb']],
-  far: '#a9c7b4', far2: '#98baa4',
-  trunk: '#6d5b4b', trunkFar: '#8a8a7a',
-  canopy: { dark: '#3f6b4e', mid: '#5f8f5a', light: '#96bf72' },
-  canopyFar: { dark: '#7fa590', mid: '#8fb39a', light: null },
-  ground: ['#7aa356', '#a5c779'],
-  grass: ['#5f8b43', '#7fac52'],
-  grassLight: ['#8db85d', '#a9cf73'],
-  flowers: ['#f4f1e4', '#f2d774', '#e9b4c0'],
+  sky: [[0, '#9fd3de'], [0.5, '#dcefd2'], [1, '#fff1c6']],
+  far: '#a9cbbb', far2: '#8fb8a0',
+  trunk: '#5e4a3d', trunkFar: '#7f8577',
+  canopy: { dark: '#2f5b43', mid: '#4f8a4f', light: '#a6cf6a' },
+  canopyFar: { dark: '#6f9e86', mid: '#86b394', light: null },
+  ground: ['#6c9d46', '#a9cc72'],
+  grass: ['#4f8238', '#74a948'],
+  grassLight: ['#8db85d', '#b6d876'],
+  flowers: ['#fbf6e8', '#f7d85e', '#f0a8bf', '#b8a4ef'],
   stone: ['#a19b8f', '#c3bdb0', null],
   moss: '#7da157',
-  water: '#8ec5c7', waterDeep: '#5d97a3',
-  light: '#fff1c4',
+  water: '#8ec5c7', waterDeep: '#4f8e9d',
+  light: '#fff0b8',
 };
 const catDay = {
-  light: () => ({ tint: '#fff4de', amt: 0.12, lift: '#101008' }),
-  rim: () => ({ color: '#fff6d6', dir: [-0.5, -0.86], alpha: 0.55, width: 0.05 }),
+  light: () => ({ tint: '#fff2d8', amt: 0.12, lift: '#101008' }),
+  rim: () => ({ color: '#fff3c8', dir: [-0.5, -0.86], alpha: 0.7, width: 0.06 }),
 };
-const dayGrade = { vignette: 0.28, vignetteColor: '#44503a', grain: 0.35, topGlow: '#fff4d0', topGlowAmt: 0.18 };
+const dayGrade = { vignette: 0.34, vignetteColor: '#2f3d2c', grain: 0.3, topGlow: '#fff2c4', topGlowAmt: 0.1 };
 const breeze = windField({ base: 0.12, gust: 0.3, speed: 0.12, wave: 0.08 });
+// sun through the canopy: god rays from the bright sky between the leaves
+const forestPost = (sunX = 0.2, sunY = 0.06) => ({
+  rays: { pos: [sunX, sunY], strength: 0.42, length: 0.6, threshold: 0.9, knee: 0.08, samples: 16, tint: '#ffe9a8' },
+  bloom: { threshold: 0.9, knee: 0.1, strength: 0.35, radius: 20, tint: '#fff2c8' },
+});
+
+// dappled sunlight on the ground: soft warm flecks that breathe as leaves move
+function sunFlecks(ctx, view, t, o = {}) {
+  const n = o.n ?? 26;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < n; i++) {
+    const h = (q) => hash01((o.seed ?? 3) * 131 + i * 19 + q);
+    const d = (o.d0 ?? -2) + h(1) * ((o.d1 ?? 60) - (o.d0 ?? -2));
+    const p = view.pOf(d), sc = view.scaleAt(p);
+    const [x0, x1] = view.xRange(p, 0.1);
+    const span = x1 - x0;
+    const x = x0 + ((h(2) * 400 + (o.drift ?? 0) * t) % 400) / 400 * span;
+    const X = view.ox + (x - view.cam.x) * sc, Y = view.oy + ((o.y ?? 0) - view.cam.y) * sc;
+    if (Y < 0 || Y > view.H + 50) continue;
+    const r = (0.6 + 1.4 * h(3)) * sc * (o.size ?? 1);
+    const a = (o.alpha ?? 0.3) * (0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.03 * (0.5 + h(4)) + h(5) * 6.28)));
+    const g = ctx.createRadialGradient(X, Y, 0, X, Y, r);
+    g.addColorStop(0, css(FOREST.light, a));
+    g.addColorStop(0.6, css(FOREST.light, a * 0.5));
+    g.addColorStop(1, css(FOREST.light, 0));
+    ctx.fillStyle = g;
+    ctx.save();
+    ctx.translate(X, Y);
+    ctx.scale(1, 0.28);
+    ctx.fillRect(-r, -r, 2 * r, 2 * r);
+    ctx.restore();
+  }
+  ctx.restore();
+}
 
 function forestBackdrop(S, o = {}) {
+  const sunX = o.sunX ?? 0.2, sunY = o.sunY ?? 0.06;
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
     skyGradient(ctx, W, H, FOREST.sky);
-    glow(ctx, W * (o.sunX ?? 0.2), H * (o.sunY ?? 0.08), W * 0.5, '#fff6d8', 0.55);
+    glow(ctx, W * sunX, H * sunY, W * 0.55, '#fff4cc', 0.7);
+    lampGlow(ctx, W * sunX, H * sunY, W * 0.08, '#fffbe8', 1, 0.3);
   }));
   const far = profile({ base: 0, amp: 160, freq: 0.004, seed: 21 });
-  S.layers.push(at(2200, 0.05, (ctx, t, view, S2, p) => {
+  S.layers.push(Object.assign(at(2200, 0.05, (ctx, t, view, S2, p) => {
     fillBelow(ctx, view, p, far, FOREST.far, 5000, 20);
-    treeRow(ctx, view, p, t, { seed: 5, spacing: 90, h: 260, w: 170, ground: far, trunk: FOREST.far, dark: FOREST.far, mid: '#b5d0bd', light: null, fill: 0.9 });
-  }));
+    treeRow(ctx, view, p, t, { seed: 5, spacing: 90, h: 260, w: 170, ground: far, trunk: FOREST.far, dark: FOREST.far, mid: '#b9d6c4', light: null, fill: 0.9 });
+  }), { blur: 2.2, haze: { color: '#cfe4d6', amount: 0.25 } }));
   const mid = profile({ base: 0, amp: 30, freq: 0.01, seed: 7 });
-  S.layers.push(at(500, 0.1, (ctx, t, view, S2, p) => {
+  S.layers.push(Object.assign(at(500, 0.1, (ctx, t, view, S2, p) => {
     fillBelow(ctx, view, p, mid, FOREST.far2, 3000, 8);
-    treeRow(ctx, view, p, t, { seed: 9, spacing: 55, h: 210, w: 120, ground: mid, trunk: FOREST.trunkFar, dark: FOREST.canopyFar.dark, mid: FOREST.canopyFar.mid, light: null, fill: 0.95, wind: (x, tt) => breeze(x, tt) * 0.3 });
-  }));
+    treeRow(ctx, view, p, t, { seed: 9, spacing: 55, h: 210, w: 120, ground: mid, trunk: FOREST.trunkFar, dark: FOREST.canopyFar.dark, mid: FOREST.canopyFar.mid, light: '#b4d69c', fill: 0.95, wind: (x, tt) => breeze(x, tt) * 0.3 });
+  }), { haze: { color: '#c9e0c8', amount: 0.15 } }));
   S.layers.push(screenLayer(0.15, (ctx, t, W, H, view) => {
     groundPlane(ctx, view, { y: 0, bands: [[-500, 3000, FOREST.ground]] });
+    // a band of morning haze where the meadow meets the wood
+    const yH = view.oy + (0 - view.cam.y) * view.scaleAt(view.pOf(400));
+    fogBand(ctx, W, H, yH - H * 0.03, H * 0.14, '#eef3dc', 0.2, t, { seed: 6, speed: 0.2 });
   }));
   if (o.nearTrees !== false) {
     S.layers.push(at(90, 0.2, (ctx, t, view, S2, p) => treeRow(ctx, view, p, t, {
       seed: o.treeSeed ?? 13, spacing: 60, h: 230, w: 130, ground: () => 0, trunk: FOREST.trunk, trunkW: 7, dark: FOREST.canopy.dark, mid: FOREST.canopy.mid, light: FOREST.canopy.light, fill: 0.75, wind: (x, tt) => breeze(x, tt) * 0.4,
     })));
   }
-  S.layers.push(screenLayer(0.25, (ctx, t, W, H) => lightShafts(ctx, W, H, t, { x0: o.shaftX ?? 0.1, spread: 0.7, n: 6, angle: 0.3, color: FOREST.light, alpha: 0.2, seed: o.shaftSeed ?? 7 })));
-  // grass fields at mid depth
-  S.layers.push(at(30, 0.3, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: () => 0, density: 4, h: 2.4, width: 0.25, colors: [FOREST.grass[0], FOREST.grass[1]], seed: 3, wind: breeze })));
-  S.layers.push(at(8, 0.4, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: () => 0, spacing: 1.3, h: 1.6, width: 0.12, colors: FOREST.grass, seed: 5, wind: breeze, fill: 0.8, flowers: { p: 0.35, colors: FOREST.flowers, r: 0.1 } })));
+  S.layers.push(screenLayer(0.25, (ctx, t, W, H) => lightShafts(ctx, W, H, t, { x0: o.shaftX ?? 0.1, spread: 0.7, n: 7, angle: 0.3, color: FOREST.light, alpha: 0.13, seed: o.shaftSeed ?? 7 })));
+  // grass fields at mid depth, sunlit tips
+  S.layers.push(at(30, 0.3, (ctx, t, view, S2, p) => {
+    grass(ctx, view, p, t, { ground: () => 0, density: 4, h: 2.4, width: 0.25, colors: [FOREST.grass[0], FOREST.grass[1], FOREST.grassLight[1]], seed: 3, wind: breeze });
+  }));
+  S.layers.push(screenLayer(0.35, (ctx, t, W, H, view) => sunFlecks(ctx, view, t, { seed: o.shaftSeed ?? 7, n: 30, d0: -1, d1: 40, alpha: 0.32 })));
+  S.layers.push(at(8, 0.4, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: () => 0, spacing: 1.1, h: 1.6, width: 0.12, colors: [...FOREST.grass, FOREST.grassLight[0]], seed: 5, wind: breeze, fill: 0.85, flowers: { p: 0.45, colors: FOREST.flowers, r: 0.11 } })));
+  S.post = forestPost(sunX, sunY);
 }
 function foreground(S, o = {}) {
-  S.layers.push(at(-6, 2, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: () => 0.6, spacing: 2.4, h: 2.4, width: 0.18, colors: ['#4d7438', '#5a8440'], seed: o.seed ?? 11, wind: breeze, fill: 0.6 })));
-  S.layers.push(screenLayer(2.5, (ctx, t, W, H) => motes(ctx, W, H, t, { n: 36, seed: 4, color: '#fff6d8', alpha: 0.55, drift: 0.3 })));
+  S.layers.push(Object.assign(at(-6, 2, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: () => 0.6, spacing: 2.4, h: 2.6, width: 0.2, colors: ['#3f6a30', '#4d7a38'], seed: o.seed ?? 11, wind: breeze, fill: 0.6 })), { blur: 5 }));
+  S.layers.push(screenLayer(2.5, (ctx, t, W, H) => {
+    // pollen and dust drifting through the sunbeams
+    particles(ctx, W, H, t, { n: 46, seed: 4, color: ['#fff6d8', '#fff0b0'], alpha: 0.75, size: 2.2, vx: 0.25, vy: -0.08, glow: 3, twinkle: 0.06 });
+  }));
 }
 
 // ---- 2.1 wide: arriving at the meadow --------------------------------------

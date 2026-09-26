@@ -10,17 +10,20 @@ import { profile, fillBelow, groundPlane, groundEllipse } from '../env/terrain.j
 import { grass, tufts, windField, treeRow, tree } from '../env/nature.js';
 import { rain, rainImpacts, windStreaks, bolt, flashAt, dust } from '../env/weather.js';
 import { css, mix } from '../core/draw.js';
+import { lampGlow, lightCone, lightPool, fogBand, wetReflection, particles, glints } from '../env/light.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 const STORM = {
-  sky: [[0, '#39414f'], [0.55, '#566073'], [1, '#79808f']],
-  skyDark: [[0, '#1f2530'], [0.55, '#343c4b'], [1, '#4b5261']],
+  sky: [[0, '#2c3342'], [0.45, '#4d5669'], [0.8, '#8a8d8a'], [1, '#c2b98f']],
+  skyDark: [[0, '#151a26'], [0.5, '#2b3243'], [0.85, '#4a5160'], [1, '#6c6e6c']],
   hillFar: '#6a7682', hillMid: '#5b6a5c', hillNear: '#56674f',
   grass: ['#566a47', '#6b8058'], grassLight: ['#7a8f63', '#8ea173'],
   ground: ['#4f6145', '#6a7b5c'], mud: '#4a4a3e', puddle: '#6f7b8c',
   cloud: '#5e6678', cloudDark: '#474e5e',
   rain: '#c9d3e1',
 };
+const stormPost = { bloom: { threshold: 0.82, knee: 0.12, strength: 0.55, radius: 24, tint: '#dfe6ff' } };
+const moonPost = { bloom: { threshold: 0.62, knee: 0.25, strength: 0.6, radius: 26, tint: '#e6ecff' } };
 const catStorm = {
   light: () => ({ tint: '#a9b2c6', amt: 0.35, lift: '#15181e' }),
   rim: () => ({ color: '#e1e8ff', dir: [0.2, -0.98], alpha: 0.35, width: 0.05 }),
@@ -31,11 +34,51 @@ const headwind = (base = 1.1, gustAt = []) => (t) => {
   return [-(base + 0.25 * Math.sin(t * 0.21) + 0.9 * g), 0.06];
 };
 
+// flash level of the strikes at time t (for lighting clouds and the scene)
+function strikeLight(strikes, t) {
+  let k = 0;
+  for (const s of strikes || []) {
+    const a = t - s.t;
+    if (a < 0 || a > 6) continue;
+    k = Math.max(k, (a < 1 ? 1 : a < 2 ? 0.35 : a < 3 ? 0.85 : a < 4 ? 0.3 : 0.12) * (s.amt ?? 1));
+  }
+  return k;
+}
 function stormSky(S, o = {}) {
-  S.layers.push(screenLayer(0, (ctx, t, W, H) => skyGradient(ctx, W, H, o.dark ? STORM.skyDark : STORM.sky)));
-  S.layers.push(at(25000, 0.03, (ctx, t, view, S2, p) => {
-    clouds(ctx, view, p, t, { seed: 71, n: 9, y: -5600, dy: 1800, w: 24000, h: 3000, speed: -(o.cloudSpeed ?? 18), wrap: 120000, top: 'rgba(70,78,94,0.55)', alpha: 1 });
-    clouds(ctx, view, p, t, { seed: 73, n: 8, y: -3600, dy: 1200, w: 20000, h: 2200, speed: -(o.cloudSpeed ?? 18) * 1.3, wrap: 110000, top: 'rgba(58,64,80,0.6)', alpha: 1 });
+  S.layers.push(screenLayer(0, (ctx, t, W, H) => {
+    skyGradient(ctx, W, H, o.dark ? STORM.skyDark : STORM.sky);
+    // a pale band of light low under the storm
+    const g = ctx.createLinearGradient(0, H * 0.35, 0, H * 0.75);
+    g.addColorStop(0, 'rgba(230,220,170,0)');
+    g.addColorStop(0.7, css('#e8dcae', o.dark ? 0.12 : 0.28));
+    g.addColorStop(1, 'rgba(230,220,170,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }));
+  const cloudLayer = (seed, y, h, w, speed, top, shade, alpha, n) => (ctx, t, view, S2, p) => {
+    const fl = strikeLight(o.strikes, t);
+    clouds(ctx, view, p, t, { seed, n, y, dy: h * 0.6, w, h, speed, wrap: 120000, top: fl > 0.05 ? css(mix(top, '#dfe6ff', fl * 0.6)) : top, shade, rim: fl > 0.05 ? '#f4f6ff' : undefined, glow: fl > 0.05 ? '#cfd8ff' : undefined, light: [0.1, 1], alpha });
+  };
+  S.layers.push(Object.assign(at(25000, 0.03, cloudLayer(71, -5600, 3600, 30000, -(o.cloudSpeed ?? 18), '#5f677a', '#363c4b', 0.95, 5)), { blur: 3, group: 'sky' }));
+  S.layers.push(Object.assign(at(25000, 0.031, cloudLayer(73, -3000, 2600, 26000, -(o.cloudSpeed ?? 18) * 1.3, '#4c5364', '#2b303d', 0.92, 5)), { blur: 3, group: 'sky' }));
+  // distant rain curtains hanging from the cloud base
+  S.layers.push(screenLayer(0.035, (ctx, t, W, H) => {
+    const n = o.curtains ?? 4;
+    for (let i = 0; i < n; i++) {
+      const x = ((hash01(i * 7 + 3) * 1.4 - 0.2 + t * 0.0006 * (1 + i * 0.3)) % 1.4) * W;
+      const w = W * (0.12 + 0.12 * hash01(i * 5 + 1));
+      const g = ctx.createLinearGradient(0, H * 0.25, 0, H * 0.7);
+      g.addColorStop(0, css('#8a93a8', 0));
+      g.addColorStop(0.3, css('#8a93a8', 0.28));
+      g.addColorStop(1, css('#8a93a8', 0));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(x, H * 0.25);
+      ctx.lineTo(x + w, H * 0.25);
+      ctx.lineTo(x + w * 0.8 - W * 0.05, H * 0.72);
+      ctx.lineTo(x - W * 0.05, H * 0.72);
+      ctx.fill();
+    }
   }));
   if (o.strikes) {
     S.layers.push(screenLayer(0.04, (ctx, t, W, H) => {
@@ -43,6 +86,11 @@ function stormSky(S, o = {}) {
         const a = t - s.t;
         if (a < 0 || a > 5) continue;
         const k = a < 1 ? 1 : a < 2 ? 0.3 : a < 3 ? 0.9 : 0.4;
+        // the cloud lights up around the bolt
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        lampGlow(ctx, W * s.x, H * 0.15, W * 0.35, '#b9c6ff', 0.45 * k, 0.05);
+        ctx.restore();
         bolt(ctx, W * s.x, -10, H * (s.y ?? 0.35), 101 + s.t, k * (s.amt ?? 1), W);
       }
     }));
@@ -52,14 +100,34 @@ function hills(S, o = {}) {
   const far = profile({ base: 0, amp: 300, freq: 0.0009, seed: 31 });
   const mid = profile({ base: 0, amp: 60, freq: 0.004, seed: 33 });
   const wind = o.wind || windField({ base: -0.3, gust: -0.9, speed: 0.3, wave: 0.05, dir: -1 });
-  S.layers.push(at(5000, 0.05, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, far, STORM.hillFar, 9000, 40)));
+  S.layers.push(Object.assign(at(5000, 0.05, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, far, STORM.hillFar, 9000, 40)), { haze: { color: '#8f98a6', amount: 0.35 }, blur: 1.5 }));
   S.layers.push(at(900, 0.1, (ctx, t, view, S2, p) => {
     fillBelow(ctx, view, p, mid, STORM.hillMid, 3000, 8);
     if (o.trees !== false) treeRow(ctx, view, p, t, { seed: 5, spacing: 120, h: 110, w: 70, ground: mid, trunk: '#4d5a4f', dark: '#4f5f52', mid: '#5b6c5c', light: null, fill: 0.35, wind: (x, tt) => wind(x, tt) * 0.4 });
   }));
   S.layers.push(screenLayer(0.12, (ctx, t, W, H, view) => groundPlane(ctx, view, { y: 0, bands: [[-500, 900, STORM.ground]] })));
   S.layers.push(at(120, 0.14, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: () => 0, density: 1.2, h: 5, width: 0.7, colors: STORM.grass, seed: 7, wind })));
-  S.layers.push(at(25, 0.2, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: () => 0, density: 4, h: 2.6, width: 0.24, colors: STORM.grass, seed: 9, wind })));
+  S.layers.push(at(25, 0.2, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: () => 0, density: 4, h: 2.6, width: 0.24, colors: [...STORM.grass, STORM.grassLight[1]], seed: 9, wind })));
+  // silvery sheen where gusts flatten the grass, racing across the field
+  S.layers.push(screenLayer(0.21, (ctx, t, W, H, view) => {
+    const y0 = view.oy + (0 - view.cam.y) * view.scaleAt(view.pOf(900));
+    const y1 = H;
+    if (y0 >= y1) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    for (let i = 0; i < 3; i++) {
+      const u = ((t * 0.006 * (1 + i * 0.4) + hash01(i * 3)) % 1.6) - 0.3;
+      const x = W * (1 - u);
+      const w = W * (0.18 + 0.1 * i);
+      const g = ctx.createLinearGradient(x - w, 0, x + w, 0);
+      g.addColorStop(0, 'rgba(200,215,190,0)');
+      g.addColorStop(0.5, css('#c9d6bc', 0.16));
+      g.addColorStop(1, 'rgba(200,215,190,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - w, y0, 2 * w, y1 - y0);
+    }
+    ctx.restore();
+  }));
   S.layers.push(at(6, 0.3, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: () => 0, spacing: 1.4, h: 1.7, width: 0.12, colors: STORM.grassLight, seed: 11, wind, fill: 0.8 })));
   return wind;
 }
@@ -72,7 +140,7 @@ function stormFront(S, o = {}) {
 function s3_1() {
   return shot({
     name: '3.1', dur: 204, unit: 26, anchor: [0.5, 0.66], xfade: 12,
-    grade: { vignette: 0.35, vignetteColor: '#2a2e38', grain: 0.4, tint: '#c3c9d6', tintAmt: 0.12 },
+    post: stormPost, grade: { vignette: 0.35, vignetteColor: '#2a2e38', grain: 0.4, tint: '#c3c9d6', tintAmt: 0.12 },
     cam: { x: -6, y: -5, z: 1 },
     setup(S) {
       S.camera.move(0, 204, { x: 8 }, 'linear');
@@ -95,7 +163,7 @@ function s3_2() {
   const gust = [[120, 196]];
   return shot({
     name: '3.2', dur: 300, unit: 104, anchor: [0.5, 0.62],
-    grade: { vignette: 0.4, vignetteColor: '#2a2e38', grain: 0.45, tint: '#c3c9d6', tintAmt: 0.14 },
+    post: stormPost, grade: { vignette: 0.4, vignetteColor: '#2a2e38', grain: 0.45, tint: '#c3c9d6', tintAmt: 0.14 },
     cam: { x: 1, y: -1.3, z: 1 },
     setup(S) {
       stormSky(S, { cloudSpeed: 22 });
@@ -131,7 +199,7 @@ function s3_2() {
 function s3_3() {
   return shot({
     name: '3.3', dur: 132, unit: 120, anchor: [0.5, 0.6],
-    grade: { vignette: 0.42, vignetteColor: '#262a33', grain: 0.45, tint: '#b9c0ce', tintAmt: 0.18 },
+    post: stormPost, grade: { vignette: 0.42, vignetteColor: '#262a33', grain: 0.45, tint: '#b9c0ce', tintAmt: 0.18 },
     cam: { x: 1.4, y: -1.4, z: 1 },
     setup(S) {
       stormSky(S, { cloudSpeed: 20, dark: true });
@@ -177,7 +245,7 @@ function s3_4() {
   const strikes = [{ t: 70, x: 0.72, y: 0.4, amt: 0.8 }, { t: 210, x: 0.25, y: 0.35, amt: 0.7 }];
   return shot({
     name: '3.4', dur: 300, unit: 74, anchor: [0.46, 0.64],
-    grade: (t) => ({ vignette: 0.45, vignetteColor: '#1d2129', grain: 0.5, tint: '#aab2c2', tintAmt: 0.22, flash: flashAt(t, strikes) * 0.55 }),
+    post: stormPost, grade: (t) => ({ vignette: 0.45, vignetteColor: '#1d2129', grain: 0.5, tint: '#aab2c2', tintAmt: 0.22, flash: flashAt(t, strikes) * 0.55 }),
     cam: { x: 0, y: -1.1, z: 1 },
     setup(S) {
       stormSky(S, { cloudSpeed: 26, dark: true, strikes });
@@ -208,7 +276,7 @@ function s3_5() {
   const strikes = [{ t: 22, x: 0.6, y: 0.55, amt: 1 }];
   return shot({
     name: '3.5', dur: 108, unit: 100, anchor: [0.5, 0.6],
-    grade: (t) => ({ vignette: 0.45, vignetteColor: '#1d2129', grain: 0.5, tint: '#aab2c2', tintAmt: 0.22, flash: flashAt(t, strikes) * 0.85 }),
+    post: stormPost, grade: (t) => ({ vignette: 0.45, vignetteColor: '#1d2129', grain: 0.5, tint: '#aab2c2', tintAmt: 0.22, flash: flashAt(t, strikes) * 0.85 }),
     cam: { x: 0.8, y: -1.4, z: 1 },
     setup(S) {
       stormSky(S, { cloudSpeed: 26, dark: true, strikes });
@@ -238,11 +306,28 @@ export const SHELTER = { x0: -10, x1: 10, roof: -24, bench: -3.9, benchX0: -7.5,
 function shelterGround(x) {
   return x >= SHELTER.benchX0 && x <= SHELTER.benchX1 ? SHELTER.bench : 0;
 }
-function shelterBack(ctx, P) {
+function shelterBack(ctx, P, lampOn = 0) {
   // back wall (inside), bench, side walls — drawn behind the cat
   const { x0, x1, roof, bench, benchX0, benchX1 } = SHELTER;
   ctx.fillStyle = P.wall;
   ctx.fillRect(x0, roof, x1 - x0, -roof);
+  // corrugated panels
+  ctx.fillStyle = P.wallShade;
+  for (let x = x0; x < x1; x += 1.2) ctx.fillRect(x, roof, 0.45, -roof);
+  // rust streaks and a damp lower edge
+  for (let i = 0; i < 9; i++) {
+    const x = x0 + 1 + hash01(i * 7) * (x1 - x0 - 2);
+    const g = ctx.createLinearGradient(0, roof + 1, 0, roof + 6 + 8 * hash01(i));
+    g.addColorStop(0, css('#8a5a3c', 0.35));
+    g.addColorStop(1, css('#8a5a3c', 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(x, roof + 1, 0.25 + 0.3 * hash01(i + 3), 6 + 8 * hash01(i));
+  }
+  const dmp = ctx.createLinearGradient(0, -4, 0, 0);
+  dmp.addColorStop(0, css('#1c2029', 0));
+  dmp.addColorStop(1, css('#1c2029', 0.35));
+  ctx.fillStyle = dmp;
+  ctx.fillRect(x0, -4, x1 - x0, 4);
   ctx.fillStyle = P.wallShade;
   ctx.fillRect(x0, roof, x1 - x0, 3);
   // old timetable / poster
@@ -260,6 +345,21 @@ function shelterBack(ctx, P) {
   // floor slab
   ctx.fillStyle = P.floor;
   ctx.fillRect(x0 - 1, 0, x1 - x0 + 2, 0.6);
+  // a small tube lamp under the roof
+  const lx = (x0 + x1) / 2 + 2, ly = roof + 3.4;
+  ctx.fillStyle = '#2a2d36';
+  ctx.fillRect(lx - 2.4, ly - 0.35, 4.8, 0.4);
+  if (lampOn > 0.01) {
+    ctx.fillStyle = css('#fff1cf', lampOn);
+    ctx.fillRect(lx - 2.1, ly + 0.02, 4.2, 0.28);
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    lampGlow(ctx, lx, ly + 0.2, 6, '#ffd9a0', 0.8 * lampOn, 0.06);
+    lightCone(ctx, lx, ly + 0.3, 4.2, 22, 0.4, '#ffd9a0', 0.16 * lampOn);
+    lightPool(ctx, lx - 1, bench + 0.2, 10, 1.2, '#ffcf90', 0.35 * lampOn);
+    lightPool(ctx, lx, 0.2, 13, 1.5, '#ffcf90', 0.3 * lampOn);
+    ctx.restore();
+  }
 }
 function shelterFront(ctx, P, t, rainAmt) {
   const { x0, x1, roof } = SHELTER;
@@ -308,12 +408,12 @@ const SHELTER_NIGHT = { wall: '#2c3242', wallShade: '#23283a', poster: '#4b4a50'
 function s3_6() {
   return shot({
     name: '3.6', dur: 232, unit: 36, anchor: [0.5, 0.64],
-    grade: { vignette: 0.45, vignetteColor: '#1d2129', grain: 0.5, tint: '#aab2c2', tintAmt: 0.22 },
+    post: stormPost, grade: { vignette: 0.45, vignetteColor: '#1d2129', grain: 0.5, tint: '#aab2c2', tintAmt: 0.22 },
     cam: { x: 7, y: -12, z: 1 },
     setup(S) {
       stormSky(S, { cloudSpeed: 20, dark: true });
       const wind = hills(S, { trees: true });
-      S.layers.push(at(0, 0.9, (ctx) => shelterBack(ctx, SHELTER_DAY)));
+      S.layers.push(at(0, 0.9, (ctx) => shelterBack(ctx, SHELTER_DAY, 0.9)));
       let tRel = 1e9;
       const card = new CardProp({ x: 2.2, y: SHELTER.bench, sx: 1, sy: 0.34, skew: -0.3, vis: 0 });
       const cat = makeCat(S, { x: 26, facing: -1, ground: shelterGround, carry: { wear: 0.33, on: (t) => t < tRel }, wind: headwind(0.3), ...catStorm });
@@ -346,12 +446,12 @@ function s3_7() {
   const strikes = [{ t: 96, x: 0.8, y: 0.3, amt: 0.5 }];
   return shot({
     name: '3.7', dur: 156, unit: 92, anchor: [0.5, 0.6],
-    grade: (t) => ({ vignette: 0.5, vignetteColor: '#1a1d26', grain: 0.5, tint: '#a1a9ba', tintAmt: 0.28, flash: flashAt(t, strikes) * 0.35 }),
+    post: stormPost, grade: (t) => ({ vignette: 0.5, vignetteColor: '#1a1d26', grain: 0.5, tint: '#a1a9ba', tintAmt: 0.28, flash: flashAt(t, strikes) * 0.35 }),
     cam: { x: 1.5, y: -5.2, z: 1 },
     setup(S) {
       stormSky(S, { cloudSpeed: 16, dark: true, strikes });
       hills(S, { trees: true });
-      S.layers.push(at(0, 0.9, (ctx) => shelterBack(ctx, SHELTER_DAY)));
+      S.layers.push(at(0, 0.9, (ctx) => shelterBack(ctx, SHELTER_DAY, 0.9)));
       const card = new CardProp({ x: -0.4, y: SHELTER.bench, sx: 1, sy: 0.34, skew: -0.3 });
       S.layers.push(at(0, 0.95, (ctx, t) => card.draw(ctx, t, { wear: 0.35 })));
       const gnd = shelterGround;
@@ -373,7 +473,7 @@ function s3_7() {
 
 // =============================== 4. NIGHT ===================================
 const NIGHTS = {
-  sky: [[0, '#0a0f1f'], [0.6, '#172039'], [1, '#27304a']],
+  sky: [[0, '#050a1c'], [0.5, '#101d44'], [0.85, '#1f2c58'], [1, '#2e3a66']],
 };
 const catMoon = {
   light: () => ({ tint: '#7c87b2', amt: 0.5, lift: '#12162a' }),
@@ -385,7 +485,8 @@ function nightSky(S, o = {}) {
     stars(ctx, W, H, o.stars ?? 120, 17, 0.7, t, o.starAlpha ?? 0.8);
   }));
   if (o.moon) S.layers.push(screenLayer(0.01, (ctx, t, W, H) => moon(ctx, W * o.moon[0], H * o.moon[1], W * 0.018, '#f3f0de', 0)));
-  S.layers.push(at(25000, 0.03, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 91, n: 7, y: -5200, dy: 1600, w: 18000, h: 2000, speed: -4, wrap: 120000, top: 'rgba(40,46,66,0.8)', shade: 'rgba(30,34,52,0.7)' })));
+  // night clouds lit from above by the moon: silver edges
+  S.layers.push(Object.assign(at(25000, 0.03, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 91, n: 5, y: -5200, dy: 1600, w: 22000, h: 2400, speed: -4, wrap: 120000, top: '#39415e', shade: '#1c2236', rim: '#8d9ac2', light: [-0.3, -1], alpha: 0.9 })), { blur: 3 }));
   const far = profile({ base: 0, amp: 300, freq: 0.0009, seed: 31 });
   S.layers.push(at(5000, 0.05, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, far, '#1b2233', 9000, 40)));
   S.layers.push(screenLayer(0.12, (ctx, t, W, H, view) => groundPlane(ctx, view, { y: 0, bands: [[-500, 900, ['#151a24', '#1d2330']]] })));
@@ -393,11 +494,11 @@ function nightSky(S, o = {}) {
 function s4_1() {
   return shot({
     name: '4.1', dur: 252, unit: 110, anchor: [0.5, 0.58], xfade: 36,
-    grade: { vignette: 0.55, vignetteColor: '#0d1020', grain: 0.5 },
+    post: moonPost, grade: { vignette: 0.55, vignetteColor: '#0d1020', grain: 0.5 },
     cam: { x: 0.8, y: -5.4, z: 1 },
     setup(S) {
       nightSky(S, { stars: 40, starAlpha: 0.3 });
-      S.layers.push(at(0, 0.9, (ctx) => shelterBack(ctx, SHELTER_NIGHT)));
+      S.layers.push(at(0, 0.9, (ctx, t) => shelterBack(ctx, SHELTER_NIGHT, t < 150 ? 0.55 * (hash01(Math.floor(t / 3) * 7) > 0.08 ? 1 : 0.2) : t < 168 ? (hash01(Math.floor(t / 2) * 13) > 0.5 ? 0.5 : 0) : 0)));
       const card = new CardProp({ x: -0.4, y: SHELTER.bench, sx: 1, sy: 0.34, skew: -0.3 });
       S.layers.push(at(0, 0.95, (ctx, t) => card.draw(ctx, t, { wear: 0.45 })));
       const gnd = shelterGround;
@@ -424,7 +525,7 @@ function s4_1() {
 function s4_2() {
   return shot({
     name: '4.2', dur: 348, unit: 170, anchor: [0.5, 0.56],
-    grade: { vignette: 0.6, vignetteColor: '#0b0e1c', grain: 0.5 },
+    post: moonPost, grade: { vignette: 0.6, vignetteColor: '#0b0e1c', grain: 0.5 },
     cam: { x: 0.2, y: -4.6, z: 1 },
     setup(S) {
       nightSky(S, { stars: 20, starAlpha: 0.2 });
@@ -471,7 +572,7 @@ function s4_2() {
 function s4_3() {
   return shot({
     name: '4.3', dur: 228, unit: 80, anchor: [0.5, 0.6],
-    grade: (t) => ({ vignette: 0.5, vignetteColor: '#0d1020', grain: 0.45, lift: '#1a2238', liftAmt: ramp(t, [[40, 0], [180, 0.35]]) }),
+    post: moonPost, grade: (t) => ({ vignette: 0.5, vignetteColor: '#0d1020', grain: 0.45, lift: '#1a2238', liftAmt: ramp(t, [[40, 0], [180, 0.35]]) }),
     cam: { x: 1, y: -6, z: 1 },
     setup(S) {
       nightSky(S, { stars: 60, starAlpha: 0.5, moon: [0.82, 0.18] });
@@ -505,7 +606,7 @@ function s4_3() {
 function s4_4() {
   return shot({
     name: '4.4', dur: 180, unit: 14, anchor: [0.5, 0.66], fadeOut: 48,
-    grade: { vignette: 0.5, vignetteColor: '#0d1020', grain: 0.45 },
+    post: moonPost, grade: { vignette: 0.5, vignetteColor: '#0d1020', grain: 0.45 },
     cam: { x: 0, y: -20, z: 1 },
     setup(S) {
       S.camera.move(0, 180, { z: 0.94 }, 'inout');

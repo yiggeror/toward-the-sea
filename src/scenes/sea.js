@@ -12,17 +12,20 @@ import { skyGradient, glow, clouds } from '../env/sky.js';
 import { profile, fillBelow, groundPlane, groundEllipse } from '../env/terrain.js';
 import { grass, tufts, windField, rock } from '../env/nature.js';
 import { windStreaks, motes } from '../env/weather.js';
+import { lampGlow, fogBand, particles, glints, lightPool, bokeh, wetReflection } from '../env/light.js';
+import { stars } from '../env/sky.js';
 import { gull, gullFar } from '../env/creatures.js';
 import { drawCatBack, drawPortrait } from '../cat/views.js';
 import { Track } from '../core/tracks.js';
 import { drawEmotes } from '../fx/emote.js';
+import { viewRim } from '../fx/rim.js';
 import { idleFace } from '../anim/idle.js';
 import { css, mix } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 // ================================ 7. CAPE =====================================
 const CAPE = {
-  sky: (k) => [[0, css(mix('#2d3a66', '#6f8cc4', k))], [0.55, css(mix('#7d7aa6', '#c9b6c8', k))], [1, css(mix('#e2a98f', '#f6d2b0', k))]],
+  sky: (k) => [[0, css(mix('#1f2a5c', '#5a79bd', k))], [0.45, css(mix('#6a5f9e', '#b7a4cc', k))], [0.78, css(mix('#d98a8a', '#f5b9a0', k))], [1, css(mix('#f3b47f', '#ffd9a6', k))]],
   hillFar: '#51597a', hillMid: '#4f6660', ground: ['#4d6450', '#6b8067'],
   grass: ['#4f6b4c', '#62805a'], grassLight: ['#7b9a6c', '#8faa7c'],
   rock: ['#6c6a76', '#8a8793', null],
@@ -33,20 +36,47 @@ const catDawn = {
 };
 const tailwind = (base = 0.9) => (t) => [base + 0.4 * Math.sin(t * 0.17) + 0.3 * noise1(t * 0.05, 3), -0.05];
 const capeWind = windField({ base: 0.5, gust: 0.9, speed: 0.35, wave: 0.07, dir: 1 });
-const capeGrade = (k = 0) => ({ vignette: 0.35, vignetteColor: '#2b2640', grain: 0.4, topGlow: '#ffd9c0', topGlowAmt: 0.1 + 0.1 * k });
+const capeGrade = (k = 0) => ({ vignette: 0.38, vignetteColor: '#231f3c', grain: 0.38, topGlow: '#ffd9c0', topGlowAmt: 0.06 + 0.08 * k });
+const capePost = (k = 0) => ({ bloom: { threshold: 0.84, knee: 0.12, strength: 0.5 + 0.2 * k, radius: 28, tint: '#ffcfa8' } });
 
 function capeBackdrop(S, o = {}) {
   const k = o.dawn ?? 0.3;
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
-    skyGradient(ctx, W, H, CAPE.sky(typeof k === 'function' ? k(t) : k));
-    glow(ctx, W * 0.85, H * 0.75, W * 0.5, '#ffd6b0', 0.35);
+    const kk = typeof k === 'function' ? k(t) : k;
+    skyGradient(ctx, W, H, CAPE.sky(kk));
+    // the last stars fading as the sky brightens
+    stars(ctx, W, H, 70, 29, 0.45, t, 0.7 * (1 - kk));
+    glow(ctx, W * 0.86, H * 0.78, W * 0.7, '#ffcf9c', 0.45 + 0.3 * kk);
+    glow(ctx, W * 0.86, H * 0.82, W * 0.25, '#fff0d4', 0.35 + 0.35 * kk);
   }));
-  S.layers.push(at(30000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 21, n: 6, y: -6500, dy: 2000, w: 16000, h: 1200, speed: 10, wrap: 150000, top: 'rgba(240,200,190,0.55)', shade: 'rgba(120,110,150,0.35)' })));
+  S.layers.push(Object.assign(at(30000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 21, n: 6, y: -6500, dy: 2000, w: 16000, h: 1300, speed: 10, wrap: 150000, top: '#e9b9b4', shade: '#6d628f', rim: '#ffe0cc', glow: '#ff9f7a', light: [0.8, 0.6], alpha: 0.9 })), { blur: 2.5 }));
   if (o.land === false) return;
   const far = profile({ base: 0, amp: 180, freq: 0.001, seed: 51 });
-  S.layers.push(at(6000, 0.05, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, far, CAPE.hillFar, 9000, 40)));
-  S.layers.push(screenLayer(0.1, (ctx, t, W, H, view) => groundPlane(ctx, view, { y: 0, bands: [[-500, 1500, CAPE.ground]] })));
-  S.layers.push(at(60, 0.2, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: () => 0, density: 2.2, h: 3.2, width: 0.35, colors: CAPE.grass, seed: 3, wind: capeWind })));
+  S.layers.push(Object.assign(at(6000, 0.05, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, far, CAPE.hillFar, 9000, 40)), { haze: { color: '#9a8fb0', amount: 0.3 } }));
+  S.layers.push(screenLayer(0.1, (ctx, t, W, H, view) => {
+    groundPlane(ctx, view, { y: 0, bands: [[-500, 1500, CAPE.ground]] });
+    const yH = view.oy + (0 - view.cam.y) * view.scaleAt(view.pOf(1500));
+    fogBand(ctx, W, H, yH, H * 0.08, '#f2c4b0', 0.35, t, { seed: 12, speed: 1.2 });
+  }));
+  S.layers.push(at(60, 0.2, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: () => 0, density: 2.2, h: 3.2, width: 0.35, colors: [...CAPE.grass, '#c9a98c'], seed: 3, wind: capeWind })));
+  // warm sheen racing over the grass in the gusts
+  S.layers.push(screenLayer(0.25, (ctx, t, W, H, view) => {
+    const y0 = view.oy + (0 - view.cam.y) * view.scaleAt(view.pOf(1500));
+    if (y0 >= H) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    for (let i = 0; i < 3; i++) {
+      const u = ((t * 0.008 * (1 + i * 0.35) + hash01(i * 5)) % 1.6) - 0.3;
+      const x = W * u, w = W * (0.16 + 0.1 * i);
+      const g = ctx.createLinearGradient(x - w, 0, x + w, 0);
+      g.addColorStop(0, 'rgba(255,200,170,0)');
+      g.addColorStop(0.5, css('#ffcfae', 0.14));
+      g.addColorStop(1, 'rgba(255,200,170,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - w, y0, 2 * w, H - y0);
+    }
+    ctx.restore();
+  }));
   S.layers.push(at(10, 0.3, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: o.ground || (() => 0), density: 5, h: 1.7, width: 0.16, colors: CAPE.grass, seed: 5, wind: capeWind })));
 }
 function capeFront(S, o = {}) {
@@ -54,22 +84,49 @@ function capeFront(S, o = {}) {
   S.layers.push(screenLayer(2.4, (ctx, t, W, H) => windStreaks(ctx, W, H, t, { n: o.streaks ?? 10, seed: 13, alpha: 0.28, dir: 1, color: '#fff2e6' })));
 }
 // terrain drawn as a filled profile at the stage plane
-function terrainLayer(S, g, x0, x1, col, z = 0.85) {
-  S.layers.push(at(0, z, (ctx) => {
-    ctx.fillStyle = col;
+function paintLand(ctx, g, x0, x1, col, t, step = 0.25) {
+  // body: vertical gradient from the sunlit top edge down into shadow
+  let top = Infinity;
+  for (let x = x0; x <= x1; x += 1) top = Math.min(top, g(x));
+  const grd = ctx.createLinearGradient(0, top, 0, top + 14);
+  grd.addColorStop(0, css(mix(col, '#9fb07f', 0.25)));
+  grd.addColorStop(0.35, col);
+  grd.addColorStop(1, css(mix(col, '#1c2233', 0.5)));
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.moveTo(x0, 40);
+  for (let x = x0; x <= x1; x += step) ctx.lineTo(x, g(x));
+  ctx.lineTo(x1, 40);
+  ctx.closePath();
+  ctx.fill();
+  // mottled grass patches
+  ctx.save();
+  ctx.clip();
+  for (let i = 0; i < 40; i++) {
+    const x = x0 + hash01(i * 7 + 1) * (x1 - x0);
+    const y = g(x) + 0.4 + hash01(i * 3) * 6;
+    ctx.fillStyle = css(hash01(i * 5) < 0.5 ? '#5d7a55' : '#3f5445', 0.35);
     ctx.beginPath();
-    ctx.moveTo(x0, 40);
-    for (let x = x0; x <= x1; x += 0.25) ctx.lineTo(x, g(x));
-    ctx.lineTo(x1, 40);
-    ctx.closePath();
+    ctx.ellipse(x, y, 1 + 2 * hash01(i * 11), 0.25 + 0.4 * hash01(i * 13), 0, 0, TAU);
     ctx.fill();
-  }));
+  }
+  ctx.restore();
+  // warm rim of dawn light along the crest
+  ctx.strokeStyle = 'rgba(255,210,170,0.55)';
+  ctx.lineWidth = 0.12;
+  ctx.beginPath();
+  for (let x = x0; x <= x1; x += step) (x === x0 ? ctx.moveTo(x, g(x) + 0.04) : ctx.lineTo(x, g(x) + 0.04));
+  ctx.stroke();
+}
+function terrainLayer(S, g, x0, x1, col, z = 0.85) {
+  S.layers.push(at(0, z, (ctx, t) => paintLand(ctx, g, x0, x1, col, t)));
+  S.layers.push(at(0, z + 0.001, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: g, spacing: 0.7, h: 1.1, width: 0.1, colors: ['#4d6a48', '#638058', '#8c9f73'], seed: 41, wind: capeWind, fill: 0.9 })));
 }
 
 function s7_1() {
   const slope = (x) => -x * 0.12;
   return shot({
-    name: '7.1', dur: 180, unit: 24, anchor: [0.5, 0.66], fadeIn: 36, grade: capeGrade(0),
+    name: '7.1', dur: 180, unit: 24, anchor: [0.5, 0.66], fadeIn: 36, post: capePost(0), grade: capeGrade(0),
     cam: { x: -4, y: -4, z: 1 },
     setup(S) {
       S.camera.move(0, 180, { x: 10, y: -6 }, 'linear');
@@ -88,7 +145,7 @@ function s7_1() {
 function s7_2() {
   const slope = (x) => -x * 0.16;
   return shot({
-    name: '7.2', dur: 132, unit: 112, anchor: [0.5, 0.62], grade: capeGrade(0.1),
+    name: '7.2', dur: 132, unit: 112, anchor: [0.5, 0.62], post: capePost(0.1), grade: capeGrade(0.1),
     cam: { x: 0.6, y: -1.4, z: 1 },
     setup(S) {
       capeBackdrop(S, { dawn: 0.15 });
@@ -108,7 +165,7 @@ function s7_2() {
 function s7_3() {
   const slope = (x) => -x * 0.16;
   return shot({
-    name: '7.3', dur: 84, unit: 150, anchor: [0.5, 0.6], grade: capeGrade(0.15),
+    name: '7.3', dur: 84, unit: 150, anchor: [0.5, 0.6], post: capePost(0.15), grade: capeGrade(0.15),
     cam: { x: 1.2, y: -1.8, z: 1 },
     setup(S) {
       capeBackdrop(S, { dawn: 0.2 });
@@ -156,7 +213,7 @@ function chaseGround(x) {
 }
 function s7_4() {
   return shot({
-    name: '7.4', dur: 396, unit: 58, anchor: [0.42, 0.62], grade: capeGrade(0.25),
+    name: '7.4', dur: 396, unit: 58, anchor: [0.42, 0.62], post: capePost(0.25), grade: capeGrade(0.25),
     cam: { x: 0, y: -1.5, z: 1 },
     setup(S) {
       capeBackdrop(S, { dawn: 0.3, ground: () => 0 });
@@ -260,7 +317,7 @@ function s7_4() {
 // ---- 7.5 the card disappears into the sky --------------------------------------
 function s7_5() {
   return shot({
-    name: '7.5', dur: 156, unit: 60, anchor: [0.5, 0.5], grade: capeGrade(0.35),
+    name: '7.5', dur: 156, unit: 60, anchor: [0.5, 0.5], post: capePost(0.35), grade: capeGrade(0.35),
     setup(S) {
       S.layers.push(screenLayer(0, (ctx, t, W, H) => {
         skyGradient(ctx, W, H, CAPE.sky(0.4));
@@ -311,19 +368,12 @@ function ridgeScene(S, o = {}) {
       ctx.fillRect(W * 0.62 - w / 2, y, w, Math.max(1, H * 0.003));
     }
   }));
-  S.layers.push(at(0, 0.8, (ctx) => {
-    ctx.fillStyle = CAPE.ground[0];
-    ctx.beginPath();
-    ctx.moveTo(-200, 60);
-    for (let x = -200; x <= 30; x += 1) ctx.lineTo(x, RIDGE(Math.max(10, x)) + (x < 10 ? (10 - x) * 0.02 : 0));
-    ctx.lineTo(30, 60);
-    ctx.fill();
-  }));
+  S.layers.push(at(0, 0.8, (ctx, t) => paintLand(ctx, (x) => RIDGE(Math.max(10, x)) + (x < 10 ? (10 - x) * 0.02 : 0), -200, 30, CAPE.ground[0], t, 1)));
   S.layers.push(at(0, 0.85, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: (x) => (x < 30 ? RIDGE(Math.max(10, x)) : 90), density: 6, h: 1.1, width: 0.12, colors: CAPE.grass, seed: 23, wind: capeWind })));
 }
 function s7_6() {
   return shot({
-    name: '7.6', dur: 252, unit: 40, anchor: [0.5, 0.56], grade: capeGrade(0.45),
+    name: '7.6', dur: 252, unit: 40, anchor: [0.5, 0.56], post: capePost(0.45), grade: capeGrade(0.45),
     cam: { x: 16, y: 1.5, z: 1 },
     setup(S) {
       ridgeScene(S, { dawn: 0.45 });
@@ -343,7 +393,7 @@ function s7_6() {
 // ================================ 8. THE SEA ===================================
 function s8_1() {
   return shot({
-    name: '8.1', dur: 120, unit: 150, anchor: [0.5, 0.6], grade: capeGrade(0.5),
+    name: '8.1', dur: 120, unit: 150, anchor: [0.5, 0.6], post: capePost(0.5), grade: capeGrade(0.5),
     cam: { x: 17.1, y: -3.8, z: 1 },
     setup(S) {
       ridgeScene(S, { dawn: 0.5 });
@@ -362,7 +412,7 @@ function s8_1() {
 }
 function s8_2() {
   return shot({
-    name: '8.2', dur: 132, unit: 58, anchor: [0.5, 0.58], grade: capeGrade(0.55),
+    name: '8.2', dur: 132, unit: 58, anchor: [0.5, 0.58], post: capePost(0.55), grade: capeGrade(0.55),
     cam: { x: 16.6, y: -1.6, z: 1 },
     setup(S) {
       // crane up past the cat: the sea appears over the ridge
@@ -383,6 +433,15 @@ function s8_2() {
 function s8_3() {
   return shot({
     name: '8.3', dur: 384, unit: 60, anchor: [0.5, 0.5], xfade: 24,
+    post: (t) => {
+      const sy = 0.42 - ramp(t, [[0, 0.0], [380, 0.07]]);
+      return {
+        rays: { pos: [0.36, sy], radius: 0.3, strength: 0.2 + 0.2 * smoothstep(60, 300, t), length: 0.5, threshold: 0.9, knee: 0.08, tint: '#ffd8a8' },
+        bloom: { threshold: 0.86, knee: 0.12, strength: 0.45, radius: 30, tint: '#ffd9b4' },
+        flare: { pos: [0.36, sy], strength: 0.12 * smoothstep(120, 300, t), tint: '#ffcfa0' },
+        before: 1,
+      };
+    },
     grade: (t) => ({ vignette: 0.3, vignetteColor: '#3c3148', grain: 0.35, topGlow: '#ffe2c4', topGlowAmt: ramp(t, [[0, 0.05], [380, 0.2]]) }),
     setup(S) {
       S.layers.push(screenLayer(0, (ctx, t, W, H) => {
@@ -425,7 +484,10 @@ function s8_3() {
         const wind = capeWind;
         grass(ctx, { xRange: () => [0, W * 0.56], W }, 1, t, { ground: (x) => H * 0.84 + (x / W) * H * 0.02, density: 0.15 / s, h: 26 * s, width: 5 * s, colors: ['#2f3b37', '#3c4a44'], seed: 5, wind: (x, tt) => wind(x / (30 * s), tt) * 0.6 });
         const hp = { hPitch: 0.05 + 0.05 * smoothstep(200, 300, t), earRot: 0.05, earLR: Math.sin(t * 0.02) * 0.1, tail: 0.5 + 0.1 * Math.sin(t * 0.02), breath: 0.5 + 0.5 * Math.sin(t * 0.08), hRoll: 0.08 * smoothstep(250, 320, t) };
-        drawCatBack(ctx, hp, { x: W * 0.28, y: H * 0.87, scale: 118 * s, light: { tint: '#b7acc7', amt: 0.35, lift: '#221a24' } });
+        const co = { x: W * 0.28, y: H * 0.87, scale: 118 * s, light: { tint: '#b7acc7', amt: 0.35, lift: '#221a24' } };
+        drawCatBack(ctx, hp, co);
+        // the sunrise outlines the fur in gold
+        viewRim(ctx, drawCatBack, hp, co, { dir: [0.35, -0.94], color: '#ffd9a8', alpha: 0.8 * smoothstep(0, 200, t) + 0.2 });
       }));
       S.extraEvents = [{ t: 0, type: 'amb', name: 'sea_dawn' }, { t: 60, type: 'music_in' }];
     },
@@ -434,6 +496,7 @@ function s8_3() {
 function s8_4() {
   return shot({
     name: '8.4', dur: 204, unit: 360, anchor: [0.5, 0.62],
+    post: { rays: { pos: [0.2, 0.37], radius: 0.3, strength: 0.3, length: 0.5, threshold: 0.9, knee: 0.08, tint: '#ffd8a8' }, bloom: { threshold: 0.86, knee: 0.12, strength: 0.45, radius: 30, tint: '#ffd9b4' }, flare: { pos: [0.2, 0.37], strength: 0.1, tint: '#ffcfa0' } },
     grade: { vignette: 0.35, vignetteColor: '#3c3148', grain: 0.35, topGlow: '#ffe2c4', topGlowAmt: 0.2 },
     setup(S) {
       S.layers.push(screenLayer(0, (ctx, t, W, H) => {
@@ -460,7 +523,9 @@ function s8_4() {
         p.breath = 0.5 + 0.5 * Math.sin(t * 0.08);
         p.earLR = (p.earLR || 0) + Math.sin(t * 0.05) * 0.08;
         const s = W / 1920;
-        const an = drawPortrait(ctx, p, { x: W * 0.62, y: H * 0.78, scale: 360 * s, light: { tint: '#e8d2cc', amt: 0.25, lift: '#20181c' } });
+        const po = { x: W * 0.62, y: H * 0.78, scale: 360 * s, light: { tint: '#e8d2cc', amt: 0.25, lift: '#20181c' } };
+        const an = drawPortrait(ctx, p, po);
+        viewRim(ctx, drawPortrait, p, po, { dir: [-0.9, -0.44], color: '#ffd4a0', alpha: 0.6, width: 360 * s * 0.03 });
         drawEmotes(ctx, EV, tt, an);
         // warm rim from the sun on the left
         const g = ctx.createRadialGradient(W * 0.2, H * 0.55, 0, W * 0.2, H * 0.55, W * 0.7);
@@ -477,15 +542,16 @@ function s8_4() {
 
 // ================================ 9. THE BEACH =================================
 const BEACH = {
-  sky: [[0, '#8fb5dc'], [0.6, '#dfe6ec'], [1, '#fbe8d4']],
-  sand: ['#e0c9a3', '#ecdcbd'], wet: '#bfa889', sea: ['#6f9fc4', '#9cc3d9'], foam: '#fbfbf7',
+  sky: [[0, '#5d9ad6'], [0.5, '#a9cbe6'], [0.85, '#e8eef0'], [1, '#fdebd6']],
+  sand: ['#dcc29a', '#efdfbf'], wet: '#b59d7e', sea: ['#3f7fb3', '#8fc0da'], foam: '#fdfdf9',
   dune: '#d7c19a', duneGrass: ['#8f9a6c', '#a7ae7c'],
 };
 const catMorning = {
   light: () => ({ tint: '#fff2e2', amt: 0.1, lift: '#0e0a08' }),
   rim: () => ({ color: '#fff0d8', dir: [-0.8, -0.6], alpha: 0.5, width: 0.05 }),
 };
-const beachGrade = { vignette: 0.25, vignetteColor: '#6a5a58', grain: 0.35, topGlow: '#fff3e0', topGlowAmt: 0.15 };
+const beachGrade = { vignette: 0.28, vignetteColor: '#5a5060', grain: 0.3, topGlow: '#fff3e0', topGlowAmt: 0.1 };
+const beachPost = { bloom: { threshold: 0.88, knee: 0.1, strength: 0.5, radius: 24, tint: '#fff4e0' }, rays: { pos: [0.18, 0.12], radius: 0.3, strength: 0.25, length: 0.5, threshold: 0.92, knee: 0.06, tint: '#fff0d0' } };
 // the water edge along the stage (x of the swash front at depth 0) as a function of time
 function swashEdge(t, o = {}) {
   const waves = o.waves || [];
@@ -503,9 +569,10 @@ function swashEdge(t, o = {}) {
 function beachWorld(S, o = {}) {
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
     skyGradient(ctx, W, H, BEACH.sky);
-    glow(ctx, W * 0.25, H * 0.5, W * 0.5, '#fff0dc', 0.5);
+    glow(ctx, W * 0.18, H * 0.12, W * 0.6, '#fff6e2', 0.55);
+    lampGlow(ctx, W * 0.18, H * 0.12, W * 0.05, '#ffffff', 1, 0.3);
   }));
-  S.layers.push(at(30000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 31, n: 5, y: -6000, dy: 2000, w: 12000, h: 900, speed: 3, wrap: 150000, top: '#fdf6ee', shade: '#e9d8d0' })));
+  S.layers.push(Object.assign(at(30000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 31, n: 5, y: -6000, dy: 2000, w: 12000, h: 1200, speed: 3, wrap: 150000, top: '#ffffff', shade: '#c9d3e2', rim: '#ffffff', light: [-0.6, -0.8] })), { blur: 2.2 }));
   // far headland with the lighthouse (right), sea to the horizon
   S.layers.push(screenLayer(0.05, (ctx, t, W, H, view) => {
     const hz = view.oy;
@@ -565,24 +632,37 @@ function beachWorld(S, o = {}) {
     g.addColorStop(1, BEACH.sea[0]);
     ctx.fillStyle = g;
     ctx.fillRect(0, hz, W, H - hz);
-    // far wave lines + glints
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    // far wave lines drifting in, denser toward the horizon
     ctx.lineWidth = Math.max(1, W / 1920);
-    ctx.beginPath();
-    for (let i = 0; i < 40; i++) {
-      const d = 300 + Math.pow(hash01(i * 7), 2) * 6000;
+    for (let i = 0; i < 90; i++) {
+      const d = 60 + Math.pow(hash01(i * 7), 2.2) * 6000;
       const p = view.pOf(d), sc = view.scaleAt(p);
       const y = view.oy + (0 - view.cam.y) * sc;
-      const x = W * hash01(i * 13 + Math.floor(t / 40)) + ((t % 40) / 40) * 20;
+      if (y < hz || y > H) continue;
+      const x = ((hash01(i * 13) * 1.2 + t * 0.0008 * (1 + hash01(i))) % 1.2) * W - W * 0.1;
+      const len = (6 + 30 * sc / view.scaleAt(1)) * (W / 1920) * 4;
+      ctx.strokeStyle = hash01(i * 3) < 0.6 ? 'rgba(255,255,255,0.42)' : 'rgba(40,90,140,0.25)';
+      ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineTo(x + (6 + 20 * sc / view.scaleAt(1)) * (W / 1920) * 4, y);
+      ctx.quadraticCurveTo(x + len / 2, y - len * 0.04, x + len, y);
+      ctx.stroke();
     }
-    ctx.stroke();
+    // sunlight glittering on the water
+    glints(ctx, 0, hz, W, (H - hz) * 0.6, t, { n: 70, seed: 5, size: 7 * W / 1920, sizeAt: (py) => 0.4 + 1.2 * (py - hz) / Math.max(1, H - hz), bias: 1.6, speed: 0.18, alpha: 0.95, alphaAt: (px) => 0.4 + 0.6 * Math.max(0, 1 - Math.abs(px / W - 0.3) * 1.5) });
+    // haze on the horizon
+    const hzg = ctx.createLinearGradient(0, hz - H * 0.03, 0, hz + H * 0.04);
+    hzg.addColorStop(0, 'rgba(246,244,238,0)');
+    hzg.addColorStop(0.45, 'rgba(246,244,238,0.6)');
+    hzg.addColorStop(1, 'rgba(246,244,238,0)');
+    ctx.fillStyle = hzg;
+    ctx.fillRect(0, hz - H * 0.03, W, H * 0.07);
     const edge = swashEdge(t, o);
     const N = 36;
     const pts = [];
+    // never sample the shore behind (or right at) the lens
+    const dNear = Math.max(-40, -view.D * 0.6);
     for (let i = 0; i <= N; i++) {
-      const d = -40 + Math.pow(i / N, 1.6) * (beachEnd + 40);
+      const d = dNear + Math.pow(i / N, 1.6) * (beachEnd - dNear);
       const p = view.pOf(d), sc = view.scaleAt(p);
       const xe = edge + d * slope;
       pts.push([view.ox + (xe - view.cam.x) * sc, view.oy + (0 - view.cam.y) * sc, sc]);
@@ -599,47 +679,121 @@ function beachWorld(S, o = {}) {
     ctx.lineTo(-10, last[1]);
     ctx.closePath();
     ctx.fill();
-    // wet sand band just landward of the edge
-    ctx.fillStyle = BEACH.wet;
+    // sand ripples and speckles
+    ctx.save();
     ctx.beginPath();
-    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0] - 2.4 * pts[i][2], pts[i][1]);
-    ctx.fill();
-    // foam edge
-    ctx.strokeStyle = BEACH.foam;
+    ctx.moveTo(-10, H + 10);
+    pts.forEach(([x, y]) => ctx.lineTo(x, y));
+    ctx.lineTo(-10, last[1]);
+    ctx.closePath();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(160,125,85,0.18)';
+    ctx.lineWidth = Math.max(1, W / 1920);
+    for (let i = 0; i < 40; i++) {
+      const d = -30 + Math.pow(hash01(i * 5), 1.8) * 200;
+      const p = view.pOf(d), sc = view.scaleAt(p);
+      const y = view.oy + (0 - view.cam.y) * sc;
+      const x = W * hash01(i * 9) - W * 0.1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + sc * 2, y - sc * 0.08, x + sc * 4, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // wet sand band just landward of the edge: darker, glossy
+    const wet = new Path2D();
+    pts.forEach(([x, y], i) => (i ? wet.lineTo(x, y) : wet.moveTo(x, y)));
+    for (let i = pts.length - 1; i >= 0; i--) wet.lineTo(pts[i][0] - 3.2 * pts[i][2], pts[i][1]);
+    wet.closePath();
+    ctx.fillStyle = BEACH.wet;
+    ctx.fill(wet);
+    S.wetPath = wet;
+    S.wetTop = Math.min(...pts.map((q) => q[1]));
+    // shallow turquoise water over the sand just seaward of the edge
+    const shallow = new Path2D();
+    pts.forEach(([x, y], i) => (i ? shallow.lineTo(x, y) : shallow.moveTo(x, y)));
+    for (let i = pts.length - 1; i >= 0; i--) shallow.lineTo(pts[i][0] + 9 * pts[i][2], pts[i][1]);
+    shallow.closePath();
+    ctx.save();
+    ctx.clip(shallow);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [xa, ya, sa] = pts[i], [xb, yb] = pts[i + 1];
+      const g = ctx.createLinearGradient(xa, 0, xa + 9 * sa, 0);
+      g.addColorStop(0, 'rgba(170,225,220,0.85)');
+      g.addColorStop(0.5, 'rgba(120,195,210,0.55)');
+      g.addColorStop(1, 'rgba(90,160,200,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(Math.min(xa, xb) - 2, Math.min(ya, yb) - 1, 9 * sa + Math.abs(xb - xa) + 4, Math.abs(yb - ya) + 2);
+    }
+    ctx.restore();
+    // broken foam lines of the incoming swash: wavy, dashed, drifting landward and fading
     ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      const ph = ((t * 0.012 + k * 0.25) % 1);
+      const offU = (1 - ph) * 8 + 0.3;
+      const a = Math.sin(ph * Math.PI) * 0.75;
+      for (let i = 0; i < pts.length - 1; i++) {
+        if (hash01(i * 7 + k * 31 + Math.floor(t * 0.012 + k * 0.25) * 3) < 0.35) continue;
+        const [xa, ya, sa] = pts[i], [xb, yb, sb] = pts[i + 1];
+        const wob = Math.sin(i * 2.1 + k + t * 0.05) * 0.3;
+        ctx.strokeStyle = css(BEACH.foam, a);
+        ctx.lineWidth = Math.max(1, 0.1 * sa * (1.2 - ph * 0.6));
+        ctx.beginPath();
+        ctx.moveTo(xa + (offU + wob) * sa, ya);
+        ctx.quadraticCurveTo((xa + xb) / 2 + (offU + wob + 0.25) * sa, (ya + yb) / 2, xb + (offU + wob) * sb, yb);
+        ctx.stroke();
+      }
+    }
+    // the swash front: a lacy foam edge with bubbles
+    ctx.strokeStyle = BEACH.foam;
     ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(1.5, 0.2 * view.scaleAt(1));
+    ctx.lineWidth = Math.max(1.5, 0.22 * view.scaleAt(1));
     ctx.beginPath();
     pts.forEach(([x, y, sc], i) => {
-      const wob = Math.sin(i * 1.7 + t * 0.2) * 0.12 * sc;
+      const wob = Math.sin(i * 1.7 + t * 0.2) * 0.14 * sc;
       i ? ctx.lineTo(x + wob, y) : ctx.moveTo(x + wob, y);
     });
     ctx.stroke();
-    // incoming wave lines beyond the edge
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-    for (let k = 1; k <= 3; k++) {
-      ctx.lineWidth = Math.max(1, (0.12 * view.scaleAt(1)) / k);
-      ctx.beginPath();
-      pts.forEach(([x, y, sc], i) => {
-        const off = (k * 3 + ((t * 0.05 + k * 0.33) % 1) * 3) * sc;
-        i ? ctx.lineTo(x + off, y) : ctx.moveTo(x + off, y);
-      });
-      ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let i = 0; i < pts.length; i++) {
+      const [x, y, sc] = pts[i];
+      for (let b = 0; b < 2; b++) {
+        const r = sc * (0.04 + 0.05 * hash01(i * 3 + b + Math.floor(t / 6)));
+        ctx.beginPath();
+        ctx.arc(x + sc * (0.2 + 0.5 * hash01(i * 5 + b)), y + (hash01(i + b * 9) - 0.5) * sc * 0.1, r, 0, TAU);
+        ctx.fill();
+      }
     }
   }));
   if (o.dunes !== false) {
     S.layers.push(at(300, 0.2, (ctx, t, view, S2, p) => {
-      const dune = profile({ base: 0, amp: 30, freq: 0.01, seed: 61 });
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(-5000, -500, 5000 + (o.duneEnd ?? -60), 600);
-      ctx.clip();
-      fillBelow(ctx, view, p, dune, BEACH.dune, 400, 3);
-      tufts(ctx, view, p, t, { ground: dune, spacing: 5, h: 4, width: 0.35, colors: BEACH.duneGrass, seed: 3, wind: windField({ base: 0.3, gust: 0.4, dir: 1 }), fill: 0.6 });
-      ctx.restore();
+      const prof = profile({ base: 0, amp: 30, freq: 0.01, seed: 61 });
+      const end = o.duneEnd ?? -60;
+      const fall = (x) => 1 - smoothstep(end - 140, end, x);
+      const dune = (x) => prof(x) * fall(x) - 6 * fall(x);
+      const [x0, x1] = view.xRange(p, 0.15);
+      let top = 0;
+      for (let x = x0; x < x1; x += 10) top = Math.min(top, dune(x));
+      const g = ctx.createLinearGradient(0, top, 0, 6);
+      g.addColorStop(0, '#f1ddb8');
+      g.addColorStop(0.5, BEACH.dune);
+      g.addColorStop(1, '#c8ae86');
+      fillBelow(ctx, view, p, dune, g, 6, 3);
+      tufts(ctx, view, p, t, { ground: dune, spacing: 5, h: 4, width: 0.35, colors: BEACH.duneGrass, seed: 3, wind: windField({ base: 0.3, gust: 0.4, dir: 1 }), fill: 0.6 * 1, dy: 0.5 });
     }));
   }
+  // the wet sand mirrors the sky and the cat
+  S.layers.push(screenLayer(1.01, (ctx, t, W, H, view) => {
+    if (!S.wetPath) return;
+    const y0 = view.oy + (0 - view.cam.y) * view.scaleAt(view.pOf(0));
+    if (y0 >= H || y0 <= 0) return;
+    wetReflection(ctx, W, H, y0, { alpha: 0.4, stretch: 1.0, blur: 0.8, mode: 'source-over', clipPath: S.wetPath, fade: false });
+    // sparkle on the wet sheen
+    ctx.save();
+    ctx.clip(S.wetPath);
+    glints(ctx, 0, S.wetTop, W, H - S.wetTop, t, { n: 30, seed: 41, size: 6 * W / 1920, speed: 0.2, alpha: 0.9 });
+    ctx.restore();
+  }));
   S.layers.push(screenLayer(2.2, (ctx, t, W, H) => {
     const s = W / 1920;
     for (let i = 0; i < 3; i++) {
@@ -650,7 +804,7 @@ function beachWorld(S, o = {}) {
 }
 function s9_1() {
   return shot({
-    name: '9.1', dur: 156, unit: 20, anchor: [0.5, 0.6], xfade: 24, grade: beachGrade,
+    name: '9.1', dur: 156, unit: 20, anchor: [0.5, 0.6], xfade: 24, post: beachPost, grade: beachGrade,
     cam: { x: -20, y: -5, z: 1 },
     setup(S) {
       S.camera.move(0, 156, { x: -8 }, 'linear');
@@ -662,7 +816,7 @@ function s9_1() {
 function s9_2() {
   const dune = (x) => (x < -6 ? -(-6 - x) * 0.35 : 0);
   return shot({
-    name: '9.2', dur: 204, unit: 60, anchor: [0.5, 0.62], grade: beachGrade,
+    name: '9.2', dur: 204, unit: 60, anchor: [0.5, 0.62], post: beachPost, grade: beachGrade,
     cam: { x: -6, y: -2.4, z: 1 },
     setup(S) {
       beachWorld(S, { rest: 14 });
@@ -689,7 +843,7 @@ function s9_2() {
 function s9_3() {
   const waves = [{ t: 40, dur: 110, reach: 1.05 }, { t: 190, dur: 110, reach: 1.9 }];
   return shot({
-    name: '9.3', dur: 312, unit: 130, anchor: [0.5, 0.6], grade: beachGrade,
+    name: '9.3', dur: 312, unit: 130, anchor: [0.5, 0.6], post: beachPost, grade: beachGrade,
     cam: { x: 1.2, y: -1.3, z: 1 },
     setup(S) {
       beachWorld(S, { rest: 4.5, waves, slope: 0.3, dunes: false });
@@ -725,7 +879,7 @@ function s9_4() {
   // waves: the cat chases the backwash, flees the run-up, then plays
   const waves = [{ t: 0, dur: 100, reach: -1 }, { t: 110, dur: 100, reach: -4 }, { t: 230, dur: 110, reach: -2 }];
   return shot({
-    name: '9.4', dur: 396, unit: 70, anchor: [0.5, 0.6], grade: beachGrade,
+    name: '9.4', dur: 396, unit: 70, anchor: [0.5, 0.6], post: beachPost, grade: beachGrade,
     cam: { x: 2, y: -1.6, z: 1 },
     setup(S) {
       beachWorld(S, { rest: 8, waves, slope: 0.3, dunes: false });
@@ -766,7 +920,7 @@ function s9_5() {
   const waves = [];
   for (let i = 0; i < 6; i++) waves.push({ t: i * 70, dur: 100, reach: i % 2 ? -3 : 0 });
   return shot({
-    name: '9.5', dur: 420, unit: 70, anchor: [0.5, 0.58], fadeOut: 72, grade: beachGrade,
+    name: '9.5', dur: 420, unit: 70, anchor: [0.5, 0.58], fadeOut: 72, post: beachPost, grade: beachGrade,
     cam: { x: 0, y: -2, z: 1 },
     setup(S) {
       // pull back: the camera rises and the lens widens until the cat is tiny

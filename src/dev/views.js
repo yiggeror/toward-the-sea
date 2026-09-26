@@ -285,3 +285,105 @@ export function headlab(ctx, W, H, q) {
   }));
 }
 import { drawEmotes } from '../fx/emote.js';
+
+// micro-benchmarks for post effects (canvas 2D in headless chromium)
+export function postbench(ctx, W, H, q) {
+  const mk = (w, h) => new OffscreenCanvas(w, h);
+  // fill with something non-trivial
+  for (let i = 0; i < 300; i++) {
+    ctx.fillStyle = `hsl(${i * 37 % 360},60%,${30 + (i * 13) % 60}%)`;
+    ctx.fillRect((i * 97) % W, (i * 53) % H, 200, 120);
+  }
+  const T = {};
+  const flush = (c) => c.getContext('2d').getImageData(0, 0, 1, 1);
+  let tgt = null;
+  const time = (k, fn, n = 5) => { fn(); flush(tgt); const t0 = performance.now(); for (let i = 0; i < n; i++) { fn(); flush(tgt); } T[k] = ((performance.now() - t0) / n).toFixed(1); };
+  const A = mk(W / 4, H / 4), a = A.getContext('2d');
+  const B = mk(W / 4, H / 4), b = B.getContext('2d');
+  const F = mk(W, H), f = F.getContext('2d');
+  tgt = A;
+  time('down4', () => a.drawImage(ctx.canvas, 0, 0, W / 4, H / 4));
+  time('getImg4', () => a.getImageData(0, 0, W / 4, H / 4));
+  const img = a.getImageData(0, 0, W / 4, H / 4);
+  time('putImg4', () => a.putImageData(img, 0, 0));
+  tgt = B;
+  time('blur4_8', () => { b.filter = 'blur(8px)'; b.drawImage(A, 0, 0); b.filter = 'none'; });
+  tgt = ctx.canvas;
+  time('up4screen', () => { ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.01; ctx.drawImage(B, 0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; });
+  time('up4over', () => { ctx.globalAlpha = 0.01; ctx.drawImage(B, 0, 0, W, H); ctx.globalAlpha = 1; });
+  time('up4lighter', () => { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.01; ctx.drawImage(B, 0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; });
+  time('up4lowq', () => { ctx.imageSmoothingQuality = 'low'; ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.01; ctx.drawImage(B, 0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; });
+  const B2 = mk(W / 2, H / 2), b2 = B2.getContext('2d');
+  time('up2over', () => { ctx.globalAlpha = 0.01; ctx.drawImage(B2, 0, 0, W, H); ctx.globalAlpha = 1; });
+  time('up2screen', () => { ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.01; ctx.drawImage(B2, 0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; });
+  time('fullOver', () => { ctx.globalAlpha = 0.01; ctx.drawImage(F, 0, 0); ctx.globalAlpha = 1; });
+  time('fullScreen', () => { ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.01; ctx.drawImage(F, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; });
+  tgt = B2;
+  time('blur2_6', () => { b2.filter = 'blur(6px)'; b2.drawImage(ctx.canvas, 0, 0, W / 2, H / 2); b2.filter = 'none'; });
+  time('down2', () => { b2.drawImage(ctx.canvas, 0, 0, W / 2, H / 2); });
+  tgt = F;
+  time('copyFull', () => f.drawImage(ctx.canvas, 0, 0));
+  time('blurFull4', () => { f.filter = 'blur(4px)'; f.drawImage(ctx.canvas, 0, 0); f.filter = 'none'; });
+  time('blurFull12', () => { f.filter = 'blur(12px)'; f.drawImage(ctx.canvas, 0, 0); f.filter = 'none'; });
+  time('blurHalf6', () => { const h2 = mk(W / 2, H / 2); const g2 = h2.getContext('2d'); g2.drawImage(ctx.canvas, 0, 0, W / 2, H / 2); f.filter = 'blur(6px)'; f.drawImage(h2, 0, 0, W, H); f.filter = 'none'; });
+  time('contrastSat', () => { f.filter = 'contrast(1.06) saturate(1.1)'; f.drawImage(ctx.canvas, 0, 0); f.filter = 'none'; });
+  time('clearFull', () => f.clearRect(0, 0, W, H));
+  time('gradFull', () => { const g = f.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#fff'); g.addColorStop(1, '#000'); f.fillStyle = g; f.fillRect(0, 0, W, H); });
+  time('radialFull', () => { const g = f.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W); g.addColorStop(0, '#fff'); g.addColorStop(1, '#000'); f.fillStyle = g; f.fillRect(0, 0, W, H); });
+  tgt = B;
+  time('zoom8', () => { b.globalCompositeOperation = 'lighter'; for (let i = 0; i < 8; i++) { const s = 1 + i * 0.05; b.globalAlpha = 0.12; b.drawImage(A, W / 8 - W / 8 * s, H / 8 - H / 8 * s, W / 4 * s, H / 4 * s); } b.globalCompositeOperation = 'source-over'; b.globalAlpha = 1; });
+  window.__info = JSON.stringify(T);
+}
+
+// one frame (at fraction u of each shot) for every shot of a sequence
+export async function seqsheet(ctx, W, H, q) {
+  const tl = await buildFilm();
+  const seq = q.get('seq');
+  const u = +(q.get('u') ?? 0.5);
+  const shots = tl.shots.filter((s) => !seq || seq.split(',').includes(s.seq) || seq.split(',').includes(s.name));
+  const cols = +(q.get('cols') || 3);
+  const cw = Math.floor(W / cols), ch = Math.floor(cw * 9 / 16);
+  const off = new OffscreenCanvas(cw, ch);
+  const g = off.getContext('2d');
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+  shots.forEach((s, i) => {
+    const f = s.start + Math.round((s.dur - 1) * u);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#000'; g.fillRect(0, 0, cw, ch);
+    tl.draw(g, f, cw, ch);
+    const x = (i % cols) * cw, y = Math.floor(i / cols) * (ch + 22);
+    ctx.drawImage(off, x, y);
+    ctx.fillStyle = '#ddd'; ctx.font = '14px sans-serif';
+    ctx.fillText(`${s.name}  f${f - s.start}`, x + 4, y + ch + 16);
+  });
+}
+
+// debug: draw one frame of a shot layer by layer (cumulative thumbnails)
+export async function layerdebug(ctx, W, H, q) {
+  const tl = await buildFilm();
+  const s = tl.shots.find((x) => x.name === q.get('shot'));
+  tl.ensure(s);
+  const f = +(q.get('f') || 0);
+  const cols = +(q.get('cols') || 4);
+  const cw = Math.floor(W / cols), ch = Math.floor(cw * 9 / 16);
+  const off = new OffscreenCanvas(cw, ch);
+  const g = off.getContext('2d');
+  const all = s.layers.slice();
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+  ctx.font = '12px sans-serif';
+  const post = s.post;
+  s.post = null;
+  for (let n = 1; n <= all.length; n++) {
+    s.layers = all.slice(0, n);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#000'; g.fillRect(0, 0, cw, ch);
+    s.draw(g, f, cw, ch);
+    const i = n - 1, x = (i % cols) * cw, y = Math.floor(i / cols) * (ch + 16);
+    ctx.drawImage(off, x, y);
+    const L = all[n - 1];
+    ctx.fillStyle = '#ddd';
+    ctx.fillText(`${n}: z=${(L._z ?? 0).toFixed(3)} ${L.blur ? 'blur' : ''}${L.haze ? ' haze' : ''}${L.screen ? ' scr' : ''}`, x + 4, y + ch + 12);
+  }
+  s.layers = all;
+  s.post = post;
+}

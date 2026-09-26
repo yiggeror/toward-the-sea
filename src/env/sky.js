@@ -1,5 +1,5 @@
 // Sky painters (screen space or layer space). Deterministic in t.
-import { css, mix, rgb } from '../core/draw.js';
+import { css, mix, rgb, alphaOf } from '../core/draw.js';
 import { hash01, noise1, fbm1, clamp, lerp, smoothstep, TAU } from '../core/math.js';
 
 // vertical gradient over the whole screen; stops: [[pos, color], ...]
@@ -71,33 +71,73 @@ export function clouds(ctx, view, p, t, spec) {
     }
   }
 }
+// Painterly cumulus: a dome of overlapping puffs with a flat-ish base,
+// shaded in passes — soft halo, shadow body, lit body offset toward the light,
+// bright crown highlights and an optional warm underside glow.
+// spec: { top (lit colour), shade (shadow colour), rim (highlight), glow
+//         (underside tint), light: [dx, dy] toward the light, alpha }
 export function cloudShape(ctx, x, y, w, h, seed, spec) {
-  const puffs = Math.max(6, Math.round((w / h) * 1.6)) + Math.floor(hash01(seed + 9) * 3);
   const a = spec.alpha ?? 1;
-  const draw = (dy, k, col) => {
-    ctx.fillStyle = typeof col === 'string' ? col : css(col, a);
+  const n = Math.max(6, Math.round((w / h) * 1.7)) + Math.floor(hash01(seed + 9) * 3);
+  const puffs = [];
+  for (let j = 0; j < n; j++) {
+    const u = n === 1 ? 0.5 : j / (n - 1);
+    const dome = Math.sin(u * Math.PI);
+    const r = h * (0.32 + 0.58 * dome) * (0.8 + 0.4 * hash01(seed + j * 3));
+    const px = x + (u - 0.5) * w * 0.84 + (hash01(seed + j * 7) - 0.5) * h * 0.2;
+    const py = y - r * 0.55 - dome * h * 0.12 + (hash01(seed + j * 5) - 0.5) * h * 0.15;
+    puffs.push([px, py, r]);
+    // cauliflower detail on the crown
+    if (dome > 0.45 && hash01(seed + j * 11) < 0.7) {
+      const r2 = r * (0.45 + 0.2 * hash01(seed + j * 13));
+      puffs.push([px + (hash01(seed + j * 17) - 0.5) * r, py - r * 0.62, r2]);
+    }
+  }
+  const L = spec.light || [-0.35, -1];
+  const ll = Math.hypot(L[0], L[1]) || 1;
+  const lx = L[0] / ll, ly = L[1] / ll;
+  const body = (k, dx, dy, grow = 0) => {
     ctx.beginPath();
-    for (let j = 0; j < puffs; j++) {
-      const u = j / (puffs - 1);
-      const px = x + (u - 0.5) * w * 0.86;
-      const r = h * k * (0.45 + 0.75 * Math.sin(u * Math.PI)) * (0.8 + 0.4 * hash01(seed + j * 3));
-      const py = y + dy - r * 0.3 + (hash01(seed + j * 5) - 0.5) * h * 0.2;
-      ctx.moveTo(px + r, py);
-      ctx.arc(px, py, r, 0, TAU);
+    for (const [px, py, r] of puffs) {
+      const rr = r * k + grow;
+      if (rr <= 0) continue;
+      ctx.moveTo(px + dx * r + rr, py + dy * r);
+      ctx.arc(px + dx * r, py + dy * r, rr, 0, TAU);
     }
     // flat base
-    ctx.moveTo(x - w * 0.43, y + dy);
-    ctx.ellipse(x, y + dy, w * 0.45, h * 0.32 * k, 0, 0, TAU);
+    ctx.moveTo(x - w * 0.44 + dx * h, y + dy * h * 0.3);
+    ctx.ellipse(x + dx * h * 0.3, y + dy * h * 0.3, w * 0.46 * k, h * 0.22 * k, 0, 0, TAU);
+  };
+  const fill = (col, alpha) => {
+    ctx.fillStyle = css(col, alpha * a * alphaOf(col));
     ctx.fill();
   };
-  if (spec.shade) draw(h * 0.12, 1.0, spec.shade);
-  draw(0, 0.94, spec.top || '#ffffff');
-  if (spec.rim) {
-    ctx.save();
-    ctx.globalAlpha = 0.6;
-    draw(-h * 0.1, 0.7, spec.rim);
-    ctx.restore();
+  const top = spec.top || '#ffffff';
+  const shade = spec.shade || css(mix(top, '#8890a8', 0.35), alphaOf(top));
+  // soft halo
+  body(1.08, 0, 0);
+  fill(shade, 0.22);
+  // shadow body
+  body(1.0, 0, 0);
+  fill(shade, 1);
+  // lit body, shifted toward the light
+  ctx.save();
+  body(1.0, 0, 0);
+  ctx.clip();
+  body(0.9, lx * 0.14, ly * 0.14);
+  fill(top, 1);
+  // crown highlights
+  body(0.62, lx * 0.3, ly * 0.3);
+  fill(spec.rim || css(mix(top, '#ffffff', 0.6), alphaOf(top)), 0.55);
+  // warm underside glow (sunrise / city light)
+  if (spec.glow) {
+    const g = ctx.createLinearGradient(0, y - h * 0.3, 0, y + h * 0.3);
+    g.addColorStop(0, css(spec.glow, 0));
+    g.addColorStop(1, css(spec.glow, 0.55 * a));
+    ctx.fillStyle = g;
+    ctx.fillRect(x - w, y - h * 0.3, w * 2, h * 0.7);
   }
+  ctx.restore();
 }
 
 // long soft stratus bands (dawn / storm) across the screen
@@ -123,4 +163,36 @@ export function bands(ctx, W, H, spec) {
     ctx.closePath();
     ctx.fill();
   }
+}
+
+// high wispy cirrus: long thin feathered strokes across the sky (screen space)
+export function cirrus(ctx, W, H, t, o = {}) {
+  const n = o.n ?? 7;
+  const seed = o.seed ?? 5;
+  const col = o.color || '#ffffff';
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const h = (q) => hash01(seed * 53 + i * 29 + q);
+    const y = H * ((o.y0 ?? 0.05) + h(1) * ((o.y1 ?? 0.35) - (o.y0 ?? 0.05)));
+    const x = ((h(2) * 1.6 - 0.3 + t * (o.speed ?? 0.00015)) % 1.6) * W - W * 0.2;
+    const len = W * (0.25 + 0.35 * h(3));
+    const bend = (h(4) - 0.5) * H * 0.08;
+    const strands = 5 + Math.floor(h(5) * 5);
+    for (let k = 0; k < strands; k++) {
+      const off = (k - strands / 2) * H * 0.006;
+      const a = (o.alpha ?? 0.35) * (0.4 + 0.6 * h(10 + k));
+      const g = ctx.createLinearGradient(x, 0, x + len, 0);
+      g.addColorStop(0, css(col, 0));
+      g.addColorStop(0.3 + 0.2 * h(20 + k), css(col, a));
+      g.addColorStop(1, css(col, 0));
+      ctx.strokeStyle = g;
+      ctx.lineWidth = (1 + 3 * h(30 + k)) * (W / 1920);
+      ctx.beginPath();
+      ctx.moveTo(x + k * W * 0.01, y + off);
+      ctx.quadraticCurveTo(x + len * 0.5, y + off + bend, x + len, y + off - bend * 0.3 + k * H * 0.004);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }

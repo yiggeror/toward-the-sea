@@ -4,7 +4,8 @@ import { shot } from '../film/shot.js';
 import { makeCat, follow, ramp, screenLayer, at, standingPose, sittingPose } from '../film/kit.js';
 import { locomote } from '../anim/gaits.js';
 import * as A from '../anim/actions.js';
-import { skyGradient, glow, clouds } from '../env/sky.js';
+import { skyGradient, glow, clouds, cirrus } from '../env/sky.js';
+import { lampGlow, fogBand, particles, glints, lightPool, bokeh } from '../env/light.js';
 import { profile, fillBelow, groundPlane, groundEllipse, mountains } from '../env/terrain.js';
 import { tufts, windField, rock, tree } from '../env/nature.js';
 import { dust, snow, windStreaks } from '../env/weather.js';
@@ -16,9 +17,9 @@ import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 // ================================ 5. WASTELAND ==============================
 const WASTE = {
-  sky: [[0, '#8fb0c9'], [0.6, '#cbd3cf'], [1, '#e8dcc2']],
-  mesaFar: '#c4b3a3', mesaMid: '#b39b86', hill: '#c6a984',
-  ground: ['#b8976d', '#d2b98f'], crack: 'rgba(120,90,60,0.35)',
+  sky: [[0, '#6597c4'], [0.42, '#b3cbd9'], [0.72, '#f0dcba'], [1, '#f6d3a2']],
+  mesaFar: '#c7a99f', mesaMid: '#b88f72', hill: '#c6a984',
+  ground: ['#b38a5f', '#dcbf90'], crack: 'rgba(110,78,50,0.4)',
   straw: ['#c2a771', '#a98f5d'], rock: ['#9d8b78', '#b8a692', null],
   pole: '#6b5b4b', wire: '#5d5044',
 };
@@ -27,19 +28,30 @@ const catSun = {
   rim: () => ({ color: '#fff4dc', dir: [0.3, -0.95], alpha: 0.5, width: 0.05 }),
 };
 const dryWind = windField({ base: 0.2, gust: 0.5, speed: 0.2, wave: 0.05, dir: 1 });
-const wasteGrade = { vignette: 0.3, vignetteColor: '#6b5840', grain: 0.45, topGlow: '#fff2d6', topGlowAmt: 0.22, tint: '#f3e6cf', tintAmt: 0.12 };
+const wasteGrade = { vignette: 0.34, vignetteColor: '#6b4a30', grain: 0.42, topGlow: '#fff0d0', topGlowAmt: 0.15, tint: '#f7e2c4', tintAmt: 0.1 };
+const wastePost = { bloom: { threshold: 0.86, knee: 0.12, strength: 0.45, radius: 26, tint: '#ffe2b0' }, rays: { pos: [0.74, 0.07], radius: 0.3, strength: 0.3, length: 0.5, threshold: 0.9, knee: 0.08, tint: '#ffe0a8' } };
 
 function wasteBackdrop(S, o = {}) {
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
     skyGradient(ctx, W, H, WASTE.sky);
-    glow(ctx, W * 0.6, -H * 0.05, W * 0.6, '#fffaf0', 0.6);
+    glow(ctx, W * 0.74, H * 0.07, W * 0.7, '#fff3d8', 0.7);
+    lampGlow(ctx, W * 0.74, H * 0.07, W * 0.07, '#fffbee', 1, 0.3);
+    cirrus(ctx, W, H, t, { n: 6, seed: 3, y0: 0.06, y1: 0.3, alpha: 0.45, color: '#fffaf0' });
   }));
-  S.layers.push(at(30000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 8, n: 4, y: -7000, dy: 2000, w: 14000, h: 900, speed: 2, wrap: 150000, top: 'rgba(250,246,238,0.7)' })));
   const far = profile({ base: 0, amp: 420, freq: 0.0006, seed: 41, peaks: 0.6 });
   const mid = profile({ base: 0, amp: 120, freq: 0.002, seed: 43 });
-  S.layers.push(at(8000, 0.05, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, far, WASTE.mesaFar, 12000, 50)));
+  S.layers.push(Object.assign(at(8000, 0.05, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, far, WASTE.mesaFar, 12000, 50)), { haze: { color: '#d9c6c4', amount: 0.35 }, blur: 1.4 }));
   if (o.snowPeaks) S.layers.push(at(20000, 0.04, (ctx, t, view, S2, p) => mountains(ctx, view, p, { seed: 5, period: 5200, h: 2600, w: 3000, base: 0, color: '#aeb8c8', shade: '#98a3b6', snow: '#f4f6fa', snowShade: '#d8dfea', snowLine: 0.5 })));
-  S.layers.push(at(1500, 0.08, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, mid, WASTE.mesaMid, 4000, 12)));
+  S.layers.push(Object.assign(at(1500, 0.08, (ctx, t, view, S2, p) => {
+    fillBelow(ctx, view, p, mid, WASTE.mesaMid, 4000, 12);
+    // sunlit rims on the mesa tops
+    const [x0, x1] = view.xRange(p, 0.1);
+    ctx.strokeStyle = 'rgba(255,226,180,0.55)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let x = x0; x <= x1; x += 8) (x === x0 ? ctx.moveTo(x, mid(x)) : ctx.lineTo(x, mid(x)));
+    ctx.stroke();
+  }), { haze: { color: '#e6cdb4', amount: 0.2 } }));
   S.layers.push(screenLayer(0.1, (ctx, t, W, H, view) => {
     const Y = groundPlane(ctx, view, { y: 0, bands: [[-500, 1500, WASTE.ground]] });
     // cracks (screen-space scribbles laid on the ground plane)
@@ -59,12 +71,25 @@ function wasteBackdrop(S, o = {}) {
       ctx.lineTo(x + L * 0.6, y + L * 0.2);
     }
     ctx.stroke();
+    // heat shimmer: a bright band where the ground meets the far hills
+    const yH = Y(1400);
+    fogBand(ctx, W, H, yH, H * 0.07, '#fff1d8', 0.5, t, { seed: 2, speed: 1.5 });
   }));
   if (o.poles !== false) {
     S.layers.push(at(60, 0.2, (ctx, t, view, S2, p) => {
       const [x0, x1] = view.xRange(p, 0.3);
       const xs = [];
       for (let x = Math.floor(x0 / 70) * 70; x <= x1 + 70; x += 70) xs.push(x);
+      // long shadows of the poles across the ground
+      ctx.fillStyle = 'rgba(110,70,40,0.18)';
+      for (const x of xs) {
+        ctx.beginPath();
+        ctx.moveTo(x - 0.6, 0);
+        ctx.lineTo(x + 0.6, 0);
+        ctx.lineTo(x - 26, 5.5);
+        ctx.lineTo(x - 27.5, 5.5);
+        ctx.fill();
+      }
       for (const x of xs) pole(ctx, x, 0, 60, WASTE.pole, false);
       ctx.fillStyle = WASTE.pole;
       for (const x of xs) ctx.fillRect(x - 5, -57, 10, 0.8);
@@ -80,12 +105,16 @@ function wasteBackdrop(S, o = {}) {
   }));
 }
 function wasteAir(S) {
-  S.layers.push(screenLayer(2.5, (ctx, t, W, H) => dust(ctx, W, H, t, { n: 70, y0: 0.45, y1: 0.98, speed: 9, color: '#e0cfaa', alpha: 0.35, seed: 5, dir: 1 })));
+  S.layers.push(screenLayer(2.5, (ctx, t, W, H) => {
+    dust(ctx, W, H, t, { n: 70, y0: 0.45, y1: 0.98, speed: 9, color: '#e8d2a8', alpha: 0.35, seed: 5, dir: 1 });
+    // sunlit dust motes hanging in the air
+    particles(ctx, W, H, t, { n: 34, seed: 8, color: ['#fff0c8', '#ffe2a8'], alpha: 0.6, size: 2, vx: 0.8, vy: -0.05, glow: 3, twinkle: 0.05 });
+  }));
 }
 
 function s5_1() {
   return shot({
-    name: '5.1', dur: 204, unit: 30, anchor: [0.5, 0.66], fadeIn: 30, grade: wasteGrade,
+    name: '5.1', dur: 204, unit: 30, anchor: [0.5, 0.66], fadeIn: 30, post: wastePost, grade: wasteGrade,
     cam: { x: -4, y: -4, z: 1 },
     setup(S) {
       S.camera.move(0, 204, { x: 8 }, 'linear');
@@ -101,7 +130,7 @@ function s5_1() {
 }
 function s5_2() {
   return shot({
-    name: '5.2', dur: 312, unit: 100, anchor: [0.5, 0.62], grade: wasteGrade,
+    name: '5.2', dur: 312, unit: 100, anchor: [0.5, 0.62], post: wastePost, grade: wasteGrade,
     cam: { x: 0, y: -1.4, z: 1 },
     setup(S) {
       wasteBackdrop(S);
@@ -126,7 +155,7 @@ function s5_2() {
 }
 function s5_3() {
   return shot({
-    name: '5.3', dur: 180, unit: 64, anchor: [0.5, 0.64], grade: wasteGrade,
+    name: '5.3', dur: 180, unit: 64, anchor: [0.5, 0.64], post: wastePost, grade: wasteGrade,
     cam: { x: 1, y: -2, z: 1 },
     setup(S) {
       wasteBackdrop(S);
@@ -172,7 +201,7 @@ function s5_3() {
 }
 function s5_4() {
   return shot({
-    name: '5.4', dur: 180, unit: 7, anchor: [0.5, 0.7], fadeOut: 24, grade: wasteGrade,
+    name: '5.4', dur: 180, unit: 7, anchor: [0.5, 0.7], fadeOut: 24, post: wastePost, grade: wasteGrade,
     cam: { x: 0, y: -12, z: 1 },
     setup(S) {
       S.camera.move(0, 180, { x: 10 }, 'linear');
@@ -187,7 +216,7 @@ function s5_4() {
 
 // ================================ 6. SNOW ==================================
 const SNOW = {
-  sky: [[0, '#a9c3dc'], [0.6, '#dfe8f1'], [1, '#f4f6f8']],
+  sky: [[0, '#7fa9d6'], [0.5, '#cfe0f0'], [0.85, '#f2f6fb'], [1, '#fdfdfd']],
   mtn: '#b7c3d3', mtnShade: '#a1afc3', snow: '#fbfcfe', snowShade: '#dde5ef',
   field: ['#e3ebf4', '#f7f9fc'], shadow: '#c9d6e6', lip: '#f5f8fb',
   pine: '#5d7282', pineSnow: '#eef3f8',
@@ -196,14 +225,30 @@ const catSnow = {
   light: () => ({ tint: '#e6edf8', amt: 0.18, lift: '#0c0e14' }),
   rim: () => ({ color: '#ffffff', dir: [0.4, -0.9], alpha: 0.35, width: 0.05 }),
 };
-const snowGrade = { vignette: 0.25, vignetteColor: '#8c9ab0', grain: 0.35, lift: '#e8eef8', liftAmt: 0.06 };
+const snowGrade = { vignette: 0.28, vignetteColor: '#7d8fae', grain: 0.3, lift: '#e8eef8', liftAmt: 0.05 };
+const snowPost = { bloom: { threshold: 0.9, knee: 0.08, strength: 0.4, radius: 22, tint: '#f4f8ff' } };
 function snowBackdrop(S, o = {}) {
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
     skyGradient(ctx, W, H, SNOW.sky);
-    glow(ctx, W * 0.75, H * 0.1, W * 0.5, '#ffffff', 0.5);
+    const sx = W * 0.76, sy = H * 0.09;
+    glow(ctx, sx, sy, W * 0.55, '#ffffff', 0.55);
+    lampGlow(ctx, sx, sy, W * 0.05, '#ffffff', 1, 0.3);
+    // a faint 22-degree ice halo around the sun
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = W * 0.012;
+    ctx.beginPath();
+    ctx.arc(sx, sy, W * 0.16, 0, TAU);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,236,220,0.12)';
+    ctx.lineWidth = W * 0.004;
+    ctx.beginPath();
+    ctx.arc(sx, sy, W * 0.168, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
   }));
-  S.layers.push(at(22000, 0.03, (ctx, t, view, S2, p) => mountains(ctx, view, p, { seed: 7, period: 4200, h: 3200, w: 2800, base: 0, color: SNOW.mtn, shade: SNOW.mtnShade, snow: SNOW.snow, snowShade: SNOW.snowShade, snowLine: 0.62 })));
-  S.layers.push(at(6000, 0.05, (ctx, t, view, S2, p) => mountains(ctx, view, p, { seed: 11, period: 1500, h: 700, w: 1100, base: 0, color: '#c8d3e0', shade: '#b5c2d3', snow: SNOW.snow, snowShade: SNOW.snowShade, snowLine: 0.75 })));
+  S.layers.push(Object.assign(at(22000, 0.03, (ctx, t, view, S2, p) => mountains(ctx, view, p, { seed: 7, period: 4200, h: 3200, w: 2800, base: 0, color: SNOW.mtn, shade: '#8f9fbd', snow: SNOW.snow, snowShade: '#c9d5e8', snowLine: 0.62 })), { haze: { color: '#dbe6f3', amount: 0.4 }, blur: 1.4 }));
+  S.layers.push(Object.assign(at(6000, 0.05, (ctx, t, view, S2, p) => mountains(ctx, view, p, { seed: 11, period: 1500, h: 700, w: 1100, base: 0, color: '#c8d3e0', shade: '#a6b5cc', snow: SNOW.snow, snowShade: '#d3ddeb', snowLine: 0.75 })), { haze: { color: '#e4ecf6', amount: 0.25 } }));
   const hill = profile({ base: 0, amp: 40, freq: 0.004, seed: 13 });
   S.layers.push(at(1200, 0.08, (ctx, t, view, S2, p) => {
     fillBelow(ctx, view, p, hill, '#eef3f9', 4000, 10);
@@ -212,22 +257,50 @@ function snowBackdrop(S, o = {}) {
       for (let i = Math.floor(x0 / 30); i <= x1 / 30; i++) {
         if (hash01(i * 17) > 0.45) continue;
         const x = i * 30 + hash01(i) * 20, gy = hill(x), h = 30 + 30 * hash01(i * 3);
-        ctx.fillStyle = SNOW.pine;
-        ctx.beginPath();
-        ctx.moveTo(x, gy - h);
-        ctx.lineTo(x + h * 0.28, gy);
-        ctx.lineTo(x - h * 0.28, gy);
-        ctx.fill();
-        ctx.fillStyle = SNOW.pineSnow;
-        ctx.beginPath();
-        ctx.moveTo(x, gy - h);
-        ctx.lineTo(x + h * 0.12, gy - h * 0.55);
-        ctx.lineTo(x - h * 0.12, gy - h * 0.55);
-        ctx.fill();
+        for (let k = 0; k < 3; k++) {
+          const top = gy - h + k * h * 0.26, bot = gy - h * 0.18 + k * h * 0.08, wv = h * (0.16 + 0.07 * k);
+          ctx.fillStyle = SNOW.pine;
+          ctx.beginPath();
+          ctx.moveTo(x, top);
+          ctx.lineTo(x + wv, bot);
+          ctx.lineTo(x - wv, bot);
+          ctx.fill();
+          ctx.fillStyle = SNOW.pineSnow;
+          ctx.beginPath();
+          ctx.moveTo(x, top);
+          ctx.lineTo(x + wv * 0.8, bot - h * 0.05);
+          ctx.quadraticCurveTo(x, bot - h * 0.12, x - wv * 0.9, bot - h * 0.03);
+          ctx.fill();
+        }
       }
     }
   }));
-  S.layers.push(screenLayer(0.1, (ctx, t, W, H, view) => groundPlane(ctx, view, { y: 0, bands: [[-500, 1200, SNOW.field]], lines: [[400, 'rgba(160,180,205,0.25)', 3], [90, 'rgba(160,180,205,0.2)', 1]] })));
+  S.layers.push(screenLayer(0.1, (ctx, t, W, H, view) => {
+    const Y = groundPlane(ctx, view, { y: 0, bands: [[-500, 1200, SNOW.field]], lines: [[400, 'rgba(160,180,205,0.25)', 3], [90, 'rgba(160,180,205,0.2)', 1]] });
+    // soft blue shadows of drifts
+    ctx.save();
+    for (let i = 0; i < 7; i++) {
+      const d = 20 + Math.pow(hash01(i * 5), 1.5) * 600;
+      const y = Y(d);
+      if (y < 0 || y > H) continue;
+      const sc = view.scaleAt(view.pOf(d));
+      const x = view.ox + ((hash01(i * 3) - 0.5) * 3000 / (1 + d * 0.01) - view.cam.x * 0) * sc * 0.02 + W * hash01(i * 7);
+      const rx = W * (0.25 + 0.3 * hash01(i)), ry = Math.max(3, sc * 1.5);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rx);
+      g.addColorStop(0, 'rgba(150,175,215,0.22)');
+      g.addColorStop(1, 'rgba(150,175,215,0)');
+      ctx.fillStyle = g;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(1, ry / rx);
+      ctx.fillRect(-rx, -rx, 2 * rx, 2 * rx);
+      ctx.restore();
+    }
+    ctx.restore();
+    // sunlight sparkling on the snow crystals
+    const yH = Math.max(0, Y(1200));
+    glints(ctx, 0, yH, W, H - yH, t, { n: 90, seed: 13, size: 5 * W / 1920, sizeAt: (py) => 0.4 + 1.4 * (py - yH) / Math.max(1, H - yH), bias: 0.7, speed: 0.15, alpha: 0.9 });
+  }));
 }
 // snow surface in front of the cat: paws sink into it
 function snowLip(S, depthY = -0.16) {
@@ -237,10 +310,12 @@ function snowLip(S, depthY = -0.16) {
 }
 function snowfall(S, o = {}) {
   S.layers.push(screenLayer(2.5, (ctx, t, W, H, view) => snow(ctx, W, H, t, { density: o.density ?? 0.8, wind: o.wind ?? 0.6, fall: o.fall ?? 0.003, seed: o.seed ?? 3, camX: view.cam.x * 0.02 })));
+  // big out-of-focus flakes drifting right in front of the lens
+  S.layers.push(screenLayer(2.6, (ctx, t, W, H) => particles(ctx, W, H, t, { n: 10, seed: 21, color: '#ffffff', alpha: 0.32, size: 14, vx: (o.wind ?? 0.6) * 1.2, vy: 1.4, glow: 2.2, sway: 2 })));
 }
 function s6_1() {
   return shot({
-    name: '6.1', dur: 156, unit: 14, anchor: [0.5, 0.68], xfade: 36, grade: snowGrade,
+    name: '6.1', dur: 156, unit: 14, anchor: [0.5, 0.68], xfade: 36, post: snowPost, grade: snowGrade,
     cam: { x: 0, y: -10, z: 1 },
     setup(S) {
       S.camera.move(0, 156, { x: 6 }, 'linear');
@@ -256,7 +331,7 @@ function s6_1() {
 }
 function s6_2() {
   return shot({
-    name: '6.2', dur: 348, unit: 120, anchor: [0.5, 0.6], grade: snowGrade,
+    name: '6.2', dur: 348, unit: 120, anchor: [0.5, 0.6], post: snowPost, grade: snowGrade,
     cam: { x: 1.6, y: -1.3, z: 1 },
     setup(S) {
       snowBackdrop(S, { pines: true });
@@ -274,7 +349,7 @@ function s6_2() {
 }
 function s6_3() {
   return shot({
-    name: '6.3', dur: 204, unit: 90, anchor: [0.5, 0.62], grade: snowGrade,
+    name: '6.3', dur: 204, unit: 90, anchor: [0.5, 0.62], post: snowPost, grade: snowGrade,
     cam: { x: 1.4, y: -1.8, z: 1 },
     setup(S) {
       snowBackdrop(S);
@@ -328,7 +403,7 @@ function s6_3() {
 }
 function s6_4() {
   return shot({
-    name: '6.4', dur: 168, unit: 110, anchor: [0.5, 0.6], grade: (t) => Object.assign({}, snowGrade, { tint: '#d6e1f0', tintAmt: 0.15 }),
+    name: '6.4', dur: 168, unit: 110, anchor: [0.5, 0.6], post: snowPost, grade: (t) => Object.assign({}, snowGrade, { tint: '#d6e1f0', tintAmt: 0.15 }),
     cam: { x: 0, y: -1.3, z: 1 },
     setup(S) {
       snowBackdrop(S);
@@ -353,7 +428,7 @@ function s6_4() {
 }
 function s6_5() {
   return shot({
-    name: '6.5', dur: 204, unit: 6, anchor: [0.5, 0.72], fadeOut: 30, grade: snowGrade,
+    name: '6.5', dur: 204, unit: 6, anchor: [0.5, 0.72], fadeOut: 30, post: snowPost, grade: snowGrade,
     cam: { x: -2, y: -26, z: 1 },
     setup(S) {
       S.camera.move(0, 204, { x: 4, z: 0.92 }, 'inout');

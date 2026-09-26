@@ -2,6 +2,15 @@
 import { css, mix, smoothTo } from '../core/draw.js';
 import { hash01, noise1, clamp, lerp, TAU, smoothstep } from '../core/math.js';
 import { glow } from './sky.js';
+import { neonSign, lampGlow } from './light.js';
+
+export const NEON = ['#ff5f9e', '#4fe3ff', '#ffb347', '#8dff9a', '#c98bff', '#ff7a5c'];
+// screen-space light registry: painters push {x, y, r, color, a} for later pools/reflections
+function pushLight(ctx, list, x, y, r, color, a = 1) {
+  if (!list) return;
+  const m = ctx.getTransform();
+  list.push({ x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f, r: r * Math.hypot(m.a, m.b), color, a });
+}
 
 // deterministic building segmentation along x
 export function buildingsIn(x0, x1, seed, minW, maxW) {
@@ -28,11 +37,19 @@ export function skyline(ctx, view, p, t, spec) {
     const h = lerp(spec.hMin, spec.hMax, hash01(b.s + 2));
     const top = spec.base - h;
     ctx.fillStyle = spec.color;
-    ctx.fillRect(b.x, top, b.w, h + 40);
+    ctx.fillRect(b.x, top, b.w, h + 600);
     // rooftop details
     if (hash01(b.s + 3) < 0.4) ctx.fillRect(b.x + b.w * 0.2, top - h * 0.06, b.w * 0.25, h * 0.06 + 0.01);
     if (spec.antenna && hash01(b.s + 4) < 0.35) {
       ctx.fillRect(b.x + b.w * 0.7, top - h * 0.18, Math.max(0.03, b.w * 0.02), h * 0.18);
+      // blinking red aviation light
+      const on = Math.sin(t * 0.09 + b.s) > 0.2;
+      if (on) {
+        glow(ctx, b.x + b.w * 0.7 + b.w * 0.01, top - h * 0.18, b.w * 0.09, '#ff4a3d', 0.55);
+        ctx.fillStyle = '#ffb0a0';
+        ctx.fillRect(b.x + b.w * 0.7 - b.w * 0.005, top - h * 0.18 - b.w * 0.01, b.w * 0.03, b.w * 0.02);
+        ctx.fillStyle = spec.color;
+      }
     }
     // windows
     if (spec.win) {
@@ -98,7 +115,7 @@ export function facades(ctx, view, p, t, spec) {
             ctx.fillStyle = css(mix(lc, '#6b4a3a', 0.35));
             ctx.fillRect(wx, fy, ww * 0.3, wh);
           }
-          if (spec.glowWin) glow(ctx, wx + ww / 2, fy + wh / 2, ww * 1.1, lc, 0.18);
+          if (spec.glowWin) glow(ctx, wx + ww / 2, fy + wh / 2, ww * 1.3, lc, 0.28);
         } else {
           ctx.fillStyle = P.dark;
           ctx.fillRect(wx, fy, ww, wh);
@@ -144,12 +161,41 @@ export function facades(ctx, view, p, t, spec) {
     ctx.fillRect(dx, spec.base - 2.1, 1.1, 2.1);
     ctx.fillStyle = P.frame;
     ctx.fillRect(dx - 0.1, spec.base - 2.2, 1.3, 0.12);
-    if (spec.shop && hash01(b.s + 11) < 0.4) {
-      // lit shop sign
-      const sx = b.x + b.w * 0.55;
-      ctx.fillStyle = P.sign || '#e8a562';
-      ctx.fillRect(sx, spec.base - 3.2, 1.6, 0.6);
-      if (spec.glowWin) glow(ctx, sx + 0.8, spec.base - 2.9, 1.6, P.sign || '#e8a562', 0.25);
+    if (spec.shop && hash01(b.s + 11) < 0.55) {
+      // lit shop front: warm interior, shelves, awning, sign board
+      const sx = b.x + b.w * (0.12 + 0.3 * hash01(b.s + 12)), sw = Math.min(b.w * 0.5, 4.2);
+      const warm = hash01(b.s + 13) < 0.7 ? '#ffd79a' : '#dff4ff';
+      const g = ctx.createLinearGradient(0, spec.base - 2.5, 0, spec.base);
+      g.addColorStop(0, css(warm, 0.95));
+      g.addColorStop(1, css(mix(warm, '#ff9f5a', 0.35), 0.95));
+      ctx.fillStyle = g;
+      ctx.fillRect(sx, spec.base - 2.5, sw, 2.5);
+      ctx.fillStyle = 'rgba(60,40,40,0.35)';
+      for (let k = 0; k < 3; k++) ctx.fillRect(sx + 0.2, spec.base - 2.2 + k * 0.72, sw - 0.4, 0.12);
+      ctx.fillStyle = P.frame;
+      ctx.fillRect(sx + sw * 0.5 - 0.05, spec.base - 2.5, 0.1, 2.5);
+      const aw = NEON[Math.floor(hash01(b.s + 14) * NEON.length)];
+      ctx.fillStyle = css(mix(aw, '#2a2030', 0.45));
+      ctx.beginPath();
+      ctx.moveTo(sx - 0.3, spec.base - 2.6);
+      ctx.lineTo(sx + sw + 0.3, spec.base - 2.6);
+      ctx.lineTo(sx + sw + 0.1, spec.base - 3.2);
+      ctx.lineTo(sx - 0.1, spec.base - 3.2);
+      ctx.fill();
+      if (spec.glowWin) glow(ctx, sx + sw / 2, spec.base - 1.2, sw * 0.9, warm, 0.35);
+      pushLight(ctx, spec.lights, sx + sw / 2, spec.base, sw * 0.9, warm, 0.9);
+      if (spec.neon !== undefined) neonSign(ctx, sx, spec.base - 4.1, sw, 0.8, aw, t, b.s, { flicker: hash01(b.s + 15) < 0.25 });
+    }
+    // vertical neon sign hanging off the wall
+    if (spec.neon && hash01(b.s + 20) < spec.neon) {
+      const col = NEON[Math.floor(hash01(b.s + 21) * NEON.length)];
+      const nx = b.x + b.w * (hash01(b.s + 22) < 0.5 ? 0.04 : 0.8);
+      const ny = spec.base - 5.2 - 4.5 * hash01(b.s + 23);
+      const nh = 3.2 + 2.2 * hash01(b.s + 24);
+      ctx.fillStyle = P.frame;
+      ctx.fillRect(nx + 0.45, ny - 0.3, 0.12, 0.3);
+      neonSign(ctx, nx, ny, 1.05, nh, col, t, b.s * 3, { flicker: hash01(b.s + 25) < 0.3 });
+      pushLight(ctx, spec.lights, nx + 0.5, ny + nh / 2, nh * 0.9, col, 0.7);
     }
   }
 }
