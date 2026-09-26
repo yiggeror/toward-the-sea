@@ -81,7 +81,8 @@ export class Timeline {
     const out = [];
     for (const s of this.shots) {
       this.ensure(s);
-      for (const e of s.events ? s.events() : []) out.push(Object.assign({}, e, { t: e.t + s.start, shot: s.name }));
+      // only what happens while the shot is on screen is heard
+      for (const e of s.events ? s.events() : []) if (e.t >= 0 && e.t < s.dur) out.push(Object.assign({}, e, { t: e.t + s.start, shot: s.name }));
     }
     return out.sort((a, b) => a.t - b.t);
   }

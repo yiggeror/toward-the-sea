@@ -227,6 +227,41 @@ def sneeze(seed=0):
     return tone + air * 0.7
 
 
+def yawn(seed=0):
+    """a tiny kitten yawn: a squeaky rising-falling glide with a breathy tail"""
+    dur = 0.95
+    t = np.arange(int(dur * SR)) / SR
+    f0 = 520 + 260 * np.sin(np.pi * np.clip(t / 0.5, 0, 1)) - 160 * np.clip((t - 0.5) / 0.45, 0, 1)
+    ph = 2 * np.pi * np.cumsum(f0) / SR
+    v = sum(np.sin(k * ph) / k ** 1.3 for k in range(1, 8))
+    v = filt(v, 700, 2600)
+    e = np.minimum(1, t / 0.08) * np.clip((dur - t) / 0.25, 0, 1) * (0.6 + 0.4 * np.sin(np.pi * t / dur))
+    air = filt(noise(dur, seed), 1200, 6000) * np.clip((t - 0.55) / 0.1, 0, 1) * np.clip((dur - t) / 0.3, 0, 1) * 0.35
+    return v * e * 0.7 + air
+
+
+def thwap(seed=0, f=140):
+    """a soft flat slap / bump (paper on a face, a bottom on the ground)"""
+    n = int(0.18 * SR)
+    t = np.arange(n) / SR
+    body = np.sin(2 * np.pi * f * t) * np.exp(-t / 0.03)
+    slap = filt(noise(0.18, seed), 400, 3500) * np.exp(-t / 0.012)
+    return body * 0.7 + slap * 0.6
+
+
+def sweep(dur, f0, f1, seed=0):
+    """a filtered noise sweep (time slowing down / speeding up)"""
+    n = int(dur * SR)
+    x = noise(dur, seed)
+    out = np.zeros(n)
+    k = 8
+    for i in range(k):
+        a, b = i * n // k, (i + 1) * n // k
+        fc = f0 * (f1 / f0) ** ((i + 0.5) / k)
+        out[a:b] = filt(x, max(60, fc * 0.6), min(20000, fc * 1.6))[a:b]
+    return out * np.sin(np.pi * np.linspace(0, 1, n)) ** 1.5
+
+
 def pant_breath(sec, seed=0):
     x = filt(noise(sec, seed), 700, 4000)
     t = np.arange(len(x)) / SR
@@ -328,6 +363,8 @@ def lv(x, target):
 # Each layer is levelled (loud bursts tamed, dropouts lifted) and set to its
 # loudness target; 'peak' layers (drips) are spiky and capped by peak instead.
 BEDS = {
+    'city_rain': [('rain_light', -24, 11000, 90), ('rain_heavy', -30, 5000, 80), ('city_night', -29, 6000, 60), ('drips', -31, 9000, 300, 'peak')],
+    'roof_night': [('wind_light', -27, 7000, 80), ('city_night', -31, 2500, 60), ('rain_light', -36, 8000, 200)],
     'city_night': [('city_night', -23, None, 60), ('drips', -32, 9000, 300, 'peak')],
     'dawn_edge': [('wind_soft', -31, 6000, 80), ('birds_dawn', -27, None, 400), ('city_night', -34, 3000, 60)],
     'forest': [('forest_birds', -23, None, 150), ('wind_light', -30, 9000, 100)],
@@ -391,7 +428,8 @@ def src(name):
     return x
 
 
-SURFACE = {'city': 'wet', 'forest': 'grass', 'storm': 'grass', 'night': 'wood', 'waste': 'dirt', 'snow': 'snow',
+SHOT_SURFACE = {'A16': 'pavement', 'A18': 'grass'}
+SURFACE = {'act1': 'wet', 'city': 'wet', 'forest': 'grass', 'storm': 'grass', 'night': 'wood', 'waste': 'dirt', 'snow': 'snow',
            'cape': 'grass', 'sea': 'grass', 'beach': 'sand'}
 
 
@@ -465,7 +503,7 @@ def main():
         seq = seq_at(t)
         hsh = h01(idx, ty)
         if ty == 'step':
-            surf = e.get('surface') or SURFACE.get(seq, 'pavement')
+            surf = e.get('surface') or SHOT_SURFACE.get(e.get('shot')) or SURFACE.get(seq, 'pavement')
             gait = e.get('gait')
             s = e.get('strength', 1) * (1.25 if gait in ('run', 'gallop') else 0.7 if gait in ('stalk', 'sneak') else 0.85 if gait == 'tired' else 1.0)
             vary = db((h01(idx, 'v') - 0.5) * 3)
@@ -475,7 +513,7 @@ def main():
                 M.add('foley', filt(sand[int(hsh * len(sand))], 400, 7000), t - 0.01, db(-33) * s * vary)
             elif surf == 'water':
                 if splash is not None:
-                    M.add('foley', filt(splash, 300, 9000), t - 0.02, db(-26) * s * vary)
+                    M.add('foley', lv(filt(splash, 300, 9000), -27), t - 0.02, s * vary)
             elif surf == 'grass' and grass:
                 M.add('foley', filt(grass[int(hsh * len(grass))], 400, 9000), t - 0.01, db(-31) * s * vary)
             else:
@@ -560,6 +598,36 @@ def main():
             M.add('foley', steps[int(hsh * len(steps))], t, db(-24))
         elif ty == 'sneeze':
             M.add('foley', lv(sneeze(idx), -23), t)
+        elif ty == 'crawl':
+            dur = e.get('dur', 30) / fps
+            for k in range(int(dur / 0.3)):
+                M.add('foley', pk(paw('wet', 0.6, idx + k)), t + k * 0.3 + 0.08 * h01(idx, k), db(-36))
+        elif ty == 'yawn':
+            M.add('foley', lv(yawn(idx), -30), t + 0.1)
+        elif ty == 'card_slap':
+            if flaps:
+                M.add('fx', lv(filt(flaps[int(hsh * len(flaps))], 500, None), -19), t - 0.02)
+            M.add('fx', lv(thwap(idx), -21), t)
+        elif ty == 'plop':
+            M.add('foley', lv(thwap(idx + 3, 90), -25), t)
+            M.add('foley', lv(cloth, -30), t + 0.02)
+        elif ty == 'paw_swipe':
+            M.add('foley', pk(whoosh(0.16, 900, 4000, idx)), t - 0.04, db(-35))
+            if papers:
+                M.add('foley', filt(papers[int(hsh * len(papers))], 800, 10000), t, db(-33))
+        elif ty == 'whoosh':
+            M.add('fx', lv(whoosh(0.55, 500, 5000, idx), -24), t - 0.35)
+        elif ty == 'card_waves':
+            # the sea heard from the postcard: far, dreamy, swelling in and out
+            dur = e.get('dur', 260) / fps
+            x = filt(loop_to(src('sea_gentle'), int(dur * SR), offset=0.3), 180, 2600)
+            env = np.sin(np.pi * np.clip(np.linspace(0, 1, len(x)), 0, 1)) ** 0.8
+            x = x * env[:, None]
+            M.add('fx', fade(x * db(-27 - loudness(x)), 2.0, 2.5), t)
+        elif ty == 'slowmo_in':
+            M.add('fx', lv(sweep(0.9, 2600, 300, idx), -27), t - 0.2)
+        elif ty == 'slowmo_out':
+            M.add('fx', lv(sweep(0.5, 400, 2800, idx), -29), t - 0.35)
         elif ty == 'shiver':
             M.add('foley', pk(filt(noise(e.get('dur', 30) / fps, idx), 2000, 7000) * (0.5 + 0.5 * np.sin(np.linspace(0, 60, int(e.get('dur', 30) / fps * SR))))), t, db(-36))
         elif ty == 'card_snatch':
@@ -611,27 +679,29 @@ def main():
             trim[i:j] = AMB_TRIM[s0['name']]
     from scipy.ndimage import uniform_filter1d
     M.bus['amb'] *= db(uniform_filter1d(trim, int(1.2 * SR)))[:, None]
+    # muffled / slowed stretches: the beds go dull and quiet (looking up at the
+    # sky; the slow-motion leap)
+    spans = [(e['t'] / fps, e['t'] / fps + e.get('dur', 96) / fps, 0.55, 1300) for e in ev if e['type'] == 'city_muffle']
+    si = [e['t'] / fps for e in ev if e['type'] == 'slowmo_in']
+    so = [e['t'] / fps for e in ev if e['type'] == 'slowmo_out']
+    for a0, b0 in zip(si, so):
+        spans.append((a0, b0, 0.9, 700))
+    for a0, b0, amt, fc in spans:
+        mix_env = np.zeros(M.n)
+        i, j = int(a0 * SR), int(b0 * SR)
+        mix_env[i:j] = amt
+        mix_env = uniform_filter1d(mix_env, int(0.5 * SR))
+        dull = filt(M.bus['amb'], None, fc) * db(-5)
+        M.bus['amb'] = M.bus['amb'] * (1 - mix_env[:, None]) + dull * mix_env[:, None]
 
-    # ---------------- music
+    # ---------------- music: the score composed to this timeline (tools/score.py)
     if not a.no_music:
-        import music
-        cues = music.cues()
-        def at_shot(name, off=0.0):
-            s = shot_of.get(name)
-            return s['start'] / fps + off if s else None
-        ev_t = lambda ty, kind=None, i=0: ([e['t'] / fps for e in ev if e['type'] == ty and (kind is None or e.get('kind') == kind)] + [None] * (i + 1))[i]
-        # (cue, start s, target loudness LUFS)
-        plan = [('discover', ev_t('emote', 'sparkle'), -24), ('dawn', at_shot('1.10', 2.0), -21), ('night', at_shot('4.1', 3.0), -24),
-                ('snow', at_shot('6.1', 1.0), -24), ('loss', at_shot('7.6', 1.2), -24),
-                ('sea', ev_t('music_in') or at_shot('8.3', 2.5), -18), ('beach', at_shot('9.3', 0.0), -20),
-                ('end', ev_t('music_end') or at_shot('end', 0.5), -19)]
-        for name, t, target in plan:
-            if t is None or name not in cues:
-                continue
-            x = cues[name]
-            M.add('music', x * db(target - loudness(x)), t)
+        import score
+        tl2, T = score.load_timeline(a.timeline)
+        x = score.compose(tl2, T)
+        x = x[: M.n]
+        M.add('music', x * db(-19 - loudness(x)), 0.0)
         # duck the beds a little under the music (trims per shot come first)
-        from scipy.ndimage import uniform_filter1d
         me = uniform_filter1d((M.bus['music'] ** 2).mean(axis=1), int(1.0 * SR))
         mdb = 10 * np.log10(me + 1e-12)
         duck = -3.0 * np.clip((mdb + 42) / 12, 0, 1)

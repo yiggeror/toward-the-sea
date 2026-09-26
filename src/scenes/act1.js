@@ -347,9 +347,9 @@ function A3() {
 function A3b() {
   return shot({
     name: 'A3b', dur: 100, unit: 100, anchor: [0.5, 0.64], grade: nightGrade, post: nightPost,
-    cam: { x: SPOT.x + 0.6, y: -1.55, z: 1, dz: 21.5 },
+    cam: { px: SPOT.x, pd: SPOT.d, yaw: -0.42, x: 0.45, y: -1.5, z: 1, dz: 9 },
     setup(S) {
-      S.camera.move(0, 100, { dz: 22.4 }, 'linear');
+      S.camera.move(0, 100, { dz: 9.8 }, 'linear');
       laneSet(S, { hits: 120, blur: 1.2 });
       const cat = viewCat(S, { z: 0.7, mode: 'front', light: lampLight, shadowFlat: 0.1, init: { x: SPOT.x, d: SPOT.d, tail: 0.8 } });
       cat.key(6, { hPitch: 0.1 }, 'inout');
@@ -720,7 +720,7 @@ function A8() {
         }
         ctx.restore();
       }));
-      S.extraEvents = [{ t: 30, type: 'card_waves' }, { t: 36, type: 'music_card' }];
+      S.extraEvents = [{ t: 30, type: 'card_waves', dur: 236 }, { t: 36, type: 'music_card' }];
     },
   });
 }
@@ -1007,9 +1007,9 @@ function roofTop(ctx, x0, x1, y, P = {}) {
 function A16() {
   const gnd = (x) => (x < 3 ? 0 : x < 15.5 ? 60 : 1.2);
   return shot({
-    name: 'A16', dur: 150, unit: 70, anchor: [0.46, 0.62], grade: { vignette: 0.45, vignetteColor: '#0c0c20', grain: 0.45 },
+    name: 'A16', dur: 150, unit: 105, anchor: [0.52, 0.62], grade: { vignette: 0.45, vignetteColor: '#0c0c20', grain: 0.45 },
     post: { bloom: { threshold: 0.75, knee: 0.2, strength: 0.6, radius: 30, tint: '#dfe4ff' } },
-    cam: { x: -2, y: -3, z: 1 },
+    cam: { x: -2, y: -2.3, z: 1 },
     setup(S) {
       roofSet(S);
       // water tank and antenna on the near roof, the next roof across the gap
@@ -1023,21 +1023,21 @@ function A16() {
         ctx.fillRect(28, -14, 4.4, 0.25);
       }));
       const rim = () => ({ color: '#fff4dc', dir: [0.2, -0.98], alpha: 0.95, width: 0.07 });
-      const cat = makeCat(S, { x: -12, facing: 1, ground: gnd, carry: { wear: 0 }, style: { flatColor: '#0e0f22' }, rim, light: null, z: 1 });
+      const cat = makeCat(S, { x: -6.5, facing: 1, ground: gnd, carry: { wear: 0 }, style: { flatColor: '#0e0f22' }, rim, light: null, z: 1 });
       const P = cat.perf;
       P.setTiming(0, 1);
       locomote(P, { gait: 'run', to: 0.8, accel: 4, decel: 2 });
-      const tJ = P.t;
-      A.jump(P, { dx: 16, dy: 1.2, h: 3.4, antic: 2, hold: 0, flight: 18 });
-      const tL = P.t;
+      A.jump(P, { dx: 16, dy: 1.2, h: 3.6, antic: 2, hold: 0, flight: 18 });
       locomote(P, { gait: 'run', dist: 20, accel: 3, decel: 3 });
-      // speed ramp: normal → ×0.22 over the gap → normal
-      const f0 = tJ + 1, slow = 4.5;
-      const f1 = f0 + (tL - 2 - (tJ + 1)) * slow;
-      S.warp = [[0, 0], [f0, tJ + 1], [f1, tL - 2], [f1 + 200, tL - 2 + 200]];
-      S.dur = Math.min(150, Math.round(f1 + 34));
-      S.camera.follow = follow(P, { lag: 6, lead: 6, dx: 1.5, y: 0.35 });
-      S.extraEvents = [{ t: tJ + 1, type: 'slowmo_in' }, { t: tL - 2, type: 'slowmo_out' }];
+      // speed ramp: normal → ×0.3 from take-off to touch-down → normal
+      const tOff = P.events.find((e) => e.type === 'jump').t;
+      const tLand = P.events.find((e) => e.type === 'land' && e.t > tOff).t;
+      const slow = 3.3;
+      const f0 = tOff - 1, f1 = f0 + (tLand + 1 - f0) * slow;
+      S.warp = [[0, 0], [f0, tOff - 1], [f1, tLand + 1], [f1 + 200, tLand + 201]];
+      S.dur = Math.round(f1 + 30);
+      S.camera.follow = follow(P, { lag: 5, lead: 5, dx: 0, y: 0 });
+      S.extraEvents = [{ t: 0, type: 'amb', name: 'roof_night' }, { t: tOff - 1, type: 'slowmo_in' }, { t: tLand + 1, type: 'slowmo_out' }];
     },
   });
 }
@@ -1047,13 +1047,15 @@ function A18() {
   return shot({
     name: 'A18', dur: 228, unit: 60, anchor: [0.5, 0.58], xfade: 36,
     grade: { vignette: 0.28, vignetteColor: '#4a3f5e', grain: 0.35 },
-    post: { bloom: { threshold: 0.8, knee: 0.15, strength: 0.55, radius: 28, tint: '#ffd7a8' }, rays: { pos: [0.5, 0.42], strength: 0.5, length: 0.6, threshold: 0.84, knee: 0.1, tint: '#ffc890' } },
     cam: { x: 0.9, y: -11.3, z: 1, dz: 19.5 },
     setup(S) {
+      // the sun sits a little above the tree line; rays follow it as the camera cranes
+      const sunY = (t) => 0.58 + S.camera.at(t).ty - 0.21 - 0.04 * smoothstep(0, 228, t);
+      S.post = (t) => ({ bloom: { threshold: 0.8, knee: 0.15, strength: 0.55, radius: 28, tint: '#ffd7a8' }, rays: { pos: [0.5, sunY(t)], strength: 0.55, length: 0.6, threshold: 0.84, knee: 0.1, tint: '#ffc890' } });
       S.camera.move(112, 228, { y: -19, dz: 14, x: 0.3, ty: -0.2 }, 'inout');
       S.layers.push(screenLayer(0, (ctx, t, W, H, view) => {
         skyGradient(ctx, W, H, DAWN.sky);
-        const sy = view.oy - H * (0.13 + 0.05 * smoothstep(0, 228, t));
+        const sy = view.oy - H * (0.21 + 0.04 * smoothstep(0, 228, t));
         glow(ctx, W * 0.5, sy, W * 0.7, '#ffd9a8', 0.65);
         lampGlow(ctx, W * 0.5, sy, W * 0.08, '#fff4dc', 1, 0.3);
         ctx.fillStyle = '#fff8ea';
@@ -1072,6 +1074,37 @@ function A18() {
       // fields with a path running toward the sun
       S.layers.push(screenLayer(0.3, (ctx, t, W, H, view) => {
         groundPlane(ctx, view, { y: 0, bands: [[4, 700, ['#7e9366', '#b0b88c']]], lines: [[200, 'rgba(255,240,210,0.25)', 1.2], [90, 'rgba(90,110,70,0.2)', 0.8]] });
+        // furrows of young crops running toward the sun (they draw the eye to
+        // the vanishing point), lit rows alternating with shaded ones
+        for (let x = -150; x < 150; x += 3.4) {
+          if (Math.abs(x) < 3) continue;
+          fill3(ctx, view, [[x, 0, 5], [x + 1.3, 0, 5], [x + 1.3, 0, 700], [x, 0, 700]], css('#5f7a4e', 0.35));
+          fill3(ctx, view, [[x + 1.3, 0, 5], [x + 1.8, 0, 5], [x + 1.8, 0, 700], [x + 1.3, 0, 700]], css('#e8d9a8', 0.18));
+        }
+        // dew sparkling in the low sun, wild flowers along the path
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        for (let i = 0; i < 160; i++) {
+          const d = 8 + Math.pow(hash01(i * 3), 1.8) * 160, x = (hash01(i * 7) - 0.5) * 60;
+          const [X, Y] = P3(view, x, 0, d);
+          const tw = 0.5 + 0.5 * Math.sin(t * (0.1 + 0.1 * hash01(i)) + i);
+          if (tw < 0.6) continue;
+          const r = Math.max(0.6, 0.12 * S3(view, d)) * (W / 1920) * tw;
+          ctx.fillStyle = css('#fff6dc', 0.7 * tw);
+          ctx.beginPath();
+          ctx.arc(X, Y, r, 0, TAU);
+          ctx.fill();
+        }
+        ctx.restore();
+        for (let i = 0; i < 70; i++) {
+          const d = 6 + Math.pow(hash01(i * 13), 1.5) * 90, x = (hash01(i * 17) < 0.5 ? -1 : 1) * (2.2 + hash01(i * 19) * 6);
+          const [X, Y] = P3(view, x, -0.25, d);
+          const r = Math.max(0.8, 0.22 * S3(view, d));
+          ctx.fillStyle = ['#f3e9f0', '#f2d36b', '#c9b3e6', '#ffffff'][i % 4];
+          ctx.beginPath();
+          ctx.arc(X, Y, r, 0, TAU);
+          ctx.fill();
+        }
         // the path: a strip converging on the sun
         fill3(ctx, view, [[-1.8, 0, 6], [1.8, 0, 6], [0.4, 0, 700], [-0.4, 0, 700]], css('#d9c7a0', 0.55));
         fill3(ctx, view, [[-1.2, 0, 6], [1.2, 0, 6], [0.25, 0, 700], [-0.25, 0, 700]], css('#f3dfb8', 0.35));
