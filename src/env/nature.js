@@ -175,6 +175,22 @@ export function rock(ctx, x, y, w, h, colors, seed = 1) {
     ctx.beginPath();
     ctx.ellipse(x - w * 0.12, y - h * 0.82, w * 0.42, h * 0.38, -0.1, 0, TAU);
     ctx.fill();
+    // shadowed underside
+    ctx.fillStyle = 'rgba(40,40,50,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(x + w * 0.1, y, w * 0.6, h * 0.35, 0, 0, TAU);
+    ctx.fill();
+    if (colors[3]) {
+      // moss cushion on the crown
+      ctx.fillStyle = colors[3];
+      ctx.beginPath();
+      ctx.ellipse(x - w * 0.05, y - h * 1.02, w * 0.36, h * 0.22, 0.05, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(210,235,150,0.45)';
+      ctx.beginPath();
+      ctx.ellipse(x - w * 0.12, y - h * 1.08, w * 0.2, h * 0.08, 0.05, 0, TAU);
+      ctx.fill();
+    }
     ctx.restore();
   }
   if (colors[2]) {

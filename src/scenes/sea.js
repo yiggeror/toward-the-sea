@@ -820,13 +820,32 @@ function s9_2() {
     cam: { x: -6, y: -2.4, z: 1 },
     setup(S) {
       beachWorld(S, { rest: 14 });
-      S.layers.push(at(0, 0.8, (ctx) => {
-        ctx.fillStyle = BEACH.dune;
+      S.layers.push(at(0, 0.8, (ctx, t, view, S2, p) => {
+        // the dune face the cat walks down: it meets the beach at the stage line
+        const g = ctx.createLinearGradient(0, -12, 0, 0.4);
+        g.addColorStop(0, '#f0dcb6');
+        g.addColorStop(0.7, BEACH.dune);
+        g.addColorStop(1, '#cdb48c');
+        ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.moveTo(-40, 30);
+        ctx.moveTo(-40, 0.4);
         for (let x = -40; x <= 2; x += 0.5) ctx.lineTo(x, dune(x) + 0.02);
-        ctx.lineTo(2, 30);
+        ctx.quadraticCurveTo(4, 0.1, 6, 0.4);
+        ctx.closePath();
         ctx.fill();
+        // wind ripples on the dune face
+        ctx.strokeStyle = 'rgba(170,135,95,0.25)';
+        ctx.lineWidth = 0.05;
+        for (let i = 0; i < 18; i++) {
+          const x = -38 + i * 2.2;
+          if (x > -7) break;
+          const y = dune(x) + 0.6 + (i % 3) * 0.9;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.quadraticCurveTo(x + 0.8, y - 0.35, x + 1.6, y + 0.1);
+          ctx.stroke();
+        }
+        tufts(ctx, view, p, t, { ground: (x) => (x < -8 ? dune(x) : 90), spacing: 2.2, h: 1.6, width: 0.12, colors: BEACH.duneGrass, seed: 13, wind: windField({ base: 0.3, gust: 0.4, dir: 1 }), fill: 0.7 });
       }));
       const cat = makeCat(S, { x: -18, facing: 1, ground: dune, ...catMorning });
       const P = cat.perf;

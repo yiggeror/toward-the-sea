@@ -274,10 +274,11 @@ function streamGround(x) {
 function streamLayers(S, x0, x1, o = {}) {
   // the stream crossing the stage plane: a channel on the ground plane
   S.layers.push(screenLayer(0.16, (ctx, t, W, H, view) => {
-    const N = 30;
+    const N = 48;
     const pts = [];
+    const dNear = Math.max(-60, -view.D * 0.88);
     for (let i = 0; i <= N; i++) {
-      const d = -60 + (i / N) * 1500;
+      const d = dNear + Math.pow(i / N, 1.5) * (1500 - dNear);
       const p = view.pOf(d), sc = view.scaleAt(p);
       const bend = Math.sin(d * 0.01) * 6;
       pts.push([view.ox + (x0 + bend - view.cam.x) * sc, view.ox + (x1 + bend - view.cam.x) * sc, view.oy + (0.4 - view.cam.y) * sc]);
@@ -285,12 +286,30 @@ function streamLayers(S, x0, x1, o = {}) {
     const g = ctx.createLinearGradient(0, view.oy, 0, H);
     g.addColorStop(0, FOREST.water);
     g.addColorStop(1, FOREST.waterDeep);
+    const ch = new Path2D();
+    pts.forEach(([a, , y], i) => (i ? ch.lineTo(a, y) : ch.moveTo(a, y)));
+    for (let i = pts.length - 1; i >= 0; i--) ch.lineTo(pts[i][1], pts[i][2]);
+    ch.closePath();
+    // wet banks
+    ctx.strokeStyle = 'rgba(76,90,54,0.55)';
+    ctx.lineWidth = Math.max(2, 0.3 * view.scaleAt(1));
+    ctx.lineJoin = 'round';
+    ctx.stroke(ch);
     ctx.fillStyle = g;
-    ctx.beginPath();
-    pts.forEach(([a, , y], i) => (i ? ctx.lineTo(a, y) : ctx.moveTo(a, y)));
-    for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][1], pts[i][2]);
-    ctx.closePath();
-    ctx.fill();
+    ctx.fill(ch);
+    ctx.save();
+    ctx.clip(ch);
+    // lighter shallows along both banks, sky glare far away
+    ctx.lineWidth = Math.max(2, 0.6 * view.scaleAt(1));
+    ctx.strokeStyle = 'rgba(190,230,215,0.45)';
+    ctx.stroke(ch);
+    const sg = ctx.createLinearGradient(0, view.oy + (0.4 - view.cam.y) * view.scaleAt(view.pOf(1500)), 0, H);
+    sg.addColorStop(0, 'rgba(240,250,240,0.55)');
+    sg.addColorStop(0.3, 'rgba(240,250,240,0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(0, 0, W, H);
+    glints(ctx, 0, view.oy + (0.4 - view.cam.y) * view.scaleAt(view.pOf(400)), W, H, t, { n: 40, seed: 17, size: 5 * W / 1920, sizeAt: (py) => 0.5 + py / H, speed: 0.22, alpha: 0.95 });
+    ctx.restore();
     // flowing highlights toward the camera
     ctx.strokeStyle = 'rgba(255,255,255,0.45)';
     ctx.lineCap = 'round';
@@ -317,8 +336,8 @@ function s2_4() {
       forestBackdrop(S, { sunX: 0.5, treeSeed: 41, shaftSeed: 19 });
       streamLayers(S, 0.6, 10.8);
       S.layers.push(at(0, 0.95, (ctx, t) => {
-        rock(ctx, 3.6, 0.9, 2.3, 1.45, [FOREST.stone[0], FOREST.stone[1]], 8);
-        rock(ctx, 7.9, 0.9, 2.3, 1.5, [FOREST.stone[0], FOREST.stone[1]], 9);
+        rock(ctx, 3.6, 0.9, 2.3, 1.45, [FOREST.stone[0], FOREST.stone[1], null, FOREST.moss], 8);
+        rock(ctx, 7.9, 0.9, 2.3, 1.5, [FOREST.stone[0], FOREST.stone[1], null, FOREST.moss], 9);
         // water line around the stones
         ctx.strokeStyle = 'rgba(255,255,255,0.55)';
         ctx.lineWidth = 0.05;
@@ -374,18 +393,47 @@ function s2_5() {
       // bank rock (cat) and the stream to the right, seen from the side
       const gnd = (x) => (x < 2.6 ? -0.2 : 1.2);
       S.layers.push(at(0, 0.9, (ctx, t) => {
-        ctx.fillStyle = '#8c8578';
-        ctx.beginPath();
-        ctx.moveTo(-12, -0.2);
-        ctx.lineTo(2.3, -0.2);
-        ctx.quadraticCurveTo(2.9, -0.1, 2.9, 0.6);
-        ctx.lineTo(2.9, 3);
-        ctx.lineTo(-12, 3);
-        ctx.fill();
-        ctx.fillStyle = '#a9a295';
-        ctx.fillRect(-12, -0.3, 14.3, 0.18);
-        ctx.fillStyle = FOREST.moss;
-        ctx.fillRect(-12, -0.34, 9, 0.1);
+        const stone = new Path2D();
+        stone.moveTo(-12, -0.2);
+        stone.lineTo(2.3, -0.2);
+        stone.quadraticCurveTo(2.9, -0.1, 2.9, 0.6);
+        stone.lineTo(2.9, 3);
+        stone.lineTo(-12, 3);
+        stone.closePath();
+        const g = ctx.createLinearGradient(0, -0.3, 0, 2.2);
+        g.addColorStop(0, '#b7ae9e');
+        g.addColorStop(0.25, '#8f877a');
+        g.addColorStop(1, '#5d574f');
+        ctx.fillStyle = g;
+        ctx.fill(stone);
+        ctx.save();
+        ctx.clip(stone);
+        // strata, cracks and a wet band at the waterline
+        ctx.strokeStyle = 'rgba(60,54,48,0.35)';
+        ctx.lineWidth = 0.035;
+        for (let i = 0; i < 6; i++) {
+          const y = 0.25 + i * 0.32;
+          ctx.beginPath();
+          ctx.moveTo(-12, y + 0.05 * Math.sin(i));
+          for (let x = -12; x <= 3; x += 0.8) ctx.lineTo(x, y + 0.06 * Math.sin(x * 1.3 + i * 2));
+          ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(40,52,52,0.35)';
+        ctx.fillRect(2.2, 0.45, 1, 3);
+        // sunlit top face
+        ctx.fillStyle = 'rgba(255,240,205,0.35)';
+        ctx.fillRect(-12, -0.22, 14.4, 0.1);
+        ctx.restore();
+        // moss cushions along the top
+        for (let i = 0; i < 14; i++) {
+          const x = -11.5 + i * 0.75 + hash01(i) * 0.3;
+          if (x > 2.1) break;
+          const r = 0.25 + 0.2 * hash01(i * 3);
+          ctx.fillStyle = hash01(i * 5) < 0.5 ? '#6f9a45' : '#86ad52';
+          ctx.beginPath();
+          ctx.ellipse(x, -0.22, r, r * 0.35, 0, Math.PI, 0);
+          ctx.fill();
+        }
       }));
       // water body with the fish, in front of the rock face
       const fishT = new Track({ x: 5.4, y: 1.1, dir: -1 }, ['x', 'y']);
@@ -405,12 +453,36 @@ function s2_5() {
         ctx.rect(2.9, 0.5, 20, 3);
         ctx.clip();
         const g = ctx.createLinearGradient(0, 0.5, 0, 3);
-        g.addColorStop(0, 'rgba(142,197,199,0.9)');
-        g.addColorStop(1, 'rgba(70,120,130,0.95)');
+        g.addColorStop(0, 'rgba(160,214,210,0.92)');
+        g.addColorStop(0.4, 'rgba(96,160,168,0.94)');
+        g.addColorStop(1, 'rgba(46,92,106,0.97)');
         ctx.fillStyle = g;
         ctx.fillRect(2.9, 0.5, 20, 3);
+        // pebbles on the stream bed
+        for (let i = 0; i < 14; i++) {
+          ctx.fillStyle = css(hash01(i) < 0.5 ? '#6f7f6f' : '#8a8a74', 0.55);
+          ctx.beginPath();
+          ctx.ellipse(3.2 + i * 0.9 + hash01(i * 3) * 0.5, 2.3 + hash01(i * 7) * 0.5, 0.2 + 0.2 * hash01(i * 5), 0.1, 0, 0, TAU);
+          ctx.fill();
+        }
         fish(ctx, f.x, f.y, t, { len: 0.6, dir, wig: t > 166 && t < 180 ? 1.5 : 0.45, color: '#4f6f7a' });
+        // dancing caustic light under the surface
+        ctx.globalCompositeOperation = 'screen';
+        ctx.strokeStyle = 'rgba(230,255,240,0.28)';
+        ctx.lineWidth = 0.03;
+        for (let k = 0; k < 7; k++) {
+          ctx.beginPath();
+          const y0 = 0.8 + k * 0.28;
+          for (let x = 2.9; x < 16; x += 0.25) {
+            const y = y0 + 0.08 * Math.sin(x * 3.1 + t * 0.09 + k * 1.7) + 0.05 * Math.sin(x * 7.3 - t * 0.13 + k);
+            if (x === 2.9) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
         ctx.restore();
+        glints(ctx, 3, 0.42, 12, 0.2, t, { n: 16, seed: 9, size: 0.12, speed: 0.2, alpha: 0.9 });
         // surface line + ripples
         ctx.strokeStyle = 'rgba(255,255,255,0.6)';
         ctx.lineWidth = 0.035;
