@@ -6,7 +6,8 @@ import { headBasis } from './rig.js';
 import { buildHead, drawHead } from './head.js';
 import { makeStyle } from './cat.js';
 import { M } from './model.js';
-import { add3, mul3, lerp, clamp, TAU, rot, noise1 } from '../core/math.js';
+import { add3, mul3, lerp, clamp, TAU, rot, noise1, smoothstep } from '../core/math.js';
+import { drawCard } from '../film/postcard.js';
 import { smoothTo, brushLine, css, clipOutside } from '../core/draw.js';
 
 // pseudo skeleton carrying just a head frame at position c (y-down)
@@ -190,8 +191,22 @@ export function drawCatBack(ctx, p, opts) {
   drawRingedTail(ctx, tpts, st);
   const g = headFrame([0, -SIT_H - 0.42], -Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p));
   drawHead(ctx, buildHead(g), st, { under: bp });
+  backHeadMarks(ctx, g, st);
   ctx.restore();
   return viewAnchor(g, opts);
+}
+// the back of the head: a darker cap between the ears, soft bands
+function backHeadMarks(ctx, g, st) {
+  const f = g.head.vec([1, 0, 0]);
+  if (f[2] > -0.3) return; // only when the head faces away
+  const k = Math.min(1, (-f[2] - 0.3) / 0.4);
+  const c = g.head.proj([-0.25, 0.32, 0]);
+  ctx.save();
+  ctx.globalAlpha *= 0.55 * k;
+  cloud(ctx, c[0], c[1], 0.2, 0.11, 3, st.stripe);
+  const c2 = g.head.proj([-0.35, 0.1, 0]);
+  cloud(ctx, c2[0], c2[1], 0.26, 0.07, 5, st.stripe);
+  ctx.restore();
 }
 
 // fill defaults for face fields
@@ -283,3 +298,190 @@ export const EXPRESSIONS = [
   { id: 'determined', zh: '坚定', p: { hYaw: -0.3, hPitch: 0.05, lid: 0.22, lidTilt: 0.6, eyeWide: 0.1, earRot: -0.1, smile: -0.1 } },
   { id: 'wonder', zh: '憧憬', p: { hYaw: -0.2, hPitch: 0.2, sparkle: 1, eyeWide: 0.3, mouth: 0.12, mouthW: 0, blush: 0.35, earRot: -0.12, lookY: 0.4 } },
 ];
+
+// ---- walking toward / away from the camera ---------------------------------
+// Leg state in a gait cycle: lift (0..1 during swing) and reach (1 = paw
+// furthest forward). off = the leg's phase offset, sw = swing fraction.
+function legCycle(ph, off, sw) {
+  const u = (((ph - off) % 1) + 1) % 1;
+  if (u < sw) {
+    const k = u / sw;
+    return { lift: Math.sin(Math.PI * k), reach: k * k * (3 - 2 * k), swing: true };
+  }
+  const k = (u - sw) / (1 - sw);
+  return { lift: 0, reach: 1 - k, swing: false };
+}
+const OFFS = {
+  walk: { lf: 0, rf: 0.5, lh: 0.75, rh: 0.25, sw: 0.4, bob: 0.03 },
+  trot: { lf: 0, rf: 0.5, lh: 0.5, rh: 0, sw: 0.45, bob: 0.055 },
+  run: { lf: 0, rf: 0.12, lh: 0.55, rh: 0.45, sw: 0.5, bob: 0.1 },
+};
+// a leg as a soft column from a hip/shoulder point to the paw
+function legColumn(ctx, st, top, paw, w0, w1, fill) {
+  const dx = paw[0] - top[0], dy = paw[1] - top[1], l = Math.hypot(dx, dy) || 1;
+  const nx = -dy / l, ny = dx / l;
+  const pts = [
+    [top[0] + nx * w0, top[1] + ny * w0],
+    [lerp(top[0], paw[0], 0.55) + nx * lerp(w0, w1, 0.6), lerp(top[1], paw[1], 0.55) + ny * lerp(w0, w1, 0.6)],
+    [paw[0] + nx * w1, paw[1] + ny * w1],
+    [paw[0] - nx * w1, paw[1] - ny * w1],
+    [lerp(top[0], paw[0], 0.55) - nx * lerp(w0, w1, 0.6), lerp(top[1], paw[1], 0.55) - ny * lerp(w0, w1, 0.6)],
+    [top[0] - nx * w0, top[1] - ny * w0],
+  ];
+  return fillOutlined(ctx, pts, st, fill);
+}
+// the underside of a lifted paw: pink pads (seen when a paw flips up)
+function padsUp(ctx, st, cx, cy, w, h, k) {
+  roundPaw(ctx, st, cx, cy, w, h, false);
+  ctx.fillStyle = st.pinkPad;
+  ctx.globalAlpha *= clamp(k, 0, 1);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + h * 0.15, w * 0.42, h * 0.38, 0, 0, TAU);
+  ctx.fill();
+  for (const [dx, dy] of [[-0.6, -0.55], [-0.2, -0.8], [0.2, -0.8], [0.6, -0.55]]) {
+    ctx.beginPath();
+    ctx.ellipse(cx + dx * w, cy + dy * h, w * 0.17, h * 0.2, 0, 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha /= clamp(k, 0.001, 1);
+}
+
+/**
+ * Walking/trotting toward the camera. (opts.x, opts.y) = the ground point
+ * under the chest. p: { phase (gait cycle, any real), gait: walk|trot|run,
+ * stride 0..1 (0 = standing), crouch, hYaw, hPitch, hRoll, tail, tailSway,
+ * card: {wear} (in the mouth), face fields... }
+ */
+export function drawCatWalkFront(ctx, p, opts) {
+  const s = opts.scale;
+  const st = makeStyle(s, opts);
+  ctx.save();
+  ctx.translate(opts.x, opts.y);
+  ctx.scale(s, s);
+  const G = OFFS[p.gait || 'walk'];
+  const A = clamp(p.stride ?? 1, 0, 1.4);
+  const ph = p.phase || 0;
+  const bob = -G.bob * A * (0.5 - 0.5 * Math.cos(ph * TAU * 2)) + (p.crouch || 0) * 0.34;
+  const sway = 0.03 * A * Math.sin(ph * TAU);
+  const L = (off) => legCycle(ph, off, G.sw);
+  const lf = L(G.lf), rf = L(G.rf), lh = L(G.lh), rh = L(G.rh);
+  const lift = (c, k) => c.lift * A * k;
+  // tail behind, rising above the back on the cat's left, swaying
+  const tw = p.tail ?? 0.7;
+  const tsw = (p.tailSway ?? 0.5) * Math.sin(ph * TAU + 1);
+  const tailPts = tailLine([0.22 + sway, -1.18 + bob], -Math.PI / 2 + 0.12 + tsw * 0.15, (0.9 + tsw * 0.5) * tw, 1.25);
+  drawRingedTail(ctx, tailPts, st);
+  // hind legs (further away: higher on screen, a little smaller)
+  for (const [sgn, c] of [[-1, lh], [1, rh]]) {
+    const px = sgn * 0.3 + sway * 0.5, py = -0.1 - lift(c, 0.22) + c.reach * 0.03;
+    legColumn(ctx, st, [sgn * 0.33 + sway, -0.72 + bob], [px, py - 0.06], 0.13, 0.09, st.grey);
+    roundPaw(ctx, st, px, py - 0.04, 0.11, 0.06, false);
+  }
+  // body behind the chest: back and haunches
+  const back = [
+    [-0.5, -1.2], [-0.56, -0.95], [-0.52, -0.62], [-0.4, -0.46], [0, -0.42], [0.4, -0.46], [0.52, -0.62], [0.56, -0.95], [0.5, -1.2], [0.2, -1.42], [-0.2, -1.42],
+  ].map(([x, y]) => [x + sway, y + bob]);
+  const bp = fillOutlined(ctx, back, st, st.grey);
+  ctx.save();
+  ctx.clip(bp);
+  cloud(ctx, -0.5 + sway, -0.8 + bob, 0.16, 0.24, 3, st.stripe);
+  cloud(ctx, 0.52 + sway, -0.78 + bob, 0.15, 0.22, 5, st.stripe);
+  cloud(ctx, sway, -0.5 + bob, 0.3, 0.1, 2, st.white);
+  ctx.restore();
+  // front legs: white columns from under the chest; a lifted paw rises and
+  // comes toward the camera (a touch larger)
+  for (const [sgn, c] of [[-1, lf], [1, rf]]) {
+    const up = lift(c, 0.34);
+    const near = c.reach * 0.05 * A;
+    const px = sgn * 0.19 + sway * 0.3, py = -up + near;
+    const w = 0.12 * (1 + near * 0.8);
+    legColumn(ctx, st, [sgn * 0.2 + sway, -0.78 + bob], [px, py - 0.07], 0.12, 0.1, st.white);
+    roundPaw(ctx, st, px, py - 0.05, w, 0.075 * (1 + near * 0.6), up < 0.12);
+  }
+  // chest: white bib with grey shoulders
+  const chest = [
+    [0, -1.5], [0.3, -1.44], [0.42, -1.22], [0.42, -0.95], [0.34, -0.7], [0.18, -0.58], [0, -0.55], [-0.18, -0.58], [-0.34, -0.7], [-0.42, -0.95], [-0.42, -1.22], [-0.3, -1.44],
+  ].map(([x, y]) => [x + sway, y + bob]);
+  const cp = fillOutlined(ctx, chest, st, st.white);
+  ctx.save();
+  ctx.clip(cp);
+  for (const sgn of [-1, 1]) cloud(ctx, sgn * 0.46 + sway, -1.24 + bob, 0.18, 0.3, 1 + sgn, st.grey);
+  ctx.restore();
+  // head (and the postcard gripped in the mouth, turned a little so it reads)
+  const hc = [sway * 1.2, -1.66 + bob * 1.1 - (p.crouch || 0) * 0.05];
+  const g = headFrame(hc, Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p));
+  const hd = buildHead(g);
+  drawHead(ctx, hd, st, { under: cp });
+  if (p.card) {
+    const m = g.head.proj([0.44, -0.3, -0.06]);
+    drawCard(ctx, m[0], m[1], { ang: 0.42 + (p.cardSwing || 0) * 0.1 + 0.05 * Math.sin(ph * TAU * 2), ax: 0.04, ay: 0.08, sx: p.card.sx ?? 0.42, wear: p.card.wear || 0, scale: 1.05, px: s > 250 ? 512 : 256, bend: p.cardBend || 0 });
+  }
+  ctx.restore();
+  return viewAnchor(g, opts);
+}
+
+/** Walking/trotting away from the camera (rump, tail up, pads flashing). */
+export function drawCatWalkBack(ctx, p, opts) {
+  const s = opts.scale;
+  const st = makeStyle(s, opts);
+  ctx.save();
+  ctx.translate(opts.x, opts.y);
+  ctx.scale(s, s);
+  const G = OFFS[p.gait || 'walk'];
+  const A = clamp(p.stride ?? 1, 0, 1.4);
+  const ph = p.phase || 0;
+  const bob = -G.bob * A * (0.5 - 0.5 * Math.cos(ph * TAU * 2)) + (p.crouch || 0) * 0.34;
+  const sway = 0.035 * A * Math.sin(ph * TAU);
+  const L = (off) => legCycle(ph, off, G.sw);
+  const lf = L(G.lf), rf = L(G.rf), lh = L(G.lh), rh = L(G.rh);
+  // front legs, far: small, between/behind the hind legs
+  for (const [sgn, c] of [[-1, lf], [1, rf]]) {
+    const up = c.lift * A * 0.16;
+    const px = sgn * 0.17 + sway * 0.4, py = -0.16 - up;
+    legColumn(ctx, st, [sgn * 0.18 + sway, -0.7 + bob], [px, py - 0.04], 0.09, 0.075, st.white);
+    roundPaw(ctx, st, px, py - 0.03, 0.09, 0.05, false);
+  }
+  // head beyond the back
+  const hc = [sway * 1.3, -1.64 + bob * 1.1 - (p.crouch || 0) * 0.08];
+  const g = headFrame(hc, -Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p), (M.headScale || 1) * 0.86);
+  const hd = buildHead(g);
+  // back and rump
+  const back = [
+    [-0.42, -1.36], [-0.54, -1.12], [-0.58, -0.8], [-0.52, -0.45], [-0.3, -0.34], [0, -0.38], [0.3, -0.34], [0.52, -0.45], [0.58, -0.8], [0.54, -1.12], [0.42, -1.36], [0, -1.44],
+  ].map(([x, y]) => [x + sway, y + bob]);
+  const path = new Path2D();
+  smoothTo(path, back, true);
+  drawHead(ctx, hd, st, { under: path });
+  if (p.card) {
+    // a corner of the postcard sticking out beside the head
+    const m = g.head.proj([0.44, -0.3, 0.1]);
+    drawCard(ctx, m[0], m[1], { ang: -0.2, ax: 0.12, ay: 0.1, sx: -(p.card.sx ?? 0.5), wear: p.card.wear || 0, scale: 1.1, px: 256 });
+  }
+  const bp = fillOutlined(ctx, back, st, st.grey);
+  ctx.save();
+  ctx.clip(bp);
+  cloud(ctx, -0.05 + sway, -1.25 + bob, 0.3, 0.1, 1, st.stripe);
+  cloud(ctx, 0.04 + sway, -0.98 + bob, 0.4, 0.11, 2, st.stripe);
+  for (const sgn of [-1, 1]) cloud(ctx, sgn * 0.34 + sway, -0.4 + bob, 0.2, 0.14, 4 + sgn, st.white);
+  ctx.restore();
+  // hind legs, near: thighs, hocks and white paws; a lifting paw flips its
+  // pink pads toward the camera
+  const air = clamp(p.air || 0, 0, 1), push = clamp(p.push || 0, 0, 1);
+  for (const [sgn, c] of [[-1, lh], [1, rh]]) {
+    let up = c.lift * A * 0.3;
+    let px = sgn * 0.3 + sway * 0.6, py = -up - c.reach * 0.02 * A;
+    // airborne: paws drawn up under the rump; push-off: legs long, paws low
+    py = lerp(py, -0.34 + bob, air) + push * 0.12;
+    px = lerp(px, sgn * 0.22, air);
+    legColumn(ctx, st, [sgn * 0.3 + sway, -0.62 + bob], [px, py - 0.08], 0.15, 0.1, st.grey);
+    const pads = Math.max(c.swing ? smoothstep(0.25, 0.6, c.lift * A) : 0, air, push);
+    if (pads > 0.05) padsUp(ctx, st, px, py - 0.08, 0.12, 0.09, pads);
+    else roundPaw(ctx, st, px, py - 0.05, 0.12, 0.07, false);
+  }
+  // tail up from the rump, swaying
+  const tw = p.tail ?? 0.7;
+  const tsw = (p.tailSway ?? 0.5) * Math.sin(ph * TAU + 1);
+  drawRingedTail(ctx, tailLine([sway, -0.95 + bob], -Math.PI / 2 + 0.28 + tsw * 0.2, -(1.1 + tsw * 0.5) * tw, 1.5), st);
+  ctx.restore();
+  return viewAnchor(g, opts);
+}

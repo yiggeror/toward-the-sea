@@ -37,12 +37,21 @@ export function shot(def) {
     },
     events() {
       const out = [];
-      for (const a of S.actors) if (a.perf) for (const e of a.perf.events) out.push(e);
+      for (const a of S.actors) {
+        if (a.perf) for (const e of a.perf.events) out.push(e);
+        if (a.view) for (const e of a.view.events) out.push(e);
+      }
       if (S.extraEvents) for (const e of S.extraEvents) out.push(e);
+      // slow motion: events happen at the output frame that shows them
+      if (S.warp) return out.map((e) => Object.assign({}, e, { t: unwarp(S.warp, e.t), dur: e.dur !== undefined ? unwarp(S.warp, e.t + e.dur) - unwarp(S.warp, e.t) : undefined }));
       return out;
     },
+    // output frame -> story time (S.warp = [[f, t], ...], piecewise linear)
+    timeAt(f) {
+      return S.warp ? warpAt(S.warp, f) : f;
+    },
     draw(ctx, f, W, H) {
-      const t = f;
+      const t = S.timeAt(f);
       const cam = S.camera.at(t);
       // dolly: the camera moves back as the lens widens, so distant things keep
       // their size while the stage shrinks (a real pull-back, not a zoom)
@@ -126,14 +135,40 @@ export function shot(def) {
   return S;
 }
 
-// helper: a layer that draws a CatActor on the stage plane
-export function actorLayer(actor, z = 1, extra = {}) {
+// piecewise-linear time warp and its inverse
+export function warpAt(W, f) {
+  if (f <= W[0][0]) return W[0][1] + (f - W[0][0]);
+  for (let i = 1; i < W.length; i++) {
+    if (f <= W[i][0]) {
+      const [f0, t0] = W[i - 1], [f1, t1] = W[i];
+      return t0 + ((f - f0) / (f1 - f0)) * (t1 - t0);
+    }
+  }
+  const [fl, tl] = W[W.length - 1];
+  return tl + (f - fl);
+}
+export function unwarp(W, t) {
+  if (t <= W[0][1]) return W[0][0] + (t - W[0][1]);
+  for (let i = 1; i < W.length; i++) {
+    if (t <= W[i][1]) {
+      const [f0, t0] = W[i - 1], [f1, t1] = W[i];
+      return f0 + ((t - t0) / (t1 - t0)) * (f1 - f0);
+    }
+  }
+  const [fl, tl] = W[W.length - 1];
+  return fl + (t - tl);
+}
+
+// helper: a layer that draws a CatActor on a stage plane at `depth` (a number
+// or a function of time: the cat can walk toward or away from the camera)
+export function actorLayer(actor, z = 1, extra = {}, depth = 0) {
   return {
     p: 1,
     z,
     draw(ctx, t, view) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      actor.draw(ctx, t, view.actorCam(1), typeof extra === 'function' ? extra(t) : extra);
+      const d = typeof depth === 'function' ? depth(t) : depth;
+      actor.draw(ctx, t, view.actorCam(d ? view.pOf(d) : 1), typeof extra === 'function' ? extra(t) : extra);
     },
   };
 }

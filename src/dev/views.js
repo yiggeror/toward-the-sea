@@ -426,3 +426,61 @@ export async function portraitlab(ctx, W, H, q) {
     ctx.fillText(c.name, x0 + 12, y0 + 24);
   });
 }
+
+// front/back walking views: a filmstrip of one gait cycle per row
+export async function walklab(ctx, W, H, q) {
+  const V = await import('../cat/views.js?' + Date.now());
+  const gait = q.get('gait') || 'walk';
+  const n = +(q.get('n') || 6);
+  ctx.fillStyle = '#e9e4dc';
+  ctx.fillRect(0, 0, W, H);
+  const rows = [['front', V.drawCatWalkFront], ['back', V.drawCatWalkBack]];
+  const ch = H / rows.length, cw = W / n;
+  rows.forEach(([name, fn], r) => {
+    for (let i = 0; i < n; i++) {
+      const x = cw * (i + 0.5), y = ch * (r + 0.9);
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+      ctx.beginPath(); ctx.moveTo(x - cw * 0.45, y); ctx.lineTo(x + cw * 0.45, y); ctx.stroke();
+      fn(ctx, { phase: i / n, gait, stride: +(q.get('stride') || 1), hYaw: +(q.get('yaw') || 0), card: q.get('card') ? { wear: 0 } : null, breath: 0.5 }, { x, y, scale: ch * 0.36 });
+    }
+    ctx.fillStyle = '#655'; ctx.font = '18px sans-serif';
+    ctx.fillText(name + ' ' + gait, 12, ch * r + 24);
+  });
+}
+
+// frames of chosen shots: one row per shot, n frames across (u = 0..1)
+export async function shotstrip(ctx, W, H, q) {
+  const names = (q.get('shots') || '').split(',').filter(Boolean);
+  const seqs = (q.get('seq') || '').split(',').filter(Boolean);
+  const { Timeline } = await import('../film/timeline.js');
+  const { SEQUENCES } = await import('../scenes/index.js');
+  const { loadFonts } = await import('../film/fonts.js');
+  await loadFonts();
+  const shots = [];
+  for (const sq of SEQUENCES) {
+    if (seqs.length && !seqs.includes(sq.id)) continue;
+    for (const s of sq.shots()) if (!names.length || names.includes(s.name)) shots.push(s);
+  }
+  const tl = new Timeline(shots);
+  const n = +(q.get('n') || 4);
+  const us = q.get('us') ? q.get('us').split(',').map(Number) : Array.from({ length: n }, (_, i) => (n === 1 ? 0.5 : i / (n - 1)));
+  const cw = Math.floor(W / us.length), ch = Math.floor(cw * 9 / 16);
+  const off = new OffscreenCanvas(cw, ch);
+  const g = off.getContext('2d');
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, W, H);
+  tl.shots.forEach((s, r) => {
+    us.forEach((u, c) => {
+      const f = s.start + Math.min(s.dur - 1, Math.round((s.dur - 1) * u));
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.fillStyle = '#000';
+      g.fillRect(0, 0, cw, ch);
+      tl.draw(g, f, cw, ch);
+      const x = c * cw, y = r * (ch + 20);
+      ctx.drawImage(off, x, y);
+      ctx.fillStyle = '#ddd';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`${s.name}  f${f - s.start}/${s.dur}`, x + 4, y + ch + 15);
+    });
+  });
+}

@@ -56,25 +56,30 @@ export function makeCat(S, o = {}) {
     style: o.style,
     boil: o.boil,
   });
-  const cat = { perf, actor, ground };
+  const dOf = typeof o.depth === 'function' ? o.depth : () => o.depth || 0;
+  const cat = { perf, actor, ground, depth: dOf };
   S.actors.push(cat);
   if (o.layer !== false) {
+    const camAt = (view, t) => {
+      const d = dOf(t);
+      return view.actorCam(d ? view.pOf(d) : 1);
+    };
     // marks under the cat
     S.layers.push({
       p: 1, z: (o.z ?? 1) - 0.001,
       draw(ctx, t, view) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        const cam = view.actorCam(1);
+        const cam = camAt(view, t);
         drawGroundMarks(ctx, perf.events, perf.drawTime(t), cam, { ground });
       },
     });
-    S.layers.push(actorLayer(actor, o.z ?? 1));
+    S.layers.push(actorLayer(actor, o.z ?? 1, o.extra || {}, dOf));
     if (o.fx !== false) {
       S.layers.push({
         p: 1, z: (o.z ?? 1) + 0.002,
         draw(ctx, t, view) {
           ctx.setTransform(1, 0, 0, 1, 0, 0);
-          const cam = view.actorCam(1);
+          const cam = camAt(view, t);
           const pose = perf.poseAt(t);
           drawEventFX(ctx, perf.events, perf.drawTime(t), cam, { ground, facing: pose.facing, waterColor: o.waterColor, dustColor: o.dustColor });
         },

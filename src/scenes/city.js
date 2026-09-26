@@ -34,19 +34,19 @@ export const NIGHT = {
   car: { body: '#3b4570', glass: '#161a30', tire: '#0f1020', rim: '#58608a', hi: 'rgba(190,210,255,0.22)', tail: '#9e3a44', clr: 0.3, glassHi: 'rgba(200,215,255,0.1)' },
   wall: { wall: '#34355a', cap: '#4a4a74', line: 'rgba(0,0,0,0.18)', wet: 'rgba(200,215,255,0.12)' },
 };
-const catNight = {
+export const catNight = {
   light: () => ({ tint: '#727cb6', amt: 0.5, lift: '#171a33' }),
   rim: () => ({ color: '#ffd89c', dir: [0.75, -0.66], alpha: 0.85, width: 0.07 }),
 };
-const nightGrade = { vignette: 0.5, vignetteColor: '#141228', grain: 0.45 };
-const nightPost = { bloom: { threshold: 0.6, knee: 0.3, strength: 0.7, radius: 26, wide: 0.9 } };
+export const nightGrade = { vignette: 0.5, vignetteColor: '#141228', grain: 0.45 };
+export const nightPost = { bloom: { threshold: 0.6, knee: 0.3, strength: 0.7, radius: 26, wide: 0.9 } };
 
 // ---- shared night backdrop (depth model) ----------------------------------
 // Street cross-section (depth behind the cat's line on the road, world H):
 // road y=0 from the camera to depth 9; curb; sidewalk y=-1.4 from 9 to 32;
 // facades at 32; wires/poles at 30; skylines at 700 and 2500.
 export const STREET = { curb: 9, facade: 32, walk: -1.4 };
-function nightBackdrop(S, o = {}) {
+export function nightBackdrop(S, o = {}) {
   const k = 11;
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
     S.frameLights = [];
@@ -97,7 +97,7 @@ function nightBackdrop(S, o = {}) {
     }));
   }
 }
-function nightStreet(S, o = {}) {
+export function nightStreet(S, o = {}) {
   S.layers.push(screenLayer(0.5, (ctx, t, W, H, view) => {
     groundPlane(ctx, view, { y: STREET.walk, bands: [[STREET.curb, STREET.facade, [NIGHT.street.sidewalk, '#222838']]] });
     // curb face
@@ -153,7 +153,7 @@ function nightStreet(S, o = {}) {
   }));
 }
 // street lamp at (x, depth) on the sidewalk, with a misty cone and a pool
-function lamp(S, x, depth = 26, h = 50) {
+export function lamp(S, x, depth = 26, h = 50) {
   S.layers.push(at(depth, 0.47, (ctx, t) => scaled(ctx, x, STREET.walk, h / 5, () => {
     const [hx, hy] = streetLamp(ctx, 0, 0, 5, NIGHT.lamp, 0, 0);
     // warm wash on the wall behind the lamp
@@ -172,7 +172,7 @@ function lamp(S, x, depth = 26, h = 50) {
   }));
 }
 // falling drips (from eaves / wires) with splash rings — stateless
-function drips(ctx, t, spots, period = 40) {
+export function drips(ctx, t, spots, period = 40) {
   ctx.fillStyle = 'rgba(200,215,245,0.8)';
   ctx.strokeStyle = 'rgba(200,215,245,0.5)';
   ctx.lineWidth = 0.03;
@@ -198,8 +198,8 @@ function drips(ctx, t, spots, period = 40) {
     }
   }
 }
-const SMALLCAR = Object.assign({}, NIGHT.car, { clr: 0.35 });
-const CARK = 4.2; // car scale: 30 H long
+export const SMALLCAR = Object.assign({}, NIGHT.car, { clr: 0.35 });
+export const CARK = 4.2; // car scale: 30 H long
 
 // ---- 1.1 establishing: crane down from the rooftops to the wet street -------
 function s1_1() {
@@ -479,7 +479,7 @@ function s1_5() {
 }
 
 // ---- 1.6 close-up: curious face -------------------------------------------
-function portraitTrack(init) {
+export function portraitTrack(init) {
   const tr = new Track(Object.assign({ hYaw: -0.15, hPitch: 0, hRoll: 0, eye: 1, eyeWide: 0, pupil: 0.5, lookX: 0, lookY: 0, lid: 0, lidTilt: 0, happy: 0, mouth: 0, mouthW: 0, smile: 0, earRot: 0.1, earFlat: 0, earLR: 0, earRR: 0, whisk: 0, breath: 0, low: 0, sparkle: 0, blush: 0, tear: 0, sad: 0, squeeze: 0, wobble: 0, tongue: 0 }, init));
   tr.key(0, {}, 'linear');
   return tr;
@@ -538,7 +538,7 @@ function s1_6() {
 }
 
 // ---- 1.7 looking up: the narrow sky between buildings ----------------------
-function alleyUp(ctx, W, H, t, lift) {
+export function alleyUp(ctx, W, H, t, lift) {
   // perspective walls converging to a vanishing point far above
   const vx = W * 0.5, vy = -H * 1.6 + lift;
   const s = W / 1920;
@@ -667,7 +667,7 @@ function s1_8() {
 }
 
 // ---- 1.9 the run: trot, a can falls, freeze, bolt, AC unit, wall, gap ------
-function runGround(x) {
+export function runGround(x) {
   if (x >= 36 && x <= 41.2) return -6;
   if (x >= 44 && x <= 70) return -13;
   if (x >= 77.5) return -10;
@@ -748,7 +748,7 @@ function s1_9() {
 }
 
 // ---- 1.10 dawn at the edge of the city: title ------------------------------
-const DAWN = {
+export const DAWN = {
   sky: [[0, '#4f64a0'], [0.38, '#8f9fcd'], [0.64, '#e9b9b0'], [0.82, '#ffd2a2'], [1, '#fff0cc']],
 };
 function s1_10() {

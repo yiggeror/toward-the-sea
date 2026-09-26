@@ -8,7 +8,7 @@ export async function buildFilm(filter) {
   const shots = [];
   for (const seq of SEQUENCES) {
     if (filter && !filter(seq)) continue;
-    for (const s of seq.shots()) {
+    for (const s of seq.shots(filter && filter.shot)) {
       s.seq = seq.id;
       shots.push(s);
     }

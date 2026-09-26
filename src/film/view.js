@@ -17,7 +17,7 @@ export const FOCAL = 1800; // unit * D at 1920 px width
 
 export class Camera {
   constructor(init = {}) {
-    this.track = new Track(Object.assign({ x: 0, y: -1, z: 1, rot: 0, tx: 0, ty: 0, shake: 0 }, init));
+    this.track = new Track(Object.assign({ x: 0, y: -1, z: 1, rot: 0, tx: 0, ty: 0, shake: 0, dz: 0, yaw: 0, px: 0, pd: 0, pitch: 0 }, init));
     this.track.key(0, {}, 'linear');
     this.follow = null; // (t, c) => [x, y]: absolute world position overrides (added)
   }
@@ -52,8 +52,9 @@ export function makeView(cam, W, H, unit, anchor = [0.5, 0.5], D = FOCAL / unit)
   const ox = W * (anchor[0] + (cam.tx || 0)), oy = H * (anchor[1] + (cam.ty || 0));
   const view = {
     W, H, cam, base, D, unit, ox, oy,
+    // dz: the camera travels along the depth axis (a dolly into the set)
     pOf(depth) {
-      return D / Math.max(1e-3, D + depth);
+      return D / Math.max(1e-3, D + depth - (cam.dz || 0));
     },
     scaleAt(p) {
       return base * cam.z * p;
