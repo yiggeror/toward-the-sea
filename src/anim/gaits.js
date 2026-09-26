@@ -99,7 +99,7 @@ export const GAITS = {
     neck: [[0, -0.2], [0.25, -0.24], [0.5, -0.2], [0.75, -0.24]],
     pitchBase: -0.1,
     pulse: 0.25,
-    pose: { tailA: -0.35, tailC: -0.2, tailK: 0, tailTone: 0.7, neck: 0.3, hPitch: -0.25, earRot: 0.8, earFlat: 0.6, eye: 0.45 },
+    pose: { tailA: -0.35, tailC: -0.2, tailK: 0, tailTone: 0.7, neck: 0.3, hPitch: -0.25, earRot: 0.8, earFlat: 0.6, eye: 1, lid: 0.55, lidTilt: 0.5, whisk: -0.6 },
   },
   // tired plodding walk (wasteland)
   tired: {
@@ -117,7 +117,7 @@ export const GAITS = {
     ],
     neck: [[0.0, -0.3], [0.33, -0.38], [0.5, -0.3], [0.83, -0.38]],
     pitchBase: 0.02,
-    pose: { tailA: -0.2, tailC: 0.3, tailK: 0.4, tailTone: 0.6, hPitch: -0.15, earRot: 0.35, eye: 0.7 },
+    pose: { tailA: -0.2, tailC: 0.3, tailK: 0.4, tailTone: 0.6, hPitch: -0.15, earRot: 0.35, eye: 1, lid: 0.4, sad: 0.25, whiskDroop: 0.4 },
   },
 };
 

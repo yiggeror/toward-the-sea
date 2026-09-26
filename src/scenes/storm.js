@@ -110,10 +110,10 @@ function s3_2() {
       // brace against the gust: crouch, claws in, eyes squeezed
       const tb = Math.max(P.t, gust[0][0] - 4);
       P.holdAll(tb);
-      P.key(tb + 6, { hip: [P.curPose().hip[0] - 0.05, -0.62], pitch: -0.18, archB: -0.15, archF: -0.1, neck: 0.05, hPitch: -0.35, lid: 1, lidTilt: 0.3, earFlat: 1, earRot: 1, fluff: 0.5, tailA: -0.4, fnC: 0.2, ffC: 0.2 }, 'out');
+      P.key(tb + 6, { hip: [P.curPose().hip[0] - 0.05, -0.62], pitch: -0.18, archB: -0.15, archF: -0.1, neck: 0.05, hPitch: -0.35, squeeze: 1, wobble: 0.8, earFlat: 1, earRot: 1, fluff: 0.5, tailA: -0.4, fnC: 0.2, ffC: 0.2, whisk: -1 }, 'out');
       P.key(tb + 40, { hip: [P.curPose().hip[0] - 0.1, -0.6] }, 'inout');
       P.key(gust[0][1] - 4, {}, 'hold');
-      P.key(gust[0][1] + 6, { hip: [P.curPose().hip[0], -0.7], lid: 0, eye: 0.5, fluff: 0.25 }, 'inout');
+      P.key(gust[0][1] + 6, { hip: [P.curPose().hip[0], -0.7], squeeze: 0, wobble: 0, lid: 0.3, lidTilt: 0.6, eye: 1, fluff: 0.25, whisk: -0.4 }, 'inout'); // grits on, determined
       P.t = gust[0][1] + 8;
       locomote(P, { gait: 'wind', dist: 3.2, accel: 8 });
       S.layers.push(screenLayer(2.4, (ctx, t, W, H) => {
@@ -141,9 +141,11 @@ function s3_3() {
       const P = cat.perf;
       const td = 18;
       P.key(td, { eye: 1 }, 'hold');
-      P.key(td + 2, { eye: 0, hPitch: -0.1, earFlat: 0.5 }, 'out');
-      P.key(td + 7, { eye: 1 }, 'in');
-      P.key(td + 16, { hPitch: 0.65, neck: 0.8, lookY: 0.8, hYaw: 0.5, eyeWide: 0.2 }, 'inout');
+      P.key(td + 2, { squeeze: 1, hPitch: -0.1, earFlat: 0.5 }, 'out');
+      P.emote(td + 1, 'surprise', { dur: 12 });
+      P.key(td + 7, { squeeze: 0, eye: 1 }, 'in');
+      P.key(td + 16, { hPitch: 0.65, neck: 0.8, lookY: 0.8, hYaw: 0.5, eyeWide: 0.35, sad: 0.5 }, 'inout');
+      P.emote(td + 24, 'sweat', { dur: 36 });
       P.key(td + 50, {}, 'hold');
       A.blink(P, td + 56, 4);
       P.key(td + 70, { hPitch: 0.3, neck: 0.62, lookY: 0.2, earFlat: 0.6, earRot: 0.8 }, 'inout');
@@ -322,6 +324,8 @@ function s3_6() {
       P.setTiming(P.t, 2);
       A.wait(P, 4);
       A.shake(P);
+      P.key(P.t + 2, { lid: 0.3, sad: 0.3, smile: -0.2 }, 'inout'); // phew
+      P.emote(P.t + 2, 'sweat', { dur: 28 });
       A.wait(P, 6);
       A.jump(P, { dx: 5.4, dy: SHELTER.bench, h: 0.5, antic: 5, hold: 1, flight: 10 });
       tRel = A.putDown(P);
@@ -354,11 +358,12 @@ function s3_7() {
       const cat = makeCat(S, { ground: gnd, pose0: sittingPose(1.6, -1, gnd, { hYaw: 0.4, hPitch: 0.15 }), ...catStorm });
       const P = cat.perf;
       // watching the rain (facing out = toward -x here), ears twitch at the thunder
+      P.key(20, { sad: 0.45, lid: 0.15, whiskDroop: 0.3 }, 'inout');
       A.blink(P, 30, 6);
       A.earTwitch(P, 98, 'R', 0.6);
-      P.key(100, { eyeWide: 0.4 }, 'out');
+      P.key(100, { eyeWide: 0.4, sad: 0.2 }, 'out');
       P.key(116, { eyeWide: 0 }, 'inout');
-      P.key(130, { hYaw: 0.9, hPitch: -0.2, lookY: -0.4 }, 'inout'); // glances at the wet card
+      P.key(130, { hYaw: 0.9, hPitch: -0.2, lookY: -0.4, sad: 0.7, tear: 0.3 }, 'inout'); // glances at the wet card
       S.layers.push(at(0, 1.2, (ctx, t) => shelterFront(ctx, SHELTER_DAY, t, 1)));
       S.layers.push(screenLayer(2.5, (ctx, t, W, H) => rain(ctx, W, H, t, { density: 0.9, angle: -0.2, speed: 0.12, color: STORM.rain, alpha: 0.35, seed: 11 })));
       S.extraEvents = [{ t: 96, type: 'thunder_far', amt: 0.5 }];
@@ -399,12 +404,15 @@ function s4_1() {
       const cat = makeCat(S, { ground: gnd, pose0: sittingPose(1.6, -1, gnd, { hYaw: 0.6, hPitch: -0.25, lookY: -0.5, eye: 0.75, earRot: 0.3 }), ...catMoon });
       const P = cat.perf;
       A.blink(P, 24, 8);
-      P.key(40, { hYaw: 0.9, hPitch: -0.45, lookY: -0.7 }, 'inout'); // looks at the card
+      P.key(40, { hYaw: 0.9, hPitch: -0.45, lookY: -0.7, sad: 0.5, tear: 0.35 }, 'inout'); // looks at the card
+      P.key(70, { smile: 0.35, sad: 0.3, blush: 0.25 }, 'inout'); // still wants to go
       P.key(90, {}, 'hold');
       A.blink(P, 96, 10);
+      P.key(112, { tear: 0, sad: 0.1, smile: 0.3, blush: 0.15 }, 'inout');
       P.t = 118;
       A.curlSleep(P);
       const t0 = P.t;
+      P.emote(t0 + 20, 'zzz', { dur: 200 });
       A.wait(P, 100);
       P.overlays.push(A.breathing(t0, t0 + 400, 64));
       S.layers.push(at(0, 1.2, (ctx, t) => shelterFront(ctx, SHELTER_NIGHT, t, 0.35)));
@@ -431,6 +439,8 @@ function s4_2() {
       const c2 = makeCat(S, { ground: gnd, pose0: Object.assign({}, endPose), ...catMoon });
       const Q = c2.perf;
       Q.overlays.push(A.breathing(0, 400, 66));
+      Q.emote(0, 'zzz', { dur: 110 });
+      Q.emote(230, 'zzz', { dur: 118 });
       // truck passes: ear turns toward it, tail tip twitch, relaxes
       A.earTwitch(Q, 120, 'L', 0.7);
       Q.key(126, { earRot: 0.55 }, 'out');

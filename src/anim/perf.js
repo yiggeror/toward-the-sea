@@ -14,8 +14,8 @@ export const GROUPS = {
   hf: ['hf', 'hfC', 'hfM'],
   tail: ['tailA', 'tailC', 'tailK', 'tailTone', 'tailWave', 'tailWaveP', 'tailWorld', 'tailFront'],
   ears: ['earRot', 'earFlat', 'earLR', 'earRR'],
-  eyes: ['eye', 'eyeWide', 'pupil', 'lookX', 'lookY', 'lid', 'happy'],
-  mouth: ['mouth', 'mouthW', 'smile', 'tongue', 'whisk'],
+  eyes: ['eye', 'eyeWide', 'pupil', 'lookX', 'lookY', 'lid', 'lidTilt', 'happy', 'wink', 'sparkle', 'tear', 'squeeze', 'sad'],
+  mouth: ['mouth', 'mouthW', 'smile', 'tongue', 'whisk', 'wobble', 'blush', 'puff', 'whiskDroop'],
   misc: ['fluff', 'breath', 'facing', 'fnTop', 'smear'],
 };
 const SPLINE = { body: ['hip'], fn: ['fn'], ff: ['ff'], hn: ['hn'], hf: ['hf'] };
@@ -95,6 +95,12 @@ export class Perf {
   }
   event(t, type, data = {}) {
     this.events.push(Object.assign({ t, type, who: this.name }, data));
+  }
+  // emotion mark (see fx/emote.js): kind = exclaim | surprise | question |
+  // notes | heart | sweat | zzz | sparkle | shiver | puff | gloom | tear
+  emote(t, kind, o = {}) {
+    this.event(t, 'emote', Object.assign({ kind, dur: 30 }, o));
+    return this;
   }
   drawTime(f) {
     let seg = this.timing[0];

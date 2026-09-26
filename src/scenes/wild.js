@@ -114,6 +114,9 @@ function s5_2() {
       A.pant(P, 44);
       A.lickPaw(P, { licks: 2 });
       A.look(P, P.t + 2, 14, { yaw: 0.25, pitch: 0.15, lookY: 0.1 }); // looks down the long road
+      P.key(P.t + 10, { sad: 0.5, lid: 0.25 }, 'inout');
+      P.emote(P.t + 12, 'gloom', { dur: 26 });
+      P.key(P.t + 30, { sad: 0, lid: 0.25, lidTilt: 0.7, whiskDroop: 0 }, 'inout'); // ...and keeps going
       P.t += 34;
       A.blink(P, P.t - 12, 7);
       locomote(P, { gait: 'tired', dist: 6, accel: 12 });
@@ -146,9 +149,10 @@ function s5_3() {
       P.key(0, { hYaw: 0.5 });
       A.look(P, 20, 12, { yaw: 1.3, pitch: 0.1 });
       // tumbleweed rolls past close: squint, turn the head away
-      P.key(68, { lid: 1, lidTilt: 0.3, earRot: 0.7, earFlat: 0.3, hYaw: 0.1, hPitch: -0.3 }, 'out');
+      P.key(68, { squeeze: 1, wobble: 0.7, earRot: 0.7, earFlat: 0.3, hYaw: 0.1, hPitch: -0.3, whisk: -0.8 }, 'out');
       P.key(118, {}, 'hold');
-      P.key(130, { lid: 0, earRot: 0.2, earFlat: 0, hYaw: 1.2, hPitch: 0 }, 'inout'); // watches it roll away
+      P.key(130, { squeeze: 0, wobble: 0, eye: 1, earRot: 0.2, earFlat: 0, hYaw: 1.2, hPitch: 0, whisk: 0, eyeWide: 0.25 }, 'inout'); // watches it roll away
+      P.emote(134, 'question', { dur: 30 });
       A.blink(P, 150, 6);
       S.layers.push(at(-2, 1.4, (ctx, t) => {
         const a = (t - 60) / 90;
@@ -286,14 +290,19 @@ function s6_3() {
       flake.key(204, { x: -2, y: 0.2 });
       const fpos = (t) => { const k = flake.sample(t); return [k.x + Math.sin(t * 0.08) * 0.25, k.y]; };
       A.track(P, 4, 78, fpos, { step: 4 });
+      P.key(10, { sparkle: 0.9, eyeWide: 0.3, blush: 0.25 }, 'inout');
+      P.emote(16, 'sparkle', { dur: 40, n: 3 });
       P.t = 78;
       A.snapHop(P, { h: 0.9, surface: 'snow' });
       // lands in the snow face-first-ish; sneezes, shakes the head
-      P.key(P.t + 4, { eye: 0, earFlat: 0.5, hPitch: -0.2 }, 'out');
+      P.key(P.t + 4, { squeeze: 1, sparkle: 0, earFlat: 0.5, hPitch: -0.2 }, 'out');
       P.setTiming(P.t + 6, 1);
       [0.9, -0.2, 0.8, 0.3].forEach((y, i) => P.key(P.t + 8 + i * 2, { hYaw: y, earRot: i % 2 ? 0.8 : 0.2 }, 'inout'));
       P.setTiming(P.t + 16, 2);
-      P.key(P.t + 20, { hYaw: 0.4, eye: 1, earFlat: 0, earRot: 0.1 }, 'out');
+      P.key(P.t + 20, { hYaw: 0.4, squeeze: 0, eye: 1, earFlat: 0, earRot: 0.1 }, 'out');
+      P.key(P.t + 30, { happy: 1, smile: 0.8, mouth: 0.25, mouthW: 0.6, blush: 0.4 }, 'inout');
+      P.emote(P.t + 30, 'notes', { dur: 40 });
+      P.key(P.t + 60, { happy: 0, smile: 0.2, mouth: 0, blush: 0.2 }, 'inout');
       P.event(P.t + 6, 'sneeze', {});
       S.layers.push(at(-0.3, 1.5, (ctx, t) => {
         if (t > 88) return;
@@ -327,10 +336,12 @@ function s6_4() {
       const cat = makeCat(S, { x: -5, facing: 1, carry: { wear: 0.72 }, ...catSnow, wind: (t) => [-0.6 - 0.3 * Math.sin(t * 0.2), 0] });
       const P = cat.perf;
       S.camera.follow = follow(P, { lag: 12, lead: 6, dx: 0.8 });
-      P.key(0, { fluff: 0.8, neck: 0.25, hPitch: -0.2, tailA: -0.5, tailC: 0.3, earRot: 0.5, earFlat: 0.35, eye: 0.6, hip: [-5, -0.9] });
+      P.key(0, { fluff: 0.8, neck: 0.25, hPitch: -0.2, tailA: -0.5, tailC: 0.3, earRot: 0.5, earFlat: 0.35, eye: 1, lid: 0.35, sad: 0.35, wobble: 1, blush: 0.65, whiskDroop: 0.3, hip: [-5, -0.9] });
+      P.emote(8, 'puff', { dur: 160, color: 'rgba(246,250,255,0.95)' });
+      P.emote(58, 'shiver', { dur: 36 });
       P.t = 2;
       // short, quick, hunched steps; shivers
-      locomote(P, { gait: 'walk', dist: 7, strideScale: 0.55, speed: 1.35, height: 0.88, surface: 'snow', pose: { fluff: 0.8, neck: 0.25, hPitch: -0.2, tailA: -0.5, tailC: 0.3, earRot: 0.5, earFlat: 0.35, eye: 0.6 } });
+      locomote(P, { gait: 'walk', dist: 7, strideScale: 0.55, speed: 1.35, height: 0.88, surface: 'snow', pose: { fluff: 0.8, neck: 0.25, hPitch: -0.2, tailA: -0.5, tailC: 0.3, earRot: 0.5, earFlat: 0.35, eye: 1 } });
       P.overlays.push((p, t) => {
         if (t > 60 && t < 90) p.hip = [p.hip[0] + Math.sin(t * 2.2) * 0.02, p.hip[1]];
       });

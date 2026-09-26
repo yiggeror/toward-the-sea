@@ -267,58 +267,164 @@ function toEye(ef, dx, dy) {
   if (Math.abs(det) < 1e-6) det = det < 0 ? -1e-6 : 1e-6;
   return [(av[1] * dx - av[0] * dy) / det, (-ax[1] * dx + ax[0] * dy) / det];
 }
+// 4-point star glint (eye space)
+function glint(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.moveTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.quadraticCurveTo(x, y, x, y - r);
+  ctx.quadraticCurveTo(x, y, x - r, y);
+  ctx.quadraticCurveTo(x, y, x, y + r);
+  ctx.fill();
+}
+// Eyes are glossy black dots (simplified sheet). Everything else is a shape
+// change of the dot: blink squash, upper-lid cut (lid / lidTilt / sad), > <
+// squeeze, ^ ^ happy arcs, relaxed closed arcs, a watery tear line, and extra
+// highlights for "sparkle". Eye space: x outward (+) / inward (-), y up.
 function drawEye(ctx, ef, pose, st) {
   if (ef.facing < -0.12) return;
   const vis = smoothstep(-0.12, 0.18, ef.facing);
-  // per-eye openness (wink: + closes the near/left eye, - the other)
   const wink = pose.wink || 0;
-  const wk = ef.side > 0 ? Math.max(0, wink) : Math.max(0, -wink);
-  const open = clamp(pose.eye, 0, 1) * (1 - clamp(pose.happy, 0, 1)) * (1 - wk);
-  const dash = clamp(pose.lid || 0, 0, 1);
+  const wk = ef.side > 0 ? clamp(wink, 0, 1) : clamp(-wink, 0, 1);
+  const happy = clamp(pose.happy || 0, 0, 1);
+  const squeeze = clamp(pose.squeeze || 0, 0, 1);
+  const sad = clamp(pose.sad || 0, 0, 1);
+  const sparkle = clamp(pose.sparkle || 0, 0, 1);
+  const tear = clamp(pose.tear || 0, 0, 1);
+  const open = clamp(pose.eye, 0, 1) * (1 - happy) * (1 - wk) * (1 - squeeze);
+  const lid = clamp((pose.lid || 0) + sad * 0.2, 0, 1);
+  const ink = st.eyeColor || '#2b2727';
   ctx.save();
   ctx.transform(ef.ax[0], ef.ax[1], -ef.ay[0], -ef.ay[1], ef.c[0], ef.c[1]);
   const lw = st.lw / ef.r;
-  // gaze nudges the dot a little inside its socket
+  ctx.globalAlpha *= vis;
   const gz = toEye(ef, (pose.lookX || 0) * ef.r, -(pose.lookY || 0) * ef.r);
   const gx = clamp(gz[0] * 0.18, -0.22, 0.22), gy = clamp(gz[1] * 0.16, -0.2, 0.2);
-  const size = (1 + 0.28 * (pose.eyeWide || 0)) * (0.92 + 0.2 * clamp(pose.pupil ?? 0.45, 0, 1));
+  const size = (1 + 0.28 * (pose.eyeWide || 0) + 0.14 * sparkle + 0.06 * tear) * (0.92 + 0.2 * clamp(pose.pupil ?? 0.45, 0, 1));
   const rx = 0.62 * size, ry = 0.8 * size;
-  ctx.globalAlpha = vis;
-  if (open > 0.12 && dash < 0.6) {
-    // solid dot, squashed vertically while blinking
+  const arc = (pts, w) => fillStroke(ctx, pts, (i, t) => w * Math.sin(0.2 + t * (Math.PI - 0.4)), ink);
+  if (squeeze > 0.45) {
+    // > < : a chevron pointing at the nose
+    const k = smoothstep(0.45, 0.8, squeeze);
+    const a = 0.5 + 0.12 * k;
+    arc([[0.62, a], [-0.48, 0.02], [0.62, -a]], Math.max(lw * 2.6, 0.36));
+  } else if (open > 0.12) {
+    // upper-lid cut: y = top + slope * x  (angry: inner low; sad: outer low)
+    const tilt = (pose.lidTilt || 0) * Math.min(1, lid * 2.5) - sad * 1.5;
+    const top = ry * (1.05 - 2.0 * lid * (lid > 0.02 ? 1 : 0));
+    const slope = tilt * 0.42 * ry;
     const k = Math.min(1, open * 1.15);
-    ctx.fillStyle = st.eyeColor || '#2b2727';
-    ctx.beginPath();
-    ctx.ellipse(gx, gy - (1 - k) * 0.25, rx, Math.max(0.12, ry * k), 0, 0, TAU);
-    ctx.fill();
-    // tiny catch-light (only visible when eyes are big/shiny)
-    const hl = (st.highlight ?? 1) * clamp((size - 1.0) * 3 + 0.35, 0, 1) * k;
-    if (hl > 0.02) {
-      const h1 = toEye(ef, -0.22 * ef.r, -0.3 * ef.r);
-      ctx.fillStyle = css('#ffffff', 0.92 * hl);
+    const cy = gy - (1 - k) * 0.25, ey = Math.max(0.12, ry * k);
+    const thin = top + Math.abs(slope) * 0.3 - (cy - ey);
+    if (lid > 0.02 && thin < 0.34) {
+      // nearly shut: a flat, slightly tilted dash
+      const tl = (pose.lidTilt || 0) * 0.25 - sad * 0.2;
+      arc([[-0.75, cy - ey + 0.18 - tl], [0, cy - ey + 0.12], [0.75, cy - ey + 0.18 + tl]], 0.4);
+    } else {
+      if (lid > 0.02 || sad > 0.02) {
+        ctx.beginPath();
+        ctx.moveTo(-3, -3);
+        ctx.lineTo(3, -3);
+        ctx.lineTo(3, top + slope * 3);
+        ctx.lineTo(-3, top - slope * 3);
+        ctx.closePath();
+        ctx.clip();
+      }
+      ctx.fillStyle = ink;
       ctx.beginPath();
-      ctx.ellipse(gx + clamp(h1[0], -0.35, 0.35), gy + clamp(h1[1], -0.35, 0.35), 0.24 * size, 0.26 * size, 0, 0, TAU);
+      ctx.ellipse(gx, cy, rx, ey, 0, 0, TAU);
       ctx.fill();
+      // watery lower rim
+      if (tear > 0.02) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(gx, cy, rx, ey, 0, 0, TAU);
+        ctx.clip();
+        ctx.fillStyle = css('#a8c8e8', 0.55 * tear);
+        ctx.beginPath();
+        ctx.ellipse(gx, cy - ey * 0.95, rx * 1.1, ey * (0.25 + 0.3 * tear), 0, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      // highlights: key light upper-left (screen), a small bounce lower-right
+      const hl = (st.highlight ?? 1) * k;
+      if (hl > 0.02) {
+        const h1 = toEye(ef, -0.22 * ef.r, -0.3 * ef.r), h2 = toEye(ef, 0.2 * ef.r, 0.26 * ef.r);
+        const big = 0.22 + 0.1 * sparkle + 0.05 * tear;
+        ctx.fillStyle = css('#ffffff', 0.95 * hl);
+        ctx.beginPath();
+        ctx.ellipse(gx + clamp(h1[0], -0.34, 0.34) * size, cy + clamp(h1[1], -0.34, 0.34) * size, big * size, (big + 0.03) * size, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = css('#ffffff', (0.55 + 0.4 * sparkle) * hl);
+        ctx.beginPath();
+        ctx.ellipse(gx + clamp(h2[0], -0.4, 0.4) * size, cy + clamp(h2[1], -0.45, 0.45) * size, (0.09 + 0.05 * sparkle) * size, (0.09 + 0.05 * sparkle) * size, 0, 0, TAU);
+        ctx.fill();
+        if (sparkle > 0.05) {
+          ctx.fillStyle = css('#ffffff', sparkle * hl);
+          const h3 = toEye(ef, 0.18 * ef.r, -0.22 * ef.r);
+          glint(ctx, gx + clamp(h3[0], -0.4, 0.4) * size, cy + clamp(h3[1], -0.4, 0.4) * size, 0.2 * size * sparkle);
+        }
+      }
     }
-  } else if (dash >= 0.6) {
-    // flat dash (squint / sulky / wink)
-    const tilt = (pose.lidTilt || 0) * 0.25;
-    fillStroke(ctx, [[-0.75, 0.05 - tilt], [0, 0.0], [0.75, 0.05 + tilt]], (i, t) => 0.42 * Math.sin(0.25 + t * (Math.PI - 0.5)), st.eyeColor || '#2b2727');
   } else {
-    // closed: happy arc (convex up) or relaxed/sleepy arc (convex down)
-    const happy = Math.max(clamp(pose.happy, 0, 1), wk > 0.5 && (pose.happy || 0) > 0.3 ? 1 : 0);
+    // closed: happy arch (^ ^) or relaxed/sleepy arc; a wink is a happy arch
+    const hap = Math.max(happy, wk > 0.5 ? 1 : 0, squeeze * 0.6);
     const pts = [];
     for (let i = 0; i <= 12; i++) {
       const u = -0.95 + (1.9 * i) / 12;
       const sleepy = -0.05 - 0.32 * (1 - u * u);
-      const hap = -0.35 + 0.55 * (1 - u * u);
-      pts.push([u, lerp(sleepy, hap, happy)]);
+      const hp = -0.35 + 0.55 * (1 - u * u);
+      pts.push([u, lerp(sleepy, hp, clamp(hap, 0, 1))]);
     }
-    const w = Math.max(lw * 2.4, 0.34);
-    fillStroke(ctx, pts, (i, t) => w * Math.sin(0.2 + t * (Math.PI - 0.4)), st.eyeColor || '#2b2727');
+    arc(pts, Math.max(lw * 2.4, 0.34));
   }
-  ctx.globalAlpha = 1;
+  // tear line under a watery eye, and a drop at the outer corner
+  if (tear > 0.3 && squeeze < 0.45) {
+    const a = smoothstep(0.3, 0.7, tear);
+    ctx.globalAlpha *= a;
+    brushLine(ctx, [[-0.55, -ry - 0.08], [0, -ry - 0.16], [0.6, -ry - 0.06]], lw * 1.3, css('#cfe3f5', 0.9), { taperIn: 0.4, taperOut: 0.4 });
+  }
   ctx.restore();
+}
+
+// Pink cheeks with three little hatch strokes (anime blush).
+function drawBlush(ctx, g, st) {
+  const b = clamp(g.pose.blush || 0, 0, 1);
+  if (b < 0.02) return;
+  const head = g.head;
+  for (const side of [1, -1]) {
+    const lam = 47 * DEG * side, phi = -17 * DEG;
+    const c3 = sph(lam, phi);
+    const n3 = sphN(c3);
+    const f = head.vec(n3)[2];
+    if (f < 0.05) continue;
+    const t1 = norm3(cross3([0, 1, 0], n3)), t2 = norm3(cross3(n3, t1));
+    const c = head.proj(c3), a = head.proj(add3(c3, mul3(t1, 0.12))), v = head.proj(add3(c3, mul3(t2, 0.068)));
+    ctx.save();
+    ctx.globalAlpha *= b * smoothstep(0.05, 0.35, f);
+    ctx.transform(a[0] - c[0], a[1] - c[1], v[0] - c[0], v[1] - c[1], c[0], c[1]);
+    const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    gr.addColorStop(0, css(st.blush || '#f4979d', 0.95));
+    gr.addColorStop(0.55, css(st.blush || '#f4979d', 0.7));
+    gr.addColorStop(1, css(st.blush || '#f4979d', 0));
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.arc(0, 0, 1, 0, TAU);
+    ctx.fill();
+    if (b > 0.4) {
+      ctx.globalAlpha *= smoothstep(0.4, 0.8, b);
+      for (let i = -1; i <= 1; i++) {
+        ctx.strokeStyle = css('#e9787c', 0.8);
+        ctx.lineWidth = 0.14;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(i * 0.35 - 0.12 * side, 0.35);
+        ctx.lineTo(i * 0.35 + 0.12 * side, -0.35);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
 }
 
 // ---------- main ----------
@@ -510,15 +616,21 @@ function drawMouth(ctx, g, st) {
   // mouth
   const top = [N[0] + 0.004, N[1] - 0.036, 0];
   const midp = [N[0] - 0.004, N[1] - 0.085 - mo * 0.02, 0];
+  const wob = clamp(pose.wobble || 0, 0, 1);
   if (mo > 0.05) {
-    const w = lerp(0.035, 0.085, pose.mouthW || 0);
+    // open: small "o" .. wide laugh; smiling flattens the top and lifts the corners
+    const sm = clamp(smile, 0, 1);
+    const w = lerp(0.035, 0.085, pose.mouthW || 0) * (1 + 0.25 * sm);
     const h = 0.03 + mo * lerp(0.06, 0.1, pose.mouthW || 0);
     const cy = N[1] - 0.075 - h * 0.6;
     const pts = [];
-    for (let i = 0; i < 20; i++) {
-      const a = (i / 20) * TAU;
-      const yy = Math.sin(a) > 0 ? Math.sin(a) * h * 0.55 : Math.sin(a) * h;
-      pts.push(P([N[0] - 0.01 - Math.max(0, -Math.sin(a)) * 0.02, cy + yy, Math.cos(a) * w]));
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * TAU;
+      const c = Math.cos(a), sn = Math.sin(a);
+      let yy = sn > 0 ? sn * h * lerp(0.55, 0.12, sm) : sn * h * (1 - 0.15 * sm);
+      yy += sm * h * 0.45 * c * c; // corners up
+      yy += wob * 0.012 * Math.sin(c * 9) * (sn > 0 ? 1 : 0);
+      pts.push(P([N[0] - 0.01 - Math.max(0, -sn) * 0.02, cy + yy, c * w]));
     }
     const mp = new Path2D();
     smoothTo(mp, pts, true);
@@ -527,17 +639,28 @@ function drawMouth(ctx, g, st) {
     if (pose.tongue > 0 || mo > 0.3) {
       ctx.save();
       ctx.clip(mp);
-      const tp = P([N[0] - 0.01, cy - h * 0.75, 0]);
+      const tp = P([N[0] - 0.01, cy - h * 0.8, 0]);
       ctx.fillStyle = css(PAL.tongue);
       ctx.beginPath();
-      ctx.ellipse(tp[0], tp[1], w * 0.9, h * 0.55, 0, 0, TAU);
+      ctx.ellipse(tp[0], tp[1], w * 0.85 * (head.s || 1), h * 0.6 * (head.s || 1), 0, 0, TAU);
       ctx.fill();
       ctx.restore();
     }
     ctx.lineWidth = st.lw * 1.1;
     ctx.strokeStyle = st.line;
     ctx.stroke(mp);
-    brushLine(ctx, [P(top), P([N[0] - 0.002, cy + h * 0.5, 0])], st.lw * 1.1, st.line, { taperIn: 0.2, taperOut: 0.2 });
+    brushLine(ctx, [P(top), P([N[0] - 0.002, cy + h * lerp(0.5, 0.12, sm), 0])], st.lw * 1.1, st.line, { taperIn: 0.2, taperOut: 0.2 });
+  } else if (wob > 0.3) {
+    // nervous / cold: a small wavy line
+    ctx.globalAlpha = vis;
+    brushLine(ctx, [P(top), P([N[0] - 0.003, N[1] - 0.07, 0])], st.lw * 1.05, st.line, { taperIn: 0.1, taperOut: 0.1 });
+    const pts = [];
+    for (let i = 0; i <= 8; i++) {
+      const z = -0.07 + (0.14 * i) / 8;
+      pts.push(P([N[0] - 0.012 - Math.abs(z) * 0.3, N[1] - 0.088 + (i % 2 ? 0.012 : -0.004) * wob, z]));
+    }
+    brushLine(ctx, pts, st.lw * 1.0, st.line, { taperIn: 0.15, taperOut: 0.15 });
+    ctx.globalAlpha = 1;
   } else {
     const arm = (s) => {
       const a = P(midp);
@@ -629,6 +752,7 @@ export function drawHead(ctx, g, st, opts = {}) {
   // eyes (clip to head)
   ctx.save();
   ctx.clip(headPath);
+  drawBlush(ctx, g, st);
   const eyes = [g.eyeL, g.eyeR].sort((a, b) => a.z - b.z);
   for (const ef of eyes) drawEye(ctx, ef, pose, st);
   ctx.restore();

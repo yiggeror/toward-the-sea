@@ -275,7 +275,13 @@ export function headlab(ctx, W, H, q) {
   pitches.forEach((pt, r) => yaws.forEach((y, c) => {
     const p = Object.assign({}, ex, { hYaw: y - Math.PI / 2, hPitch: pt + (ex.hPitch || 0), noBody: !body });
     ctx.save(); ctx.beginPath(); ctx.rect(c * cw, r * ch, cw, ch); ctx.clip();
-    drawPortrait(ctx, p, { x: c * cw + cw / 2, y: r * ch + ch * 0.5, scale: s });
+    const an = drawPortrait(ctx, p, { x: c * cw + cw / 2, y: r * ch + ch * 0.5, scale: s });
+    if (q.get('emote')) {
+      const kinds = q.get('emote').split(',');
+      const age = +(q.get('age') || 10);
+      drawEmotes(ctx, kinds.map((k, i) => ({ type: 'emote', kind: k, t: 0, dur: 60 })), age, an);
+    }
     ctx.restore();
   }));
 }
+import { drawEmotes } from '../fx/emote.js';

@@ -48,6 +48,17 @@ export function defaultPose() {
     fluff: 0, // fur puff 0..1
     squash: 0, // + squash / - stretch of the whole body
     breath: 0, // breathing inflate 0..1
+    // expression extras
+    lidTilt: 0, // + angry (inner corner low) .. - sad (outer corner low)
+    wink: 0, // + closes the left eye, - the right one
+    sparkle: 0, // shiny wide "wonder" eyes
+    tear: 0, // watery eyes (0.6+: a tear rolls)
+    squeeze: 0, // > < eyes
+    sad: 0, // worried slant + droop
+    blush: 0, // pink cheeks
+    wobble: 0, // wavy nervous mouth
+    puff: 0, // cheek puff
+    whiskDroop: 0, // whiskers hang (sad / tired)
   };
 }
 

@@ -80,11 +80,13 @@ function s2_1() {
       const cat = makeCat(S, { x: -30, facing: 1, carry: { wear: 0.03 }, ...catDay });
       const P = cat.perf;
       P.t = 6;
+      P.emote(40, 'notes', { dur: 60 });
       locomote(P, { gait: 'walk', dist: 24, accel: 10, decel: 20 });
       A.look(P, P.t, 12, { yaw: 0.7, pitch: 0.55, lookY: 0.5 });
+      P.key(P.t + 12, { sparkle: 0.7, eyeWide: 0.2 }, 'inout');
       A.earTwitch(P, P.t + 16, 'L', 0.4);
-      P.key(P.t + 30, { hRoll: 0.25 }, 'inout');
-      P.key(P.t + 50, { hRoll: 0, hYaw: 0.35, hPitch: 0.1 }, 'inout');
+      P.key(P.t + 30, { hRoll: 0.25, happy: 1, smile: 0.7, sparkle: 0, eyeWide: 0, blush: 0.3 }, 'inout');
+      P.key(P.t + 50, { hRoll: 0, hYaw: 0.35, hPitch: 0.1, happy: 0, smile: 0.2, blush: 0.1 }, 'inout');
       foreground(S);
       S.extraEvents = [{ t: 0, type: 'amb', name: 'forest' }];
     },
@@ -123,11 +125,12 @@ function s2_2() {
       P.key(P.t + 9, { fn: [fn[0] + 1.35, STONE_TOP], fnC: 0.1 }, 'in');
       P.event(P.t + 9, 'pat', {});
       P.key(P.t + 13, { fn: [fn[0] + 0.6, -0.8], fnC: 0.6 }, 'out');
-      P.key(P.t + 18, { fn: fn, fnC: 0, hPitch: 0, lookY: 0 }, 'inout');
-      A.blink(P, P.t + 26, 5);
+      P.key(P.t + 18, { fn: fn, fnC: 0, hPitch: 0, lookY: 0, happy: 1, smile: 0.6, blush: 0.35 }, 'inout');
+      P.key(P.t + 34, { happy: 0, smile: 0.2, blush: 0.1 }, 'inout');
       // a flutter to the right: ears, then head
       A.earTwitch(P, P.t + 44, 'R', 0.5);
       A.look(P, P.t + 48, 8, { yaw: 0.25, pitch: 0.35, lookY: 0.5, lookX: 0.4 });
+      P.key(P.t + 56, { sparkle: 0.8, eyeWide: 0.3, pupil: 0.8 }, 'inout');
       S.layers.push(at(0, 0.95, (ctx, t) => card.draw(ctx, t)));
       foreground(S, { seed: 19 });
     },
@@ -161,7 +164,9 @@ function s2_3() {
       const cat = makeCat(S, { x: 0, facing: 1, ...catDay, pose: { hYaw: 0.5, hPitch: 0.3 } });
       const P = cat.perf;
       A.track(P, 4, 88, bpos, { step: 4 });
-      P.key(20, { earRot: -0.25, eyeWide: 0.3, pupil: 0.8 }, 'inout');
+      P.key(20, { earRot: -0.25, eyeWide: 0.3, pupil: 0.8, sparkle: 0.8 }, 'inout');
+      P.emote(24, 'sparkle', { dur: 40, n: 3 });
+      P.key(80, { sparkle: 0.2, pupil: 1, lid: 0.15, lidTilt: 0.5 }, 'inout'); // focus
       // sink into the grass and creep forward
       P.t = 92;
       locomote(P, { gait: 'stalk', dist: 1.6, height: 0.72, override: { S: 0.9, C: 24, pulse: 0.3 }, pose: { neck: 0.15, hPitch: -0.1, earRot: -0.3, pupil: 1 } });
@@ -169,7 +174,8 @@ function s2_3() {
       A.pounce(P, { dx: 3.6, wiggle: 3 });
       // lands on the flower — butterfly gone. pop up, confused
       const t1 = P.t;
-      P.key(t1 + 6, { hip: [P.curPose().hip[0], -1.05], pitch: 0.08, neck: 0.75, hPitch: 0.3, hRoll: 0.35, eyeWide: 0.4, earLR: 0.3, archB: 0.08, archF: 0.02, tailA: 0.5, tailC: 0.9 }, 'out');
+      P.key(t1 + 6, { hip: [P.curPose().hip[0], -1.05], pitch: 0.08, neck: 0.75, hPitch: 0.3, hRoll: 0.35, eyeWide: 0.5, lid: 0, earLR: 0.3, archB: 0.08, archF: 0.02, tailA: 0.5, tailC: 0.9 }, 'out');
+      P.emote(t1 + 5, 'question', { dur: 30 });
       A.track(P, t1 + 12, t1 + 28, bpos, { step: 4 });
       P.t = t1 + 30;
       A.swatUp(P, { swats: 3 });
@@ -177,8 +183,9 @@ function s2_3() {
       P.t += 16;
       A.sit(P);
       A.blink(P, P.t + 8, 6);
-      P.key(P.t + 30, { happy: 0.8, eye: 0, smile: 0.5 }, 'inout');
-      P.key(P.t + 46, { happy: 0, eye: 1, smile: 0 }, 'inout');
+      P.key(P.t + 30, { happy: 1, eye: 0, smile: 0.9, mouth: 0.3, mouthW: 0.6, blush: 0.45, sparkle: 0 }, 'inout');
+      P.emote(P.t + 30, 'notes', { dur: 44 });
+      P.key(P.t + 58, { happy: 0, eye: 1, smile: 0.2, mouth: 0, blush: 0.15 }, 'inout');
       S.layers.push(at(0, 0.97, (ctx, t) => {
         // the flower the butterfly lands on
         ctx.strokeStyle = '#5f8b43';
@@ -291,13 +298,15 @@ function s2_4() {
       P.key(ts, {}, 'hold');
       P.key(ts + 3, { hn: [hn[0] - 0.55, 0.75], hnC: 0.3, hip: [P.curPose().hip[0] - 0.1, -0.78], pitch: -0.12, archB: 0.2 }, 'in');
       P.event(ts + 3, 'splash', { x: hn[0] - 0.55, y: 0.5, strength: 0.5 });
-      P.key(ts + 5, { eyeWide: 0.9, earRot: 0.7, earFlat: 0.3, fluff: 0.5, tailA: 1.0, tailC: 0.1 }, 'out');
+      P.key(ts + 5, { eyeWide: 0.9, earRot: 0.7, earFlat: 0.3, fluff: 0.5, tailA: 1.0, tailC: 0.1, mouth: 0.3 }, 'out');
+      P.emote(ts + 4, 'exclaim', { dur: 18 });
       P.key(ts + 16, {}, 'hold');
-      P.key(ts + 24, { hYaw: 2.4, hPitch: -0.4, lookY: -0.5 }, 'inout'); // looks back at the wet paw
+      P.key(ts + 24, { hYaw: 2.4, hPitch: -0.4, lookY: -0.5, mouth: 0, eyeWide: 0, lid: 0.35, sad: 0.4, smile: -0.5 }, 'inout'); // looks back at the wet paw
+      P.emote(ts + 26, 'sweat', { dur: 30 });
       P.key(ts + 30, { hn: [hn[0] - 0.2, -0.3], hnC: 0.8, hip: [P.curPose().hip[0] + 0.1, -1.0], pitch: 0.05, archB: 0.1 }, 'out');
       P.t = ts + 32;
       A.pawFlick(P, { leg: 'hn', n: 3 });
-      P.key(P.t + 4, { hYaw: 0.35, hPitch: 0, eyeWide: 0, earRot: 0.1, earFlat: 0, fluff: 0.1, tailA: 0.5, tailC: 0.9 }, 'inout');
+      P.key(P.t + 4, { hYaw: 0.35, hPitch: 0, eyeWide: 0, lid: 0, sad: 0, smile: 0, earRot: 0.1, earFlat: 0, fluff: 0.1, tailA: 0.5, tailC: 0.9 }, 'inout');
       P.t += 6;
       A.jump(P, { dx: 4.4, dy: 0.6, h: 0.7, antic: 5, hold: 1, flight: 10 });
       locomote(P, { gait: 'trot', dist: 8, accel: 6 });
@@ -369,20 +378,24 @@ function s2_5() {
       const P = cat.perf;
       const target = (t) => { const f = fishT.sample(t); return [f.x, f.y]; };
       // crouch at the edge, watch
-      P.key(10, { hip: [0.3, -0.95], archB: 0.2, neck: 0.3, hPitch: -0.45, pupil: 0.9, eyeWide: 0.3, tailA: -0.1, tailC: 0.4 }, 'inout');
+      P.key(10, { hip: [0.3, -0.95], archB: 0.2, neck: 0.3, hPitch: -0.45, pupil: 0.9, eyeWide: 0.3, sparkle: 0.7, tailA: -0.1, tailC: 0.4 }, 'inout');
+      P.key(90, { sparkle: 0.2, lid: 0.2, lidTilt: 0.6, pupil: 1 }, 'inout'); // locks on
       A.track(P, 14, 150, target, { step: 6, neck: 0.3 });
       P.key(60, { tailWave: 0.35, tailWaveP: 0 }, 'inout');
       P.key(150, { tailWaveP: 22 }, 'linear');
       P.t = 152;
       const tsp = A.strike(P, { x: 3.8, y: 0.95 });
+      P.emote(P.t + 1, 'surprise', { dur: 14 });
+      P.key(P.t, { lid: 0, sparkle: 0 }, 'out');
       A.splashRecoil(P);
       // shake the paw, then the whole body
       A.pawFlick(P, { leg: 'fn', n: 4 });
       A.wait(P, 6);
       A.shake(P);
       // sulky, then licks the paw once
-      P.key(P.t + 4, { lid: 1, lidTilt: -0.8, smile: -0.4, earRot: 0.4, earFlat: 0.2 }, 'inout');
-      P.key(P.t + 30, { lid: 0, smile: 0, earRot: 0.1, earFlat: 0 }, 'inout');
+      P.key(P.t + 4, { lid: 0.3, sad: 0.8, smile: -0.6, wobble: 0.6, earRot: 0.5, earFlat: 0.3, whiskDroop: 0.5 }, 'inout');
+      P.emote(P.t + 6, 'gloom', { dur: 40 });
+      P.key(P.t + 48, { lid: 0, sad: 0, smile: 0, wobble: 0, earRot: 0.1, earFlat: 0, whiskDroop: 0 }, 'inout');
       S.extraEvents = [];
       S.layers.push(screenLayer(2.5, (ctx, t, W, H) => motes(ctx, W, H, t, { n: 30, seed: 4, color: '#fff6d8', alpha: 0.5, drift: 0.3 })));
     },
@@ -402,6 +415,9 @@ function s2_6() {
       const cat = makeCat(S, { x: 13, facing: -1, carry: { wear: 0.05, on: (t) => t >= tPick }, ...catDay, pose: { earRot: 0.1 } });
       const P = cat.perf;
       P.t = 6;
+      P.emote(2, 'exclaim', { dur: 20 });
+      P.key(2, { eyeWide: 0.7 }, 'out');
+      P.key(20, { eyeWide: 0.1 }, 'inout');
       locomote(P, { gait: 'trot', to: 5.6, accel: 6, decel: 12 });
       // head dips to the card on the stone
       P.holdAll(P.t);
@@ -409,7 +425,8 @@ function s2_6() {
       tPick = P.t + 12;
       P.key(tPick, { mouth: 0.05 }, 'out');
       P.event(tPick, 'pickup', {});
-      P.key(tPick + 10, { neck: 0.62, neckLen: 1, hPitch: 0.05 }, 'out');
+      P.key(tPick + 10, { neck: 0.62, neckLen: 1, hPitch: 0.05, happy: 1, blush: 0.3 }, 'out');
+      P.key(tPick + 26, { happy: 0, blush: 0.1 }, 'inout');
       card.key(tPick - 1, {}, 'linear');
       card.key(tPick, { vis: 0 }, 'step');
       P.t = tPick + 14;
@@ -435,6 +452,10 @@ function s2_7() {
       const P = cat.perf;
       P.t = 2;
       locomote(P, { gait: 'walk', dist: 22, accel: 6 });
+      A.look(P, 90, 12, { yaw: 0.6, pitch: 0.45, lookY: 0.5 });
+      P.key(104, { sad: 0.45, eyeWide: 0.15 }, 'inout');
+      A.look(P, 140, 12, { yaw: 0.35, pitch: 0, lookY: 0 });
+      P.key(152, { sad: 0.15, lid: 0.1, lidTilt: 0.4 }, 'inout');
       // big leaves sweep past close to the lens
       S.layers.push(at(-30, 3, (ctx, t) => {
         for (let i = 0; i < 4; i++) {

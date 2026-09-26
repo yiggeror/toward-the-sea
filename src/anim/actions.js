@@ -25,8 +25,10 @@ export const STAND = {
   fnC: 0, ffC: 0, hnC: 0, hfC: 0, hnM: 0, hfM: 0, fnF: 0, ffF: 0,
   tailA: 0.5, tailC: 0.9, tailK: 0.9, tailTone: 1, tailWave: 0, tailWorld: 0, tailFront: 0,
   earRot: 0.1, earFlat: 0, earLR: 0, earRR: 0,
-  eye: 1, eyeWide: 0, pupil: 0.45, lookX: 0.1, lookY: 0, lid: 0, happy: 0,
-  mouth: 0, mouthW: 0, smile: 0, tongue: 0, whisk: 0, fluff: 0, fnTop: 0, smear: 0,
+  eye: 1, eyeWide: 0, pupil: 0.45, lookX: 0.1, lookY: 0, lid: 0, lidTilt: 0, happy: 0,
+  wink: 0, sparkle: 0, tear: 0, squeeze: 0, sad: 0,
+  mouth: 0, mouthW: 0, smile: 0, tongue: 0, whisk: 0, wobble: 0, blush: 0, puff: 0, whiskDroop: 0,
+  fluff: 0, fnTop: 0, smear: 0,
 };
 export function standPose(F, dx = 0) {
   return Object.assign({}, STAND, {
@@ -374,7 +376,7 @@ export function shake(perf, o = {}) {
   // head whip (fast, on ones), wave travels to body then tail
   const yaws = [1.25, -0.55, 1.35, -0.6, 1.2, -0.4, 0.9];
   yaws.forEach((y, i) => {
-    perf.key(tc + i * 2, { hYaw: y, hRoll: i % 2 ? -0.25 : 0.25, earRot: i % 2 ? 0.9 : 0.3, earFlat: i % 2 ? 0.5 : 0.1, eye: 0 }, 'inout');
+    perf.key(tc + i * 2, { hYaw: y, hRoll: i % 2 ? -0.25 : 0.25, earRot: i % 2 ? 0.9 : 0.3, earFlat: i % 2 ? 0.5 : 0.1, squeeze: 1 }, 'inout');
   });
   perf.event(tc, 'shake', { x: F.x0, y: F.gy, dur: 22 });
   // body shiver: chest twist + fluff pulses + hip jitter
@@ -387,7 +389,7 @@ export function shake(perf, o = {}) {
     perf.key(tc + 8 + i * 2, { tailWave: 0.9, tailWaveP: i * 3.1, tailA: 0.3 + 0.2 * s }, 'inout');
   }
   const e = tc + 22;
-  perf.key(e, { hYaw: 0.35, hRoll: 0, chest: 0, fluff: 0.15, hip: F.P(0, -1.0), archB: 0.08, tailWave: 0, tailA: 0.5, eye: 1, earRot: 0.2, earFlat: 0 }, 'out');
+  perf.key(e, { hYaw: 0.35, hRoll: 0, chest: 0, fluff: 0.15, hip: F.P(0, -1.0), archB: 0.08, tailWave: 0, tailA: 0.5, eye: 1, squeeze: 0, earRot: 0.2, earFlat: 0 }, 'out');
   perf.setTiming(e, 2);
   perf.key(e + 6, { fluff: 0.05 }, 'inout');
   perf.t = e + 8;
@@ -424,6 +426,8 @@ export function startle(perf, o = {}) {
   perf.setTiming(t, 1);
   // instant: eyes wide, ears flat — then straight-up leap with arched back
   perf.key(t + 1, { eyeWide: 1, pupil: 0.95, earFlat: 0.8, earRot: 0.9, hip: P(0, -0.9), archB: 0.2 }, 'linear');
+  perf.emote(t + 1, 'exclaim', { dur: 22, size: 1.2 });
+  perf.emote(t + 1, 'surprise', { dur: 12 });
   perf.key(t + 3, {
     hip: P(-0.05, -1.95), pitch: 0.05, len: 0.92, archB: 0.62, archF: 0.55, neck: 0.3, hPitch: -0.05, hYaw: 0.6,
     fn: Pg(1.05, -0.55), ff: Pg(0.98, -0.6), hn: Pg(0.0, -0.55), hf: Pg(-0.08, -0.6), fnC: 0.1, ffC: 0.1, hnC: 0.1, hfC: 0.1,
@@ -453,12 +457,14 @@ export function snowFirstStep(perf, o = {}) {
   perf.key(t + 16, { fn: Pg(1.5, depth), fnC: 0, hip: P(0.1, -0.96), pitch: -0.02 }, 'in');
   perf.event(t + 16, 'step', { leg: 'fn', x: F.x0 + F.f * 1.5, y: F.gy, surface: 'snow', strength: 0.7, sink: depth });
   // freeze: ears up, eyes wide — hold
-  perf.key(t + 18, { eyeWide: 0.8, pupil: 0.75, earRot: -0.2, hPitch: -0.45, lookY: -0.8, fluff: 0.2 }, 'out');
+  perf.key(t + 18, { eyeWide: 0.8, pupil: 0.75, earRot: -0.2, hPitch: -0.45, lookY: -0.8, fluff: 0.2, mouth: 0.2 }, 'out');
+  perf.emote(t + 17, 'exclaim', { dur: 18 });
   perf.key(t + 30, {}, 'hold');
   // pull it out high, look at the paw, shake it
   perf.key(t + 33, { fn: Pg(1.35, -0.42), fnC: 0.9, hip: P(0.0, -1.02), pitch: 0.08, hPitch: -0.2, lookY: -0.3 }, 'out');
   perf.event(t + 32, 'snowpull', { x: F.x0 + F.f * 1.5, y: F.gy });
-  perf.key(t + 38, { fn: Pg(1.3, -0.5), hYaw: 0.75, hPitch: -0.35, hRoll: 0.2, eyeWide: 0.3 }, 'inout');
+  perf.key(t + 38, { fn: Pg(1.3, -0.5), hYaw: 0.75, hPitch: -0.35, hRoll: 0.2, eyeWide: 0.3, mouth: 0 }, 'inout');
+  perf.emote(t + 36, 'question', { dur: 26 });
   perf.key(t + 46, {}, 'hold');
   perf.setTiming(t + 46, 1);
   for (let i = 0; i < 3; i++) {
@@ -468,7 +474,7 @@ export function snowFirstStep(perf, o = {}) {
   }
   perf.setTiming(t + 54, 2);
   // careful second attempt: place gently
-  perf.key(t + 62, { fn: Pg(1.42, -0.1), fnC: 0.5, hYaw: 0.35, hRoll: 0, hPitch: -0.35, lookY: -0.6, eyeWide: 0, fluff: 0.1 }, 'inout');
+  perf.key(t + 62, { fn: Pg(1.42, -0.1), fnC: 0.5, hYaw: 0.35, hRoll: 0, hPitch: -0.35, lookY: -0.6, eyeWide: 0, fluff: 0.1, lid: 0.15, lidTilt: 0.4 }, 'inout');
   perf.key(t + 70, { fn: Pg(1.45, depth * 0.8), fnC: 0, hip: P(0.08, -0.98) }, 'inout');
   perf.event(t + 70, 'step', { leg: 'fn', x: F.x0 + F.f * 1.45, y: F.gy, surface: 'snow', strength: 0.4, sink: depth * 0.8 });
   perf.t = t + 76;
@@ -604,12 +610,13 @@ export function splashRecoil(perf, o = {}) {
   const F = frameOf(perf);
   const { P, Pg } = F;
   perf.holdAll(t);
-  perf.key(t + 2, { smear: 0, eye: 0, earFlat: 0.9, earRot: 0.9, hip: P(-0.55, -0.95), pitch: 0.3, neck: 0.75, hPitch: 0.35, hYaw: 0.9,
+  perf.key(t + 2, { smear: 0, squeeze: 1, earFlat: 0.9, earRot: 0.9, whisk: -0.8, hip: P(-0.55, -0.95), pitch: 0.3, neck: 0.75, hPitch: 0.35, hYaw: 0.9,
     fn: [F.x0 + F.f * 0.9, F.gy - 0.8], fnC: 1, fnF: 0, archB: 0.4, fluff: 0.6, tailA: 0.9, tailC: 0.2, mouth: 0.3 }, 'out');
   perf.key(t + 6, { hip: P(-0.65, -0.9) }, 'inout');
   perf.setTiming(t + 6, 2);
   // blink-squint, shake the paw
-  perf.key(t + 12, { fn: Pg(0.6), fnC: 0, hip: P(-0.6, -0.95), pitch: 0.12, mouth: 0, fluff: 0.3, hYaw: 0.6 }, 'inout');
+  perf.key(t + 12, { fn: Pg(0.6), fnC: 0, hip: P(-0.6, -0.95), pitch: 0.12, mouth: 0, fluff: 0.3, hYaw: 0.6, squeeze: 0.3, whisk: 0 }, 'inout');
+  perf.key(t + 16, { squeeze: 0, eye: 1 }, 'inout');
   perf.t = t + 14;
   return perf.t;
 }
@@ -619,13 +626,14 @@ export function splashRecoil(perf, o = {}) {
 export function pant(perf, n = 48, o = {}) {
   const t = perf.t;
   perf.holdAll(t);
-  perf.key(t + 4, { mouth: 0.45, mouthW: 0.3, tongue: 0.6, eye: 0.6, earRot: 0.35, neck: (o.neck ?? 0.35), hPitch: -0.1 }, 'inout');
+  perf.key(t + 4, { mouth: 0.45, mouthW: 0.3, tongue: 0.6, lid: 0.45, sad: 0.3, whiskDroop: 0.5, earRot: 0.35, neck: (o.neck ?? 0.35), hPitch: -0.1 }, 'inout');
+  perf.emote(t + 6, 'sweat', { dur: Math.min(40, n) });
   const period = o.period ?? 10;
   for (let k = t + 4; k < t + n; k += period) {
     perf.key(k + period * 0.5, { mouth: 0.3, breath: 1 }, 'inout');
     perf.key(k + period, { mouth: 0.45, breath: 0 }, 'inout');
   }
-  perf.key(t + n + 6, { mouth: 0, mouthW: 0, tongue: 0, eye: 0.8, breath: 0 }, 'inout');
+  perf.key(t + n + 6, { mouth: 0, mouthW: 0, tongue: 0, lid: 0.2, sad: 0.15, whiskDroop: 0.2, breath: 0 }, 'inout');
   perf.event(t, 'pant', { dur: n });
   perf.t = t + n + 6;
   return perf.t;

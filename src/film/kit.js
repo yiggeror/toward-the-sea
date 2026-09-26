@@ -6,6 +6,9 @@ import { STAND } from '../anim/actions.js';
 import { actorLayer } from './shot.js';
 import { drawEventFX, drawGroundMarks } from '../fx/events.js';
 import { lerp, clamp } from '../core/math.js';
+import { idleLife } from '../anim/idle.js';
+
+let catSeed = 1;
 
 // Standing pose at hip x (stage), facing f, on ground g.
 export function standingPose(x, f = 1, ground = () => 0, over = {}) {
@@ -43,6 +46,8 @@ export function makeCat(S, o = {}) {
   const pose = o.pose0 || standingPose(o.x ?? 0, o.facing ?? 1, ground, o.pose || {});
   const perf = new Perf(pose, { twos: o.twos ?? 2, ground, name: o.name || 'cat' });
   perf.t = 0;
+  // blinks, ear flicks, breathing, tail tip: never a dead frame
+  if (o.idle !== false) perf.overlays.push(idleLife(o.seed ?? catSeed++, o.idle || {}));
   const actor = new CatActor(perf, {
     env: { wind: o.wind },
     carry: o.carry,

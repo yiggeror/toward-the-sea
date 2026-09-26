@@ -162,6 +162,7 @@ export function drawCatFront(ctx, p, opts) {
   const g = headFrame([0, -SIT_H - 0.42 - (p.breath || 0) * 0.01], Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p));
   drawHead(ctx, buildHead(g), st, { under: bp });
   ctx.restore();
+  return viewAnchor(g, opts);
 }
 
 /** Back sitting view: grey back with soft darker cloud bands, tail curling on the ground. */
@@ -190,13 +191,15 @@ export function drawCatBack(ctx, p, opts) {
   const g = headFrame([0, -SIT_H - 0.42], -Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p));
   drawHead(ctx, buildHead(g), st, { under: bp });
   ctx.restore();
+  return viewAnchor(g, opts);
 }
 
 // fill defaults for face fields
 export function fullFace(p) {
   return Object.assign({
-    eye: 1, eyeWide: 0, pupil: 0.45, lookX: 0, lookY: 0, lid: 0, happy: 0, mouth: 0, mouthW: 0, smile: 0, tongue: 0,
+    eye: 1, eyeWide: 0, pupil: 0.45, lookX: 0, lookY: 0, lid: 0, lidTilt: 0, happy: 0, mouth: 0, mouthW: 0, smile: 0, tongue: 0,
     whisk: 0, fluff: 0, earRot: 0.1, earFlat: 0, earLR: 0, earRR: 0,
+    wink: 0, sparkle: 0, tear: 0, squeeze: 0, sad: 0, blush: 0, wobble: 0, puff: 0, whiskDroop: 0,
   }, p);
 }
 
@@ -245,20 +248,38 @@ export function drawPortrait(ctx, p, opts) {
   const g = headFrame(hc, Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p));
   drawHead(ctx, buildHead(g), st, { under: bp });
   ctx.restore();
+  return viewAnchor(g, opts);
+}
+
+// screen anchor for emotion marks around a view's head (see fx/emote.js)
+export function viewAnchor(g, opts) {
+  const s = opts.scale;
+  const P = (hp) => {
+    const q = g.head.proj(hp);
+    return [opts.x + s * q[0], opts.y + s * q[1]];
+  };
+  const fx = g.head.vec([1, 0, 0])[0];
+  return { P, u: s * 0.36, facing: Math.abs(fx) < 0.15 ? 1 : Math.sign(fx) };
 }
 
 // Expression presets (simplified model sheet 表情参考 + film needs)
 export const EXPRESSIONS = [
   { id: 'normal', zh: '普通', p: { hYaw: -0.1 } },
-  { id: 'happy', zh: '开心', p: { hYaw: -0.15, happy: 1, eye: 0, smile: 0.9, mouth: 0.12, mouthW: 0.8 } },
-  { id: 'joy', zh: '惊喜', p: { hYaw: -0.25, hPitch: 0.12, eyeWide: 0.45, mouth: 0.75, mouthW: 0.55, tongue: 1, earRot: -0.1 } },
-  { id: 'curious', zh: '好奇', p: { hYaw: 0.2, hRoll: -0.42, eyeWide: 0.15, earLR: 0.25, lookX: 0.3, lookY: 0.2 } },
-  { id: 'blink', zh: '眨眼', p: { hYaw: -0.05, lid: 1, lidTilt: 0.2 } },
-  { id: 'content', zh: '满足', p: { hYaw: 0.05, happy: 1, eye: 0, smile: 0.35 } },
-  { id: 'sulky', zh: '委屈', p: { hYaw: 0, lid: 1, lidTilt: -0.8, smile: -0.5, earRot: 0.45, earFlat: 0.25 } },
-  { id: 'smile', zh: '治愈的微笑', p: { hYaw: -0.2, hRoll: 0.14, happy: 1, eye: 0, smile: 1, mouth: 0.08, mouthW: 0.8 } },
+  { id: 'happy', zh: '开心', p: { hYaw: -0.15, happy: 1, eye: 0, smile: 0.9, mouth: 0.3, mouthW: 0.6, blush: 0.45 } },
+  { id: 'joy', zh: '惊喜', p: { hYaw: -0.25, hPitch: 0.12, eyeWide: 0.35, sparkle: 1, mouth: 0.75, mouthW: 0.55, smile: 0.7, tongue: 1, earRot: -0.1, blush: 0.4 } },
+  { id: 'curious', zh: '好奇', p: { hYaw: 0.2, hRoll: -0.36, eyeWide: 0.2, earLR: 0.25, lookX: 0.3, lookY: 0.2 } },
+  { id: 'blink', zh: '眨眼', p: { hYaw: -0.05, wink: 1, smile: 0.6, hRoll: 0.1 } },
+  { id: 'content', zh: '满足', p: { hYaw: 0.05, happy: 1, eye: 0, smile: 0.4, blush: 0.35 } },
+  { id: 'sulky', zh: '委屈', p: { hYaw: 0, hPitch: -0.12, sad: 1, tear: 0.55, smile: -0.7, wobble: 0.5, earRot: 0.5, earFlat: 0.35, whiskDroop: 0.6, lookY: -0.2 } },
+  { id: 'smile', zh: '治愈的微笑', p: { hYaw: -0.2, hRoll: 0.14, happy: 1, eye: 0, smile: 1, mouth: 0.14, mouthW: 0.7, blush: 0.7 } },
   { id: 'surprised', zh: '惊讶', p: { hYaw: 0, eyeWide: 1, pupil: 0.9, mouth: 0.5, mouthW: 0, earRot: -0.2 } },
-  { id: 'angry', zh: '生气', p: { hYaw: 0, hPitch: -0.1, lid: 1, lidTilt: 1, earRot: 0.8, earFlat: 0.55, smile: -0.4 } },
-  { id: 'timid', zh: '胆小', p: { hYaw: 0, hPitch: -0.22, pupil: 1, eyeWide: 0.35, earRot: 0.9, earFlat: 0.95, lookY: 0.55, low: 0.2 } },
+  { id: 'squeeze', zh: '眯眼', p: { hYaw: 0.1, squeeze: 1, earRot: 0.6, earFlat: 0.45, mouth: 0.25, mouthW: 0.35, whisk: -0.6 } },
+  { id: 'moved', zh: '感动', p: { hYaw: -0.15, hPitch: 0.1, tear: 1, sparkle: 0.7, smile: 0.5, blush: 0.6, earRot: 0.2 } },
+  { id: 'angry', zh: '生气', p: { hYaw: 0, hPitch: -0.1, lid: 0.45, lidTilt: 1, earRot: 0.8, earFlat: 0.55, smile: -0.4 } },
+  { id: 'timid', zh: '胆小', p: { hYaw: 0, hPitch: -0.22, pupil: 1, eyeWide: 0.35, sad: 0.6, earRot: 0.9, earFlat: 0.95, lookY: 0.55, low: 0.2, wobble: 0.8 } },
+  { id: 'cold', zh: '好冷', p: { hYaw: -0.1, hPitch: -0.12, lid: 0.35, sad: 0.3, wobble: 1, blush: 0.65, earRot: 0.55, earFlat: 0.4, fluff: 1, whiskDroop: 0.3 } },
+  { id: 'tired', zh: '累了', p: { hYaw: -0.2, hPitch: -0.15, lid: 0.55, sad: 0.35, mouth: 0.35, mouthW: 0.3, tongue: 1, whiskDroop: 0.7, earRot: 0.55, earFlat: 0.25 } },
   { id: 'sleepy', zh: '困倦', p: { hYaw: -0.15, hPitch: -0.2, hRoll: 0.18, eye: 0, earRot: 0.45, earFlat: 0.15, low: 0.12 } },
+  { id: 'determined', zh: '坚定', p: { hYaw: -0.3, hPitch: 0.05, lid: 0.22, lidTilt: 0.6, eyeWide: 0.1, earRot: -0.1, smile: -0.1 } },
+  { id: 'wonder', zh: '憧憬', p: { hYaw: -0.2, hPitch: 0.2, sparkle: 1, eyeWide: 0.3, mouth: 0.12, mouthW: 0, blush: 0.35, earRot: -0.12, lookY: 0.4 } },
 ];

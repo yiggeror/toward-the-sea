@@ -15,6 +15,8 @@ import { windStreaks, motes } from '../env/weather.js';
 import { gull, gullFar } from '../env/creatures.js';
 import { drawCatBack, drawPortrait } from '../cat/views.js';
 import { Track } from '../core/tracks.js';
+import { drawEmotes } from '../fx/emote.js';
+import { idleFace } from '../anim/idle.js';
 import { css, mix } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
@@ -115,10 +117,12 @@ function s7_3() {
       const cat = makeCat(S, { x: 0, facing: 1, ground: slope, carry: { wear: 0.9, on: (t) => t < tSnatch }, wind: (t) => [t > 22 && t < 50 ? 2.4 : 0.9, -0.1], ...catDawn });
       const P = cat.perf;
       P.key(0, { mouth: 0 });
-      P.key(20, { mouth: 0.35, mouthW: 0.3, eye: 0.6 }, 'inout'); // opens the mouth to pant...
+      P.key(20, { mouth: 0.35, mouthW: 0.3, lid: 0.4, sad: 0.2 }, 'inout'); // opens the mouth to pant...
       P.key(tSnatch, { mouth: 0.5 }, 'out');
       P.setTiming(tSnatch, 1);
-      P.key(tSnatch + 2, { eyeWide: 1, eye: 1, earRot: -0.3, earFlat: 0, hPitch: 0.3, neck: 0.8, fluff: 0.4, mouth: 0.25 }, 'out');
+      P.key(tSnatch + 2, { eyeWide: 1, eye: 1, lid: 0, sad: 0, pupil: 0.95, earRot: -0.3, earFlat: 0, hPitch: 0.3, neck: 0.8, fluff: 0.4, mouth: 0.45, mouthW: 0 }, 'out');
+      P.emote(tSnatch + 1, 'exclaim', { dur: 26, size: 1.3 });
+      P.emote(tSnatch + 1, 'surprise', { dur: 14 });
       P.key(tSnatch + 8, { hPitch: 0.6, hYaw: 0.2, lookY: 0.8 }, 'out');
       P.setTiming(tSnatch + 10, 2);
       // the card rips out of the mouth, flips over the head and away (+x, up)
@@ -195,18 +199,19 @@ function s7_4() {
       P.setTiming(0, 1);
       P.t = 0;
       // bolt after the card
-      locomote(P, { gait: 'run', to: 14.6, accel: 8, decel: 3, speed: 0.9, pose: { earRot: -0.2, earFlat: 0, eyeWide: 0.6 } });
+      locomote(P, { gait: 'run', to: 14.6, accel: 8, decel: 3, speed: 0.9, pose: { earRot: -0.2, earFlat: 0, eyeWide: 0.6, lid: 0.15, lidTilt: 0.7, mouth: 0.2 } });
       // skid at the bank edge: front legs braced forward, body leaning back
       let t = P.t;
       const hx = P.curPose().hip[0];
       const g = chaseGround;
-      P.key(t + 3, { hip: [hx + 0.6, g(hx + 0.6) - 0.8], pitch: 0.25, len: 0.95, archB: 0.4, fn: [hx + 2.1, g(hx + 2.1)], ff: [hx + 2.0, g(hx + 2.0)], fnC: 0, ffC: 0, fnF: 0.8, ffF: 0.8, hn: [hx + 0.2, g(hx + 0.2)], hf: [hx + 0.1, g(hx + 0.1)], neck: 0.9, hPitch: 0.2, earFlat: 0.4 }, 'out');
+      P.key(t + 3, { hip: [hx + 0.6, g(hx + 0.6) - 0.8], pitch: 0.25, len: 0.95, archB: 0.4, fn: [hx + 2.1, g(hx + 2.1)], ff: [hx + 2.0, g(hx + 2.0)], fnC: 0, ffC: 0, fnF: 0.8, ffF: 0.8, hn: [hx + 0.2, g(hx + 0.2)], hf: [hx + 0.1, g(hx + 0.1)], neck: 0.9, hPitch: 0.2, earFlat: 0.4, squeeze: 1, lid: 0 }, 'out');
+      P.emote(t + 4, 'sweat', { dur: 22 });
       P.event(t + 3, 'skid', { x: hx + 1.5, y: g(hx + 1.5), dur: 12 });
       // loses the footing and slides down the bank on the haunches
       P.key(t + 10, { hip: [hx + 1.6, g(hx + 1.6) - 0.6], pitch: 0.45, fn: [hx + 3.1, g(hx + 3.1)], ff: [hx + 3.0, g(hx + 3.0)], hn: [hx + 1.4, g(hx + 1.4)], hf: [hx + 1.3, g(hx + 1.3)], hnM: 0.8, hfM: 0.8, tailA: 1.2 }, 'in');
       P.key(t + 20, { hip: [hx + 4.6, g(hx + 4.6) - 0.6], pitch: 0.55, fn: [hx + 6.1, g(hx + 6.1)], ff: [hx + 5.9, g(hx + 5.9)], hn: [hx + 4.4, g(hx + 4.4)], hf: [hx + 4.2, g(hx + 4.2)], fluff: 0.6 }, 'linear');
       P.event(t + 10, 'slide', { dur: 12 });
-      P.key(t + 24, { hip: [hx + 5.6, g(hx + 5.6) - 0.85], pitch: 0.05, hnM: 0, hfM: 0, archB: 0.35, tailA: 0.5, fnF: 0, ffF: 0 }, 'out');
+      P.key(t + 24, { hip: [hx + 5.6, g(hx + 5.6) - 0.85], pitch: 0.05, hnM: 0, hfM: 0, archB: 0.35, tailA: 0.5, fnF: 0, ffF: 0, squeeze: 0, lid: 0.2, lidTilt: 0.8 }, 'out');
       P.event(t + 24, 'land', { x: hx + 5.6, y: g(hx + 5.6), strength: 0.6 });
       P.t = t + 26;
       // push off again
@@ -227,11 +232,11 @@ function s7_4() {
       P.key(t + 18, { hip: [x0 + 5.0, gy - 1.1], pitch: -0.3, len: 1.05, archB: 0.05, fn: [x0 + 6.4, gy], ff: [x0 + 6.3, gy], fnC: 0, ffC: 0, fnF: 0.2, ffF: 0.2, hn: [x0 + 4.2, gy - 0.6], hf: [x0 + 4.0, gy - 0.5], mouth: 0 }, 'in');
       P.event(t + 18, 'land', { x: x0 + 6.4, y: gy, part: 'fore', strength: 1 });
       P.key(t + 22, { hip: [x0 + 5.5, gy - 0.72], pitch: -0.05, len: 0.92, archB: 0.35, hn: [x0 + 5.6, gy], hf: [x0 + 5.5, gy], hnC: 0, hfC: 0, fnF: 0 }, 'out');
-      P.key(t + 30, { hip: [x0 + 5.6, gy - 1.02], pitch: 0.12, len: 1, archB: 0.05, neck: 0.95, hPitch: 0.8, lookY: 0.9, eyeWide: 0.6 }, 'out');
+      P.key(t + 30, { hip: [x0 + 5.6, gy - 1.02], pitch: 0.12, len: 1, archB: 0.05, neck: 0.95, hPitch: 0.8, lookY: 0.9, eyeWide: 0.6, lid: 0, lidTilt: 0, mouth: 0.15 }, 'out');
       P.setTiming(t + 30, 2);
       const tLand = t + 30;
       // watches the card rise away
-      P.key(tLand + 40, { hPitch: 1.0, neck: 1.05 }, 'inout');
+      P.key(tLand + 40, { hPitch: 1.0, neck: 1.05, sad: 0.6, eyeWide: 0.3, mouth: 0 }, 'inout');
       // the card: tumbling ahead, just out of reach at the leap, then lifted away
       const card = new CardProp({ x: 6, y: -1, twos: 1 });
       const cardPath = [
@@ -326,9 +331,10 @@ function s7_6() {
       const P = cat.perf;
       // stands still, looking where the card went; slowly the head, ears and tail sink
       P.key(40, {}, 'hold');
-      P.key(110, { hPitch: -0.1, neck: 0.45, lookY: -0.2, earRot: 0.55, earFlat: 0.35, tailTone: 0.35, tailA: -0.4, tailC: 0.2, eye: 0.8 }, 'inout');
+      P.key(110, { hPitch: -0.1, neck: 0.45, lookY: -0.2, earRot: 0.55, earFlat: 0.35, tailTone: 0.35, tailA: -0.4, tailC: 0.2, sad: 0.9, tear: 0.6, whiskDroop: 0.7 }, 'inout');
       A.blink(P, 150, 10);
-      P.key(200, { hPitch: -0.2, eye: 0.7 }, 'inout');
+      P.key(200, { hPitch: -0.2, tear: 0.8 }, 'inout');
+      P.emote(120, 'gloom', { dur: 110 });
       S.layers.push(screenLayer(2.4, (ctx, t, W, H) => windStreaks(ctx, W, H, t, { n: 6, seed: 19, alpha: 0.2, dir: 1, color: '#fff2e6' })));
     },
   });
@@ -342,13 +348,14 @@ function s8_1() {
     setup(S) {
       ridgeScene(S, { dawn: 0.5 });
       const cat = makeCat(S, { x: 16, facing: 1, ground: RIDGE, wind: tailwind(0.6), ...catDawn,
-        pose: { hPitch: -0.2, neck: 0.45, earRot: 0.55, earFlat: 0.35, tailTone: 0.35, tailA: -0.4, tailC: 0.2, eye: 0.7 } });
+        pose: { hPitch: -0.2, neck: 0.45, earRot: 0.55, earFlat: 0.35, tailTone: 0.35, tailA: -0.4, tailC: 0.2, sad: 0.8, tear: 0.5, whiskDroop: 0.6 } });
       const P = cat.perf;
       // the first sound of waves: one ear turns, then the other; the eyes open
       P.key(40, { earLR: -0.55, earFlat: 0.15 }, 'out');
       P.key(50, { earLR: -0.4 }, 'inout');
-      P.key(64, { earRR: -0.5, earRot: 0.2, earFlat: 0, eye: 1 }, 'out');
-      P.key(80, { hPitch: 0.05, neck: 0.6 }, 'inout');
+      P.key(64, { earRR: -0.5, earRot: 0.2, earFlat: 0, eye: 1, sad: 0.2, eyeWide: 0.35, whiskDroop: 0 }, 'out');
+      P.emote(62, 'question', { dur: 40 });
+      P.key(80, { hPitch: 0.05, neck: 0.6, tear: 0.3 }, 'inout');
       S.extraEvents = [{ t: 36, type: 'waves_first' }];
     },
   });
@@ -367,7 +374,8 @@ function s8_2() {
       // turns the head toward the sea (away from the camera)
       P.key(10, { hYaw: -0.8, hPitch: 0.1, earLR: 0, earRR: 0, earRot: -0.1 }, 'inout');
       P.key(30, { hYaw: -1.4, hPitch: 0.15, tailTone: 1, tailA: 0.3, tailC: 0.8 }, 'inout');
-      P.key(80, { eyeWide: 0.3 }, 'inout');
+      P.key(80, { eyeWide: 0.5, sparkle: 1, sad: 0, tear: 0.4 }, 'inout');
+      P.emote(84, 'sparkle', { dur: 48, n: 5 });
     },
   });
 }
@@ -433,20 +441,27 @@ function s8_4() {
         ctx.fillStyle = 'rgba(255,230,210,0.15)';
         ctx.fillRect(0, 0, W, H);
       }));
-      const tr = new Track({ hYaw: -0.55, hPitch: 0.1, hRoll: 0, eye: 1, eyeWide: 0, pupil: 0.5, lookX: 0.2, lookY: 0.1, happy: 0, smile: 0, earRot: 0.05, earLR: 0, earRR: 0, whisk: 0.2, mouth: 0 });
+      const tr = new Track({ hYaw: -0.55, hPitch: 0.1, hRoll: 0, eye: 1, eyeWide: 0.2, pupil: 0.5, lookX: 0.2, lookY: 0.1, happy: 0, smile: 0, earRot: 0.05, earLR: 0, earRR: 0, whisk: 0.2, mouth: 0.1, mouthW: 0,
+        sparkle: 0.9, tear: 0.3, blush: 0.2, sad: 0, lid: 0, lidTilt: 0, squeeze: 0, wobble: 0, tongue: 0 });
       tr.key(0, {}, 'linear');
-      tr.key(50, { eye: 1 }, 'hold');
-      tr.key(56, { eye: 0.55 }, 'inout'); // softening
-      tr.key(90, { eye: 0.5, smile: 0.4 }, 'inout');
-      tr.key(120, { happy: 0.6, eye: 0.2 }, 'inout');
-      tr.key(150, { happy: 0.8, smile: 0.6, hRoll: 0.08 }, 'inout');
-      tr.key(190, { happy: 0.8 }, 'inout');
+      tr.key(40, { tear: 0.85, sparkle: 1, mouth: 0 }, 'inout'); // eyes fill up
+      tr.key(70, { tear: 1, smile: 0.25, blush: 0.4 }, 'inout');
+      tr.key(96, { tear: 0.9 }, 'hold');
+      tr.key(104, { happy: 1, eye: 0, tear: 0.4, smile: 0.7, blush: 0.55, hRoll: 0.06 }, 'inout'); // a warm, closed-eye smile
+      tr.key(150, { smile: 0.85, hRoll: 0.1, hPitch: 0.14 }, 'inout');
+      tr.key(190, { smile: 0.85 }, 'inout');
+      const EV = [
+        { type: 'emote', kind: 'tear', t: 84, dur: 30, side: -1 },
+        { type: 'emote', kind: 'sparkle', t: 6, dur: 60, n: 4 },
+      ];
       S.layers.push(screenLayer(1, (ctx, t, W, H) => {
-        const p = tr.sample(Math.floor(t / 2) * 2);
+        const tt = Math.floor(t / 2) * 2;
+        const p = idleFace(Object.assign({}, tr.sample(tt)), tt, 84, { ears: true });
         p.breath = 0.5 + 0.5 * Math.sin(t * 0.08);
-        p.earLR = Math.sin(t * 0.05) * 0.08;
+        p.earLR = (p.earLR || 0) + Math.sin(t * 0.05) * 0.08;
         const s = W / 1920;
-        drawPortrait(ctx, p, { x: W * 0.62, y: H * 0.78, scale: 360 * s, light: { tint: '#e8d2cc', amt: 0.25, lift: '#20181c' } });
+        const an = drawPortrait(ctx, p, { x: W * 0.62, y: H * 0.78, scale: 360 * s, light: { tint: '#e8d2cc', amt: 0.25, lift: '#20181c' } });
+        drawEmotes(ctx, EV, tt, an);
         // warm rim from the sun on the left
         const g = ctx.createRadialGradient(W * 0.2, H * 0.55, 0, W * 0.2, H * 0.55, W * 0.7);
         g.addColorStop(0, 'rgba(255,214,170,0.22)');
@@ -664,8 +679,10 @@ function s9_2() {
       S.camera.follow = follow(P, { lag: 16, lead: 8, dx: 1.5, y: 0.7, dy: 0.2 });
       S.camera.key(0, { x: 0, y: -1.4 });
       P.t = 4;
+      P.key(4, { sparkle: 0.8, blush: 0.25, smile: 0.3 }, 'inout');
       locomote(P, { gait: 'walk', dist: 20, accel: 10, decel: 16, surfaceAt: () => 'sand' });
       A.look(P, P.t, 10, { yaw: 0.25, pitch: 0.2 });
+      P.emote(P.t + 4, 'notes', { dur: 40 });
     },
   });
 }
@@ -683,12 +700,14 @@ function s9_3() {
       P.key(tt, {}, 'hold');
       P.setTiming(tt, 1);
       const fn = P.curPose().fn;
-      P.key(tt + 3, { hip: [-1.3, -1.05], fn: [fn[0] - 0.6, -0.5], fnC: 1, ff: [fn[0] - 0.9, 0], eyeWide: 1, earRot: 0.5, earFlat: 0.2, fluff: 0.4, tailA: 1.0, tailC: 0.3, archB: 0.3 }, 'out');
+      P.key(tt + 3, { hip: [-1.3, -1.05], fn: [fn[0] - 0.6, -0.5], fnC: 1, ff: [fn[0] - 0.9, 0], eyeWide: 1, earRot: 0.5, earFlat: 0.2, fluff: 0.4, tailA: 1.0, tailC: 0.3, archB: 0.3, mouth: 0.35 }, 'out');
+      P.emote(tt + 2, 'exclaim', { dur: 20 });
       P.event(tt + 1, 'splash', { x: fn[0], y: 0.1, strength: 0.25 });
       P.key(tt + 8, { fn: [fn[0] - 0.75, 0], fnC: 0 }, 'inout');
       P.setTiming(tt + 8, 2);
       // stares at the water: head tilt, sniff
-      P.key(tt + 30, { hRoll: 0.35, hPitch: -0.4, lookY: -0.7, eyeWide: 0.4, earRot: -0.1, earFlat: 0, fluff: 0.1, tailA: 0.5, tailC: 0.8 }, 'inout');
+      P.key(tt + 30, { hRoll: 0.35, hPitch: -0.4, lookY: -0.7, eyeWide: 0.4, earRot: -0.1, earFlat: 0, fluff: 0.1, tailA: 0.5, tailC: 0.8, mouth: 0 }, 'inout');
+      P.emote(tt + 30, 'question', { dur: 40 });
       P.key(tt + 60, { hRoll: -0.1, neck: 0.3, neckLen: 1.2, hPitch: -0.55 }, 'inout');
       // then carefully reaches out a paw again as the second wave comes
       const t2 = 176;
@@ -696,7 +715,8 @@ function s9_3() {
       P.key(t2 + 16, { fn: [fn[0] + 0.3, -0.05], fnC: 0.2 }, 'inout');
       P.key(t2 + 26, { fn: [fn[0] + 0.35, 0.02], fnC: 0 }, 'in');
       P.event(t2 + 26, 'pat', { x: fn[0] + 0.35 });
-      P.key(t2 + 40, { hRoll: 0.2, eyeWide: 0.2, neckLen: 1 }, 'inout');
+      P.key(t2 + 40, { hRoll: 0.2, eyeWide: 0.2, neckLen: 1, sparkle: 0.9, blush: 0.35, smile: 0.4 }, 'inout');
+      P.emote(t2 + 44, 'sparkle', { dur: 40, n: 4 });
       S.extraEvents = waves.map((w) => ({ t: w.t, type: 'wave_wash', dur: w.dur }));
     },
   });
@@ -714,17 +734,22 @@ function s9_4() {
       S.camera.follow = follow(P, { lag: 14, lead: 8, dx: 0, y: 0 });
       S.camera.key(0, { x: 2 });
       // chase the retreating water
+      P.key(30, { sparkle: 0.6, smile: 0.6, mouth: 0.25, mouthW: 0.5, blush: 0.35 }, 'inout');
       P.t = 40;
       locomote(P, { gait: 'trot', to: 3, accel: 6, decel: 6, surfaceAt: () => 'sand' });
       // the next wave rushes in: turn and run (hop!)
       P.t = Math.max(P.t, 112);
       A.turnAround(P);
+      P.emote(P.t - 4, 'exclaim', { dur: 16 });
+      P.key(P.t, { eyeWide: 0.7, mouth: 0.45, mouthW: 0.3, smile: 0.4, sparkle: 0 }, 'out');
       P.setTiming(P.t, 1);
       locomote(P, { gait: 'run', to: -7, accel: 3, decel: 8 });
       P.setTiming(P.t, 2);
       A.jump(P, { dx: 2.2, dy: 0, h: 0.6, antic: 2, hold: 0, flight: 8 });
       // turn back and chase again, joyful
       P.t = Math.max(P.t, 200);
+      P.key(P.t - 10, { eyeWide: 0, happy: 1, smile: 1, mouth: 0.35, mouthW: 0.7, blush: 0.5 }, 'inout');
+      P.emote(P.t - 8, 'notes', { dur: 60 });
       A.turnAround(P);
       locomote(P, { gait: 'trot', to: 0, accel: 5, decel: 4 });
       A.pounce(P, { dx: 2.2, wiggle: 1 });
@@ -749,6 +774,8 @@ function s9_5() {
       beachWorld(S, { rest: 7, waves, slope: 0.3, capeX: 2400 });
       const cat = makeCat(S, { x: -2, facing: 1, ...catMorning });
       const P = cat.perf;
+      P.key(0, { happy: 0.6, smile: 0.9, mouth: 0.3, mouthW: 0.6, blush: 0.4 });
+      P.emote(10, 'notes', { dur: 100 });
       P.t = 6;
       for (let k = 0; k < 4; k++) {
         locomote(P, { gait: 'trot', dist: 5 + k, accel: 5, decel: 5, surfaceAt: () => 'sand' });

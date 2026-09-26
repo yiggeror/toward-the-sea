@@ -13,6 +13,8 @@ import { profile, fillBelow, haze, groundPlane, groundEllipse } from '../env/ter
 import { treeRow, tufts, grass, windField } from '../env/nature.js';
 import { Track } from '../core/tracks.js';
 import { drawPortrait, drawCatBack } from '../cat/views.js';
+import { drawEmotes } from '../fx/emote.js';
+import { idleFace } from '../anim/idle.js';
 import { css, mix } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
@@ -215,12 +217,16 @@ function s1_2() {
       P.key(t1 + 14, { hip: [hx + 0.18, -1.0], pitch: 0.05, len: 1, neck: 0.62, hPitch: 0 }, 'inout');
       // a drip from the gutter above hits the head
       const td = t1 + 28;
-      P.key(td, { earFlat: 0.7, earRot: 0.8, eye: 0, hPitch: -0.15, neck: 0.5 }, 'out');
+      P.key(td, { earFlat: 0.7, earRot: 0.8, squeeze: 1, hPitch: -0.15, neck: 0.5, whisk: -0.6 }, 'out');
+      P.emote(td, 'surprise', { dur: 16 });
       P.setTiming(td + 3, 1);
       const yaws = [0.9, -0.3, 1.0, -0.2, 0.8, 0.1, 0.5];
       yaws.forEach((y, i) => P.key(td + 4 + i * 2, { hYaw: y, hRoll: i % 2 ? -0.2 : 0.2, earRot: i % 2 ? 0.9 : 0.3 }, 'inout'));
       P.setTiming(td + 18, 2);
-      P.key(td + 20, { hYaw: 0.4, hRoll: 0, eye: 1, earFlat: 0, earRot: 0.1, neck: 0.62, hPitch: 0 }, 'out');
+      P.key(td + 20, { hYaw: 0.4, hRoll: 0, eye: 1, squeeze: 0, earFlat: 0, earRot: 0.1, neck: 0.62, hPitch: 0, whisk: 0 }, 'out');
+      P.key(td + 30, { lid: 0.25, smile: -0.3 }, 'inout'); // a little grumpy about it
+      P.key(td + 50, { lid: 0, smile: 0, eyeWide: 0.15 }, 'inout');
+      P.emote(td + 40, 'question', { dur: 34 });
       A.look(P, td + 34, 10, { yaw: 0.9, pitch: 0.45, lookY: 0.4 });
       A.earTwitch(P, td + 46, 'R', 0.5);
       A.look(P, td + 62, 12, { yaw: 1.35, pitch: 0.05, lookX: 0, lookY: 0 });
@@ -285,12 +291,14 @@ function s1_3() {
       A.blink(P, 8, 5);
       P.key(20, { earRot: 0.95, earLR: 0.2 }, 'out'); // ears swivel back toward the sound
       P.key(24, {}, 'hold');
-      P.key(30, { hYaw: 2.3, neck: 0.72, hPitch: 0.1, eyeWide: 0.3 }, 'out'); // looks back
+      P.key(30, { hYaw: 2.3, neck: 0.72, hPitch: 0.1, eyeWide: 0.6, pupil: 0.8 }, 'out'); // looks back
+      P.emote(29, 'exclaim', { dur: 22 });
       P.key(38, { hip: [-0.7, -0.84], archB: 0.28, len: 0.95, earFlat: 0.35, tailA: -0.2, tailC: 0.3, fluff: 0.3 }, 'out'); // ducks as it flies over
       P.key(44, { hYaw: 1.6, hPitch: 0.45, lookY: 0.4 }, 'inout');
       P.key(52, { hYaw: 0.9, hPitch: 0.3 }, 'inout');
       P.key(60, { hYaw: 0.45, hPitch: -0.15, lookY: -0.3 }, 'inout');
-      P.key(70, { hYaw: 0.4, hPitch: -0.3, lookY: -0.6, earFlat: 0.1, earRot: -0.2, earLR: 0, eyeWide: 0.4, pupil: 0.9 }, 'out');
+      P.key(70, { hYaw: 0.4, hPitch: -0.3, lookY: -0.6, earFlat: 0.1, earRot: -0.2, earLR: 0, eyeWide: 0.4, pupil: 0.9, sparkle: 0.35 }, 'out');
+      P.emote(78, 'question', { dur: 40 });
       P.key(84, { hip: [-0.7, -0.78], neck: 0.35, archB: 0.2, fluff: 0.1, tailA: -0.1, tailC: 0.4, tailWave: 0.25 }, 'inout');
       P.key(100, { tailWaveP: 6 }, 'linear');
       P.key(130, { tailWaveP: 14, earRot: -0.28 }, 'linear');
@@ -338,10 +346,12 @@ function s1_4() {
       P.event(tPat, 'pat', {});
       P.key(tPat + 3, { fn: [fn0[0] + 0.7, -0.3], fnC: 0.6 }, 'out');
       // the card flips: small startle hop back, ears back
-      P.key(tPat + 5, { hip: [P.curPose().hip[0] - 0.35, -0.9], fn: fn0, fnC: 0, eyeWide: 0.9, earRot: 0.7, earFlat: 0.35, fluff: 0.35, neck: 0.5, hPitch: -0.1 }, 'out');
-      P.key(tPat + 16, { hip: [P.curPose().hip[0] - 0.3, -0.84], earFlat: 0.1, earRot: 0.1, fluff: 0.1 }, 'inout');
+      P.key(tPat + 5, { hip: [P.curPose().hip[0] - 0.35, -0.9], fn: fn0, fnC: 0, eyeWide: 0.9, earRot: 0.7, earFlat: 0.35, fluff: 0.35, neck: 0.5, hPitch: -0.1, mouth: 0.25 }, 'out');
+      P.emote(tPat + 4, 'exclaim', { dur: 20 });
+      P.key(tPat + 16, { hip: [P.curPose().hip[0] - 0.3, -0.84], earFlat: 0.1, earRot: 0.1, fluff: 0.1, mouth: 0 }, 'inout');
       // then leans in slowly to look, head tilts
-      P.key(tPat + 40, { neck: 0.05, neckLen: 1.2, hPitch: -0.55, hRoll: 0.32, lookY: -0.8, eyeWide: 0.5, earRot: -0.2 }, 'inout');
+      P.key(tPat + 40, { neck: 0.05, neckLen: 1.2, hPitch: -0.55, hRoll: 0.32, lookY: -0.8, eyeWide: 0.5, earRot: -0.2, sparkle: 0.8, mouth: 0.1 }, 'inout');
+      P.emote(tPat + 46, 'sparkle', { dur: 60, n: 4 });
       A.blink(P, tPat + 58, 6);
       P.key(tPat + 80, { hRoll: 0.1 }, 'inout');
       const tf = tPat + 1;
@@ -431,7 +441,7 @@ function s1_5() {
 
 // ---- 1.6 close-up: curious face -------------------------------------------
 function portraitTrack(init) {
-  const tr = new Track(Object.assign({ hYaw: -0.15, hPitch: 0, hRoll: 0, eye: 1, eyeWide: 0, pupil: 0.5, lookX: 0, lookY: 0, lid: 0, happy: 0, mouth: 0, mouthW: 0, smile: 0, earRot: 0.1, earFlat: 0, earLR: 0, earRR: 0, whisk: 0, breath: 0, low: 0 }, init));
+  const tr = new Track(Object.assign({ hYaw: -0.15, hPitch: 0, hRoll: 0, eye: 1, eyeWide: 0, pupil: 0.5, lookX: 0, lookY: 0, lid: 0, lidTilt: 0, happy: 0, mouth: 0, mouthW: 0, smile: 0, earRot: 0.1, earFlat: 0, earLR: 0, earRR: 0, whisk: 0, breath: 0, low: 0, sparkle: 0, blush: 0, tear: 0, sad: 0, squeeze: 0, wobble: 0, tongue: 0 }, init));
   tr.key(0, {}, 'linear');
   return tr;
 }
@@ -461,17 +471,18 @@ function s1_6() {
       tr.key(84, { hRoll: -0.18 }, 'inout');
       tr.key(104, { earRR: 0.6 }, 'out');
       tr.key(110, { earRR: 0.1 }, 'inout');
-      tr.key(122, { hRoll: 0.05, hPitch: 0.05, lookY: -0.2, eyeWide: 0.6, pupil: 0.8 }, 'inout');
+      tr.key(122, { hRoll: 0.05, hPitch: 0.05, lookY: -0.2, eyeWide: 0.5, pupil: 0.8, sparkle: 1, blush: 0.4, mouth: 0.12 }, 'inout');
+      const EV = [{ type: 'emote', kind: 'question', t: 18, dur: 44 }, { type: 'emote', kind: 'sparkle', t: 114, dur: 36, n: 5 }];
       S.layers.push(layer(1, 1, (ctx, t) => {
         const tt = Math.floor(t / 2) * 2;
-        const p = tr.sample(tt);
+        const p = idleFace(Object.assign({}, tr.sample(tt)), tt, 16);
         p.breath = 0.5 + 0.5 * Math.sin(t * 0.09);
         ctx.save();
-        ctx.setTransform(ctx.getTransform());
         const m = ctx.getTransform();
         const s = m.a;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        drawPortrait(ctx, p, { x: m.e, y: m.f, scale: s, light: { tint: '#7c86b6', amt: 0.35, lift: '#1b1f30' } });
+        const an = drawPortrait(ctx, p, { x: m.e, y: m.f, scale: s, light: { tint: '#7c86b6', amt: 0.35, lift: '#1b1f30' } });
+        drawEmotes(ctx, EV, tt, an);
         ctx.restore();
       }));
       S.layers.push(screenLayer(2, (ctx, t, W, H) => {
@@ -601,7 +612,9 @@ function s1_8() {
       P.event(tPick, 'pickup', {});
       P.key(tPick + 12, { neck: 0.7, neckLen: 1.0, hPitch: 0.12, hip: [0.4, -1.02], pitch: 0.06, tailA: 0.7, tailC: 0.9, earRot: -0.1 }, 'out');
       P.key(tPick + 18, { neck: 0.6, hPitch: 0.0 }, 'inout');
-      P.key(tPick + 30, { hYaw: 0.25, eyeWide: 0.2 }, 'inout');
+      P.key(tPick + 22, { happy: 1, blush: 0.35 }, 'inout');
+      P.key(tPick + 30, { hYaw: 0.25, eyeWide: 0.2, happy: 1 }, 'inout');
+      P.key(tPick + 36, { happy: 0, blush: 0.15, lid: 0.12, lidTilt: 0.5 }, 'inout'); // determined
       P.t = tPick + 36;
       locomote(P, { gait: 'walk', dist: 4, accel: 12 });
       // the card lies on the ground until it is gripped; lift follows the mouth
@@ -669,7 +682,8 @@ function s1_9() {
       // freeze on the clatter: ears first, one paw raised
       const tHear = Math.max(tStop, tFall + 9);
       P.holdAll(tHear);
-      P.key(tHear + 2, { earRot: 0.95, earLR: 0.3, eyeWide: 0.5 }, 'out');
+      P.key(tHear + 2, { earRot: 0.95, earLR: 0.3, eyeWide: 0.8, pupil: 0.9 }, 'out');
+      P.emote(tHear + 1, 'exclaim', { dur: 20 });
       const fn = P.curPose().fn;
       P.key(tHear + 4, { fn: [fn[0] - 0.1, fn[1] - 0.35], fnC: 0.8, hYaw: 1.2, neck: 0.72, hip: [P.curPose().hip[0], -1.05] }, 'out');
       P.key(tHear + 14, {}, 'hold');
@@ -754,8 +768,11 @@ function s1_10() {
         rim: () => ({ color: '#ffe0b8', dir: [0.9, -0.4], alpha: 0.7, width: 0.06 }),
       });
       const P = cat.perf;
-      P.key(40, { hPitch: 0.15 }, 'inout');
+      P.key(24, { sparkle: 0.2 }, 'inout');
+      P.key(40, { hPitch: 0.15, sparkle: 0.9, eyeWide: 0.25, blush: 0.3 }, 'inout');
+      P.emote(38, 'sparkle', { dur: 36, n: 4 });
       A.earTwitch(P, 46, 'L', 0.4);
+      P.key(64, { sparkle: 0.3, eyeWide: 0, lid: 0.1, lidTilt: 0.4 }, 'inout');
       P.t = 70;
       A.standUp(P);
       A.wait(P, 6);

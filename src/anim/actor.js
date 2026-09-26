@@ -5,6 +5,7 @@ import { computeSkeleton } from '../cat/rig.js';
 import { torsoPoints } from '../cat/body.js';
 import { tailAngles, applyFaceDynamics, cardSwing } from './secondary.js';
 import { drawCard } from '../film/postcard.js';
+import { drawEmotes } from '../fx/emote.js';
 
 // raise the body if the torso would sink into the ground
 export function groundClamp(pose, ground, tol = 0.02) {
@@ -119,6 +120,16 @@ export class CatActor {
         ctx.drawImage(A, x0, y0);
         ctx.restore();
       }
+    }
+    if (!extra.noEmotes && this.perf.events.length) {
+      const hs = sk.sk, s = cam.s, m = ctx.getTransform();
+      const x0 = cam.cx - cam.x * s, y0 = cam.cy - cam.y * s, f = hs.facing;
+      const P = (hp) => {
+        const q = hs.head.proj(hp);
+        const x = x0 + s * f * q[0], y = y0 + s * q[1];
+        return [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f];
+      };
+      drawEmotes(ctx, this.perf.events, t0, { P, u: s * 0.36 * Math.hypot(m.a, m.b), facing: f * Math.sign(m.a || 1) * (Math.cos(hs.pose.hYaw || 0) >= -0.2 ? 1 : -1) });
     }
     return sk;
   }
