@@ -55,6 +55,7 @@ export class Perf {
   }
   // add keys at time t for the given fields (grouped)
   key(t, part, ease = 'inout') {
+    this._cache = null;
     const byGroup = {};
     for (const f in part) {
       const g = this.fieldGroup[f];
@@ -66,6 +67,7 @@ export class Perf {
   }
   // hold the affected groups until t0, then move to `part` arriving at t1
   move(t0, t1, part, ease = 'inout', arriveEase = 'inout') {
+    this._cache = null;
     const groups = new Set();
     for (const f in part) if (this.fieldGroup[f]) groups.add(this.fieldGroup[f]);
     for (const g of groups) {
@@ -78,6 +80,7 @@ export class Perf {
   }
   // hold all groups (or given) at time t with current values
   holdAll(t, groups = Object.keys(GROUPS)) {
+    this._cache = null;
     for (const g of groups) {
       const tr = this.tracks[g];
       if (tr.end < t - 1e-6) tr.key(t, {}, 'inout');
@@ -85,6 +88,7 @@ export class Perf {
     return this;
   }
   setTiming(t, n) {
+    this._cache = null;
     this.timing = this.timing.filter((s) => s.t < t);
     this.timing.push({ t, n });
     return this;
@@ -101,12 +105,28 @@ export class Perf {
     if (seg.n <= 1) return f;
     return seg.t + Math.floor((f - seg.t) / seg.n + 1e-9) * seg.n;
   }
+  // Poses are pure functions of time, so they are memoised (secondary motion
+  // re-samples the same frames many times). Callers get a shallow copy.
   poseAt(f, quantize = true) {
     const t = quantize ? this.drawTime(f) : f;
-    const p = {};
-    for (const g in this.tracks) Object.assign(p, this.tracks[g].sample(t));
-    for (const ov of this.overlays) ov(p, t, this);
-    return p;
+    const key = t;
+    if (this._cacheOv !== this.overlays.length) {
+      this._cache = null;
+      this._cacheOv = this.overlays.length;
+    }
+    let c = this._cache ? this._cache.get(key) : undefined;
+    if (!c) {
+      c = {};
+      for (const g in this.tracks) Object.assign(c, this.tracks[g].sample(t));
+      for (const ov of this.overlays) ov(c, t, this);
+      if (!this._cache) this._cache = new Map();
+      this._cache.set(key, c);
+      if (this._cache.size > 400) this._cache.delete(this._cache.keys().next().value);
+    }
+    return Object.assign({}, c);
+  }
+  invalidate() {
+    this._cache = null;
   }
   get end() {
     let e = 0;

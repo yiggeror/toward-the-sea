@@ -7,6 +7,8 @@ export class Timeline {
   constructor(shots, opts = {}) {
     this.fps = opts.fps || 24;
     this.shots = shots;
+    // build every shot up front so a shot may size itself from its performance
+    for (const s of shots) this.ensure(s);
     let f = 0;
     for (const s of shots) {
       s.start = f;

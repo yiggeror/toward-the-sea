@@ -72,20 +72,22 @@ export function clouds(ctx, view, p, t, spec) {
   }
 }
 export function cloudShape(ctx, x, y, w, h, seed, spec) {
-  const puffs = 5 + Math.floor(hash01(seed + 9) * 4);
+  const puffs = Math.max(6, Math.round((w / h) * 1.6)) + Math.floor(hash01(seed + 9) * 3);
   const a = spec.alpha ?? 1;
   const draw = (dy, k, col) => {
     ctx.fillStyle = typeof col === 'string' ? col : css(col, a);
     ctx.beginPath();
     for (let j = 0; j < puffs; j++) {
       const u = j / (puffs - 1);
-      const px = x + (u - 0.5) * w;
-      const r = h * k * (0.55 + 0.7 * Math.sin(u * Math.PI)) * (0.85 + 0.3 * hash01(seed + j * 3));
-      const py = y + dy - r * 0.35;
+      const px = x + (u - 0.5) * w * 0.86;
+      const r = h * k * (0.45 + 0.75 * Math.sin(u * Math.PI)) * (0.8 + 0.4 * hash01(seed + j * 3));
+      const py = y + dy - r * 0.3 + (hash01(seed + j * 5) - 0.5) * h * 0.2;
       ctx.moveTo(px + r, py);
       ctx.arc(px, py, r, 0, TAU);
     }
-    ctx.rect(x - w * 0.5, y + dy - h * 0.2, w, h * 0.4);
+    // flat base
+    ctx.moveTo(x - w * 0.43, y + dy);
+    ctx.ellipse(x, y + dy, w * 0.45, h * 0.32 * k, 0, 0, TAU);
     ctx.fill();
   };
   if (spec.shade) draw(h * 0.12, 1.0, spec.shade);

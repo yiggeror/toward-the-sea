@@ -45,6 +45,7 @@ function cardOutline(wear, seed = 7) {
 
 export function cardArt(wear = 0, px = 320, side = 'front') {
   const wq = Math.round(wear * 20) / 20;
+  px = px > 700 ? 1024 : px > 380 ? 512 : px > 190 ? 256 : 128;
   const key = `${side}:${wq}:${px}`;
   let c = cache.get(key);
   if (c) return c;

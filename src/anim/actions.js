@@ -613,3 +613,59 @@ export function splashRecoil(perf, o = {}) {
   perf.t = t + 14;
   return perf.t;
 }
+
+// ---------------------------------------------------------------- tired panting
+/** pant for n frames (mouth open/close fast, flanks heaving) */
+export function pant(perf, n = 48, o = {}) {
+  const t = perf.t;
+  perf.holdAll(t);
+  perf.key(t + 4, { mouth: 0.45, mouthW: 0.3, tongue: 0.6, eye: 0.6, earRot: 0.35, neck: (o.neck ?? 0.35), hPitch: -0.1 }, 'inout');
+  const period = o.period ?? 10;
+  for (let k = t + 4; k < t + n; k += period) {
+    perf.key(k + period * 0.5, { mouth: 0.3, breath: 1 }, 'inout');
+    perf.key(k + period, { mouth: 0.45, breath: 0 }, 'inout');
+  }
+  perf.key(t + n + 6, { mouth: 0, mouthW: 0, tongue: 0, eye: 0.8, breath: 0 }, 'inout');
+  perf.event(t, 'pant', { dur: n });
+  perf.t = t + n + 6;
+  return perf.t;
+}
+
+// ---------------------------------------------------------------- lick a forepaw (standing)
+export function lickPaw(perf, o = {}) {
+  const t = perf.t;
+  const F = frameOf(perf);
+  const fn = perf.curPose().fn;
+  perf.holdAll(t);
+  perf.key(t + 6, { fn: [F.x0 + F.f * 1.25, F.gy - 0.75], fnC: 1, fnTop: 1, neck: 0.1, hPitch: -0.55, hYaw: 0.6, eye: 0.3, hip: F.P(-0.08, -0.95) }, 'inout');
+  for (let i = 0; i < (o.licks ?? 2); i++) {
+    perf.key(t + 8 + i * 5, { mouth: 0.35, tongue: 1, hPitch: -0.65 }, 'out');
+    perf.key(t + 11 + i * 5, { mouth: 0.1, tongue: 0, hPitch: -0.5 }, 'inout');
+    perf.event(t + 8 + i * 5, 'lick', {});
+  }
+  const e = t + 12 + (o.licks ?? 2) * 5;
+  perf.key(e + 6, { fn, fnC: 0, fnTop: 0, neck: 0.5, hPitch: 0, hYaw: 0.35, eye: 1, mouth: 0, hip: F.P(0, -1.0) }, 'inout');
+  perf.t = e + 8;
+  return perf.t;
+}
+
+// ---------------------------------------------------------------- snap at a snowflake (hop)
+export function snapHop(perf, o = {}) {
+  const t = perf.t;
+  const F = frameOf(perf);
+  const { P, Pg } = F;
+  perf.holdAll(t);
+  perf.key(t + 5, { hip: P(-0.05, -0.8), archB: 0.25, neck: 0.8, hPitch: 0.7, lookY: 0.9, eyeWide: 0.3 }, 'inout');
+  const up = t + 9;
+  const hy = -1.0 - (o.h ?? 1.0);
+  perf.key(up, { hip: P(0.25, hy), pitch: 0.7, len: 1.12, archB: -0.15, neck: 0.95, hPitch: 0.9, mouth: 0.55, fn: [F.x0 + F.f * 1.1, F.gy - 1.6 - (o.h ?? 1.0) * 0.6], ff: [F.x0 + F.f * 1.0, F.gy - 1.5 - (o.h ?? 1.0) * 0.6], fnC: 0.8, ffC: 0.8, hn: Pg(0.1, -0.2), hf: Pg(0.0, -0.1), smear: 0.4 }, 'out');
+  perf.event(t + 7, 'jump', { x: F.x0, y: F.gy, strength: 0.5 });
+  perf.key(up + 3, { mouth: 0.05, smear: 0 }, 'out');
+  perf.event(up + 3, 'snap', {});
+  const land = up + 9;
+  perf.key(land, { hip: P(0.45, -0.75), pitch: -0.1, len: 1, archB: 0.3, neck: 0.4, hPitch: -0.2, mouth: 0, fn: Pg(1.6, 0.1), ff: Pg(1.5, 0.1), fnC: 0, ffC: 0, hn: Pg(0.5, 0.1), hf: Pg(0.4, 0.1) }, 'in');
+  perf.event(land, 'land', { x: F.x0 + F.f * 1.6, y: F.gy, part: 'all', strength: 0.8, surface: o.surface });
+  perf.key(land + 8, { hip: P(0.45, -0.95), pitch: 0.05, archB: 0.1, neck: 0.6, hPitch: 0.1, eyeWide: 0.2 }, 'out');
+  perf.t = land + 10;
+  return perf.t;
+}

@@ -269,7 +269,8 @@ export function locomote(perf, opts) {
     const kEnd = { [L.leg]: to, [cN]: 0 };
     if (rN) kEnd[rN] = 0;
     perf.key(t0 + tl + dur, kEnd, 'linear');
-    perf.event(t0 + tl + dur, 'step', { leg: L.leg, x: to[0], y: to[1], gait: opts.gait, surface: opts.surface, strength: L.fore ? 0.8 : 1 });
+    const surf = opts.surfaceAt ? opts.surfaceAt(to[0]) : opts.surface;
+    perf.event(t0 + tl + dur, 'step', { leg: L.leg, x: to[0], y: to[1], gait: opts.gait, surface: surf, strength: L.fore ? 0.8 : 1 });
   };
   const dt = 0.5;
   const settleEnd = T + swingDur * 5 + 20;

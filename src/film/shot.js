@@ -26,6 +26,7 @@ export function shot(def) {
     D: def.D || FOCAL / (def.unit || 110),
     build() {
       if (def.setup) def.setup(S);
+      S.dur = Math.round(S.dur);
       // default ordering: far to near
       const zOf = (L) => L.z ?? (L.depth !== undefined ? -L.depth * 1e-4 + 1 : L.p ?? 1);
       S.layers.sort((a, b) => zOf(a) - zOf(b));

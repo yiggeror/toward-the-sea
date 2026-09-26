@@ -1,0 +1,20 @@
+// Export shot boundaries and all animation events of the film to build/timeline.json
+import fs from 'node:fs';
+import path from 'node:path';
+import { chromium } from 'playwright';
+import { startServer, ROOT } from './server.mjs';
+const { srv, port } = await startServer(0);
+const browser = await chromium.launch({ args: ['--disable-gpu'] });
+const page = await browser.newPage();
+page.on('pageerror', (e) => console.error('[pageerror]', e.message));
+await page.goto(`http://127.0.0.1:${port}/web/render/index.html?timeline=film&w=320&h=180`);
+await page.waitForFunction(() => window.__ready === true || window.__error, null, { timeout: 300000 });
+const data = await page.evaluate(() => ({ fps: 24, length: window.__length, shots: window.__shots, events: window.__events }));
+fs.mkdirSync(path.join(ROOT, 'build'), { recursive: true });
+fs.writeFileSync(path.join(ROOT, 'build', 'timeline.json'), JSON.stringify(data));
+const counts = {};
+for (const e of data.events) counts[e.type] = (counts[e.type] || 0) + 1;
+console.log(`frames ${data.length} (${(data.length / 24).toFixed(1)} s), shots ${data.shots.length}, events ${data.events.length}`);
+console.log(Object.entries(counts).map(([k, v]) => `${k}:${v}`).join(' '));
+await browser.close();
+srv.close();

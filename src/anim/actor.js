@@ -19,6 +19,17 @@ export function groundClamp(pose, ground, tol = 0.02) {
   return pose;
 }
 
+// one shared pool of scratch canvases (rim light, smears): never per actor
+const POOL = [];
+function scratch(i, W, H) {
+  let c = POOL[i];
+  if (!c || c.width !== W || c.height !== H) {
+    c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
+    POOL[i] = c;
+  }
+  return c;
+}
+
 export class CatActor {
   constructor(perf, opts = {}) {
     this.perf = perf;
@@ -37,9 +48,7 @@ export class CatActor {
   // behind a fast drawing (drawn only where the pose keys ask for it).
   drawSmear(ctx, t, cam, amt) {
     const W = ctx.canvas.width, H = ctx.canvas.height;
-    if (!this._sm || this._sm.width !== W || this._sm.height !== H) {
-      this._sm = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
-    }
+    this._sm = scratch(2, W, H);
     const g = this._sm.getContext('2d');
     const m = ctx.getTransform();
     for (const [dt, a] of [[2.6, 0.16], [1.3, 0.3]]) {
@@ -65,13 +74,7 @@ export class CatActor {
     }
   }
   _off(i, W, H) {
-    this._offs ||= [];
-    let c = this._offs[i];
-    if (!c || c.width !== W || c.height !== H) {
-      c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
-      this._offs[i] = c;
-    }
-    return c;
+    return scratch(i, W, H);
   }
   // cam: { x, y, s } => screen = (stage - [x,y]) * s + [cx, cy]
   draw(ctx, f, cam, extra = {}) {
@@ -81,30 +84,41 @@ export class CatActor {
     const style = Object.assign({}, this.opts.style || {}, light ? { light } : {}, extra.style || {});
     const sk = this._draw(ctx, f, cam, Object.assign({}, extra, { style }));
     if (rim && rim.alpha > 0.01) {
-      const W = ctx.canvas.width, H = ctx.canvas.height;
-      const A = this._off(0, W, H), B = this._off(1, W, H);
-      const a = A.getContext('2d'), b = B.getContext('2d');
-      a.setTransform(1, 0, 0, 1, 0, 0);
-      a.clearRect(0, 0, W, H);
-      a.setTransform(ctx.getTransform());
-      this._draw(a, f, cam, Object.assign({}, extra, { noSmear: true, style: Object.assign({}, style, { flatColor: '#ffffff', light: null }) }));
-      const dx = rim.dir[0] * cam.s * (rim.width || 0.06), dy = rim.dir[1] * cam.s * (rim.width || 0.06);
-      b.setTransform(1, 0, 0, 1, 0, 0);
-      b.clearRect(0, 0, W, H);
-      b.drawImage(A, -dx, -dy);
-      a.setTransform(1, 0, 0, 1, 0, 0);
-      a.globalCompositeOperation = 'destination-out';
-      a.drawImage(B, 0, 0);
-      a.globalCompositeOperation = 'source-in';
-      a.fillStyle = rim.color;
-      a.fillRect(0, 0, W, H);
-      a.globalCompositeOperation = 'source-over';
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalCompositeOperation = rim.mode || 'screen';
-      ctx.globalAlpha = rim.alpha;
-      ctx.drawImage(A, 0, 0);
-      ctx.restore();
+      // work only inside the cat's screen bounding box
+      const pose = this.perf.poseAt(f);
+      const m = ctx.getTransform();
+      const sx = (x, y) => [m.a * (cam.cx + (x - cam.x) * cam.s) + m.c * (cam.cy + (y - cam.y) * cam.s) + m.e, m.b * (cam.cx + (x - cam.x) * cam.s) + m.d * (cam.cy + (y - cam.y) * cam.s) + m.f];
+      const hx = pose.hip[0], hy = pose.hip[1];
+      const c1 = sx(hx - 4.2, hy - 4.2), c2 = sx(hx + 4.2, hy + 2.6);
+      const CW = ctx.canvas.width, CH = ctx.canvas.height;
+      const x0 = Math.max(0, Math.floor(Math.min(c1[0], c2[0]))), y0 = Math.max(0, Math.floor(Math.min(c1[1], c2[1])));
+      const x1 = Math.min(CW, Math.ceil(Math.max(c1[0], c2[0]))), y1 = Math.min(CH, Math.ceil(Math.max(c1[1], c2[1])));
+      if (x1 - x0 > 2 && y1 - y0 > 2) {
+        const bw = Math.min(CW, Math.ceil((x1 - x0) / 64) * 64), bh = Math.min(CH, Math.ceil((y1 - y0) / 64) * 64);
+        const A = this._off(0, bw, bh), B = this._off(1, bw, bh);
+        const a = A.getContext('2d'), b = B.getContext('2d');
+        a.setTransform(1, 0, 0, 1, 0, 0);
+        a.clearRect(0, 0, bw, bh);
+        a.setTransform(m.a, m.b, m.c, m.d, m.e - x0, m.f - y0);
+        this._draw(a, f, cam, Object.assign({}, extra, { noSmear: true, style: Object.assign({}, style, { flatColor: '#ffffff', light: null }) }));
+        const dx = rim.dir[0] * cam.s * (rim.width || 0.06), dy = rim.dir[1] * cam.s * (rim.width || 0.06);
+        b.setTransform(1, 0, 0, 1, 0, 0);
+        b.clearRect(0, 0, bw, bh);
+        b.drawImage(A, -dx, -dy);
+        a.setTransform(1, 0, 0, 1, 0, 0);
+        a.globalCompositeOperation = 'destination-out';
+        a.drawImage(B, 0, 0);
+        a.globalCompositeOperation = 'source-in';
+        a.fillStyle = rim.color;
+        a.fillRect(0, 0, bw, bh);
+        a.globalCompositeOperation = 'source-over';
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalCompositeOperation = rim.mode || 'screen';
+        ctx.globalAlpha = rim.alpha;
+        ctx.drawImage(A, x0, y0);
+        ctx.restore();
+      }
     }
     return sk;
   }
@@ -121,7 +135,7 @@ export class CatActor {
       beforeHead = (g, sk) => {
         const grip = sk.head.proj([0.44, -0.24, 0.02]);
         const yawK = Math.cos(Math.min(1.45, Math.abs(sk.pose.hYaw || 0)));
-        drawCard(g, grip[0], grip[1], { ang: sw.ang, ax: 0.16, ay: 0.04, sx: Math.max(0.18, yawK), bend: sw.bend, wear, scale: carry.scale ?? 1.2, px: Math.min(512, Math.max(96, Math.round(s * 1.2))) });
+        drawCard(g, grip[0], grip[1], { ang: sw.ang, ax: 0.16, ay: 0.04, sx: Math.max(0.18, yawK), bend: sw.bend, wear, scale: carry.scale ?? 1.2, px: s * 1.2 > 300 ? 512 : s * 1.2 > 150 ? 256 : 128 });
       };
     }
     const sk = drawCat(ctx, pose, Object.assign({ beforeHead,

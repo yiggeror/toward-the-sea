@@ -18,8 +18,25 @@ async function load() {
     timeline = await m.buildFilm();
   }
   window.__length = timeline.length;
+  window.__tl = timeline;
   window.__events = timeline.events();
+  window.__shots = timeline.shots.map((s) => ({ name: s.name, seq: s.seq, start: s.start, dur: s.dur }));
 }
+// per-layer timing of one frame (dev)
+window.__profile = (f) => {
+  const i = timeline.shotIndexAt(f);
+  const shot = timeline.shots[i];
+  const local = f - shot.start;
+  const orig = shot.layers.map((L) => L.draw);
+  const times = shot.layers.map(() => 0);
+  shot.layers.forEach((L, k) => {
+    const d = L.draw;
+    L.draw = (...a) => { const t0 = performance.now(); d(...a); times[k] += performance.now() - t0; };
+  });
+  for (let r = 0; r < 3; r++) window.renderFrame(f);
+  shot.layers.forEach((L, k) => (L.draw = orig[k]));
+  return { shot: shot.name, local, layers: times.map((t, k) => `${k}:z${(shot.layers[k].z ?? '').toString().slice(0, 5)}:${(t / 3).toFixed(1)}`).join('  ') };
+};
 window.renderFrame = (f) => {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
