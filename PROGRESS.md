@@ -9,7 +9,9 @@ resume in a new session.
 drawn at 3840×2160 and filtered down). 66 shots in five acts
 (`docs/treatment_v2.md`), score composed to picture (`tools/score.py`), mix
 −18 LUFS integrated, −1.5 dBFS peak. The v1 film (8:13) is kept in `video/v1/`
-for comparison; its log follows below.
+for comparison; its log follows below. Master at CRF 17 + AAC 256 kb/s
+(363 MB) in `video/` as six keyframe-cut parts under 100 MB (`parts.txt`
+re-joins them losslessly); rendered in 29 minutes on 4 cores (`--ss 2 --jobs 4`).
 
 ## v2: the feedback and what changed
 
