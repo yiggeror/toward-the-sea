@@ -6,9 +6,13 @@ resume in a new session.
 ## Status
 
 **v1.0 — final film** (1920×1080, 24 fps, 11 826 frames = 8:12.75, every frame
-drawn at 3840×2160 and filtered down, H.264 CRF 16 + AAC 256 kb/s, mix at
-−18 LUFS / −1.5 dBFS peak). Files: `video/` (see README). Everything is
-reproducible from source (README → Regenerate).
+drawn at 3840×2160 and filtered down). Mastered at CRF 16 (≈ 690 MB, kept out
+of git), distributed at CRF 19 + AAC 256 kb/s (309 MB) in `video/` as four
+keyframe-cut parts under 100 MB; a 720p copy (74 MB) was sent to the user in
+three parts because attachments are limited to 30 MiB. Mix −18.1 LUFS
+integrated, LRA 9.9 LU, −1.5 dBFS peak. Everything is reproducible from
+source (README → Regenerate); a changed shot can be re-rendered alone and
+spliced at its keyframes (done for 3.6).
 
 ## Phases
 
@@ -107,6 +111,14 @@ reproducible from source (README → Regenerate).
   and bell; cues: discovery motif (postcard found, 1.4), dawn (1.10), night pad
   (4.1), snow (6.1), loss in B minor (7.6), full theme at the sea (8.3), beach
   (9.3), reprise and final D add9 chord (9.5 → end card).
+
+## Sound notes
+
+Short story effects (the splash in the face, the can, gusts, shakes, the card
+snatch) are levelled by their loudest 400 ms rather than their peak: peak
+normalisation had left them 10–15 dB under the beds. The effects and foley
+buses have their own limiters and the beds dip up to 4 dB under them, so the
+master limiter only touches the thunder clap.
 
 ## Performance
 
