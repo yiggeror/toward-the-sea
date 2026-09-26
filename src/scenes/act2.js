@@ -56,7 +56,7 @@ function woodsSet(S, o = {}) {
 
 // ---- B1 low in the grass: Xiaohui trots toward us down the forest path ----
 function B1() {
-  const dA = 90, dB = -10;
+  const dA = 55, dB = -10;
   return shot({
     name: 'B1', dur: BEAT * 8, unit: 100, anchor: [0.5, 0.62], grade: dayGrade,
     cam: { x: WOOD.pathX(dB - 8) + 1.8, y: -1.3, z: 1, dz: 0 },
@@ -704,7 +704,7 @@ function B16b() {
         cat.key(t, { d, x: trailX(d) }, 'linear');
       }
       S.layers.push(screenLayer(2.5, (ctx, t, W, H) => snow(ctx, W, H, t, { density: 0.7, wind: 0.3, seed: 5, alpha: 0.85 })));
-      S.extraEvents = [{ t: 0, type: 'amb', name: 'snow' }];
+      S.extraEvents = [];
     },
   });
 }
@@ -720,7 +720,7 @@ export function shots() {
     retime('4.1', { name: 'B15a', from: 70, dur: BEAT * 6 }),
     retime('4.2', { name: 'B15b', from: 90, dur: BEAT * 4 }),
     B15dream(), B15wake(),
-    retime('6.2', { name: 'B16a', from: 30, dur: BEAT * 8, xfade: 20 }),
+    retime('6.2', { name: 'B16a', from: 30, dur: BEAT * 8, xfade: 20, setup: (s) => { const ev = s.events; s.events = () => [{ t: 0, type: 'amb', name: 'snow' }, ...ev()]; } }),
     B16b(),
   ];
 }

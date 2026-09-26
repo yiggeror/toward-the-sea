@@ -467,6 +467,413 @@ def act1(S, T):
                 S.put('pluck', harp(N(tones[k % len(tones)]) + (12 if k > 2 else 0), 0.1, -0.3 + 0.12 * k), at + k * q * 0.66)
 
 
+# ------------------------------------------------------------ helpers for the acts
+def melody(S, bus, inst, notes, t0, beat, vel=0.3, pan=0.0, legato=0.95, until=None, **kw):
+    """notes: [(name|None, beats)]; inst(m, dur, vel, pan) or (m, vel, pan)"""
+    t = t0
+    for nm, b in notes:
+        if until is not None and t >= until:
+            break
+        if nm is not None:
+            if inst in (flute,):
+                S.put(bus, inst(nm, b * beat * legato, vel, pan, **kw), t)
+            elif inst is piano:
+                S.put(bus, piano(N(nm), b * beat * legato, vel), t)
+            else:
+                S.put(bus, inst(nm, vel, pan), t)
+        t += b * beat
+    return t
+
+
+def chord_pad(S, t0, bass, tones, dur, vel=0.22, attack=0.8, release=1.6, bus='strings', trem=0.0, swell=0.0, bright=2600):
+    S.put(bus, strings([bass] + tones, dur, vel, attack=attack, release=release, trem=trem, swell=swell, bright=bright), t0)
+
+
+JOURNEY_CH = [('D2', ['D4', 'F#4', 'A4']), ('B1', ['D4', 'F#4', 'B4']), ('G1', ['D4', 'G4', 'B4']), ('A1', ['C#4', 'E4', 'A4']),
+              ('D2', ['D4', 'F#4', 'A4']), ('F#1', ['C#4', 'F#4', 'A4']), ('G1', ['D4', 'G4', 'B4']), ('A1', ['C#4', 'E4', 'A4'])]
+JOURNEY_MEL = [
+    [('A4', 1), ('D5', 0.5), ('E5', 0.5), ('F#5', 1), ('A5', 1)],
+    [('F#5', 1.5), ('E5', 0.5), ('D5', 1), ('B4', 1)],
+    [('G4', 0.5), ('B4', 0.5), ('D5', 1), ('E5', 1), ('D5', 1)],
+    [('C#5', 2), ('E5', 1), ('A4', 1)],
+    [('A4', 1), ('D5', 0.5), ('E5', 0.5), ('F#5', 1), ('A5', 1)],
+    [('B5', 1.5), ('A5', 0.5), ('F#5', 1), ('E5', 1)],
+    [('D5', 1), ('E5', 0.5), ('F#5', 0.5), ('G5', 1), ('B4', 1)],
+    [('A4', 2), ('E5', 1), ('C#5', 1)],
+]
+
+
+def groove_bar(S, t, beat, bi, level=1.0, minor=False, drums=True, bass=True, offbeats=True):
+    """one bar of the journey groove (bar index bi picks the chord)"""
+    ch = JOURNEY_CH if not minor else [('B1', ['D4', 'F#4', 'B4']), ('G1', ['D4', 'G4', 'B4']), ('E1', ['E4', 'G4', 'B4']), ('F#1', ['C#4', 'F#4', 'A#4'])]
+    root, tones = ch[bi % len(ch)]
+    if bass:
+        S.put('pluck', pizz(N(root) + 12, 0.42 * level, -0.1), t)
+        S.put('pluck', pizz(N(root) + 19, 0.3 * level, -0.1), t + 2 * beat)
+        S.put('low', cello(N(root) + 12, beat * 3.7, 0.18 * level), t)
+    if offbeats:
+        for k in range(4):
+            for j, nm in enumerate(tones):
+                S.put('mallet', marimba(N(nm) + (12 if minor else 0), 0.08 * level, -0.3 + 0.3 * j), t + (k + 0.5) * beat + j * 0.008)
+    if drums:
+        for k in range(8):
+            S.put('perc', shaker(0.07 * level if k % 2 else 0.1 * level, 0.35), t + k * beat / 2)
+        S.put('perc', kick(0.26 * level), t)
+        S.put('perc', kick(0.16 * level), t + 2 * beat)
+        S.put('perc', brush(0.16 * level, 0.16), t + beat)
+        S.put('perc', brush(0.16 * level, 0.16), t + 3 * beat)
+    return tones
+
+
+# ------------------------------------------------------------ Act II: the journey
+def act2(S, T):
+    sh, evin = T['shot'], T['evin']
+    t0 = sh('B1')
+    if t0 is None:
+        return
+    beat = 60 / 96
+    bar = 4 * beat
+    # B1: the groove comes in under the trotting (no melody yet)
+    groove_bar(S, t0, beat, 0, 0.7, drums=False)
+    groove_bar(S, t0 + bar, beat, 1, 0.85)
+    S.put('mallet', glock('A5', 0.1, 0.2), t0 + bar * 1.5)
+    # B2: the melody enters on flute + marimba
+    t = sh('B2')
+    groove_bar(S, t, beat, 2)
+    melody(S, 'wind', flute, JOURNEY_MEL[0], t, beat, 0.12, 0.1)
+    melody(S, 'mallet', marimba, JOURNEY_MEL[0], t, beat, 0.14, 0.2)
+    # B3: the butterfly lands on the card — everything tiptoes; crossed eyes wobble
+    t = sh('B3')
+    land, off = evin('flutter_land', 'B3'), evin('flutter_off', 'B3')
+    groove_bar(S, t, beat, 3, 0.5, drums=False, offbeats=False)
+    for k in range(8):
+        S.put('mallet', marimba(['E6', 'F#6'][k % 2], 0.07, 0.3), t + k * beat / 2)
+    if land:
+        S.put('mallet', glock('A6', 0.12, 0.1), land)
+        for k in range(6):
+            S.put('mallet', glock(['F#6', 'G6'][k % 2], 0.07, 0.0, 0.9), land + 0.6 + k * 0.22)
+        chord_pad(S, land, 'D3', ['A3', 'E4', 'F#4'], (off or land + 3) - land, 0.12, attack=0.4, release=0.6)
+    if off:
+        for k, nm in enumerate(['D6', 'E6', 'F#6', 'A6', 'D7']):
+            S.put('mallet', glock(nm, 0.08, -0.4 + 0.2 * k, 1.2), off + k * 0.07)
+    # B4: sneaking… the pounce… the miss
+    t = sh('B4')
+    for k in range(6):
+        S.put('pluck', pizz(['D3', 'F3', 'D3', 'G#3', 'A3', 'C4'][k], 0.3, -0.2), t + k * beat * 0.5 + beat)
+    j = evin('jump', 'B4')
+    if j:
+        for k, nm in enumerate(['D4', 'F#4', 'A4', 'D5', 'F#5']):
+            S.put('pluck', pizz(nm, 0.32, -0.2 + 0.1 * k), j - 0.3 + k * 0.06)
+        S.put('perc', brush(0.3, 0.3), j)
+        S.put('wind', flute('A5', 0.9, 0.12, 0.2, glide=('D5', 0.25), vib=0.2), j + 0.45)
+    q = evin('emote', 'B4', 'question')
+    if q:
+        S.put('pluck', pizz('B4', 0.3, 0.2), q)
+        S.put('pluck', pizz('E5', 0.3, 0.2), q + 0.18)
+    # B5 → B6: back to the groove, the melody's second phrase; the stones
+    for name, bi0, mel0 in (('B5', 4, 4), ('B6', 5, 5)):
+        t = sh(name)
+        end = T['end'](name)
+        stop = evin('music_stop', name) if name == 'B6' else None
+        b = 0
+        while t + b * bar < (stop or end) - 0.05:
+            groove_bar(S, t + b * bar, beat, bi0 + b)
+            melody(S, 'wind', flute, JOURNEY_MEL[(mel0 + b) % 8], t + b * bar, beat, 0.12, 0.1, until=stop)
+            melody(S, 'mallet', marimba, JOURNEY_MEL[(mel0 + b) % 8], t + b * bar, beat, 0.12, 0.2, until=stop)
+            b += 1
+    for j in [e for e in T['evs']('jump') if sh('B6') <= e < (T['end']('B6') or 0)]:
+        S.put('mallet', glock('A6', 0.1, 0.2, 1.0), j)
+    stop = evin('music_stop', 'B6')
+    if stop:
+        S.put('perc', brush(0.5, 0.35), stop)
+        S.put('pluck', pizz('A2', 0.5, 0), stop)
+    # B8: wet and sad: a low sigh; the shake; then the pick-up back into the groove
+    t = sh('B8')
+    if t is not None:
+        S.put('low', cello('D3', 1.4, 0.28), t + 0.4)
+        S.put('low', cello('C#3', 1.4, 0.24), t + 1.8)
+        hs = evin('headshake', 'B8')
+        if hs:
+            for k in range(10):
+                S.put('mallet', marimba('D5' if k % 2 else 'E5', 0.1, -0.3 + 0.06 * k), hs + k * 0.06)
+        res = evin('music_resume', 'B8')
+        if res:
+            t9 = sh('B9a')
+            for k, nm in enumerate(['A3', 'C#4', 'E4', 'A4']):
+                S.put('pluck', pizz(nm, 0.28 + 0.04 * k, 0.1), t9 - (4 - k) * beat / 2)
+    # B9: four inserts on the beat, a bell on each cut (rising)
+    t = sh('B9a')
+    if t is not None:
+        for b in range(2):
+            groove_bar(S, t + b * bar, beat, b)
+            melody(S, 'wind', flute, JOURNEY_MEL[b], t + b * bar, beat, 0.12, 0.1)
+        for k, nm in enumerate(['D6', 'E6', 'F#6', 'A6']):
+            S.put('mallet', glock(nm, 0.14, -0.3 + 0.2 * k, 1.6), t + k * 2 * beat)
+    # B10–B13: the storm (B minor, the same pulse, darker)
+    t = sh('B10')
+    if t is not None:
+        for b in range(2):
+            groove_bar(S, t + b * bar, beat, b, 0.8, minor=True, offbeats=False)
+            chord_pad(S, t + b * bar, ['B1', 'G1'][b], ['F#3', 'B3', 'D4'] if b == 0 else ['D3', 'G3', 'B3'], bar, 0.16, attack=0.3, release=0.6, trem=0.4)
+        melody(S, 'wind', flute, [('F#5', 1.5), ('E5', 0.5), ('D5', 1), ('C#5', 1), ('D5', 2), ('B4', 2)], t, beat, 0.1, 0.1)
+    d = evin('drop_on_card', 'B11')
+    if d:
+        S.put('strings', strings(['B3', 'D4', 'F#4', 'B4'], 0.25, 0.35, attack=0.01, release=0.3), d)
+        S.put('perc', timp('B1', 0.45), d)
+        chord_pad(S, d + 0.3, 'E2', ['G3', 'B3', 'E4'], 1.6, 0.16, attack=0.2, trem=0.5)
+    t = sh('B12')
+    if t is not None:
+        for b in range(2):
+            tb = t + b * bar
+            groove_bar(S, tb, beat, 2 + b, 1.0, minor=True, offbeats=False)
+            for k in range(8):
+                S.put('strings', strings([['B2', 'F#3'], ['C#3', 'F#3']][b], beat / 2 * 0.9, 0.16, attack=0.01, release=0.08), tb + k * beat / 2)
+    st = evin('startle', 'B13') or sh('B13')
+    if st:
+        S.put('perc', cym_swell(0.8, 0.25), st - 0.8)
+        S.put('perc', timp('F#1', 0.6), st)
+        S.put('strings', strings(['F#3', 'A#3', 'C#4', 'E4'], 0.3, 0.4, attack=0.01, release=0.4), st)
+    # B14: under the roof: the pulse stops; soft piano chords with the rain
+    t = sh('B14')
+    if t is not None:
+        for i, (bs, tones) in enumerate([('B1', ['D4', 'F#4', 'C#5']), ('G1', ['D4', 'F#4', 'B4']), ('D2', ['D4', 'F#4', 'A4']), ('A1', ['C#4', 'E4', 'A4'])]):
+            at = t + 1.2 + i * bar * 0.9
+            S.put('piano', piano(N(bs) + 12, bar, 0.2), at)
+            for k, nm in enumerate(tones):
+                S.put('piano', piano(N(nm), bar * 0.8, 0.14), at + 0.05 + k * 0.12)
+    # B15: night — a lonely celesta; then the DREAM: the theme's first phrase
+    t = sh('B15a')
+    if t is not None:
+        S.put('low', strings(['B2', 'F#3'], 7, 0.12, attack=2, release=3, bright=1400), t)
+        for k, (dt, nm) in enumerate(((1.0, 'F#5'), (2.6, 'D5'), (4.2, 'C#5'), (5.4, 'B4'))):
+            S.put('mallet', celesta(nm, 0.12, 0.2 - 0.1 * k, 2.4), t + dt)
+    t = sh('B15d')
+    if t is not None:
+        chord_pad(S, t - 0.3, 'D3', ['A3', 'E4', 'F#4', 'A4'], 5.6, 0.18, attack=1.2, release=2.5)
+        for k in range(12):
+            S.put('pluck', harp(['D4', 'A4', 'E5', 'F#5', 'A5', 'D6'][k % 6], 0.12, -0.4 + 0.08 * k), t + k * beat / 2)
+        melody(S, 'mallet', celesta, [('A5', 1.5), ('D6', 0.5), ('E6', 1), ('F#6', 1), ('E6', 2), ('C#6', 1), ('A5', 1)], t, beat, 0.16, 0.1)
+        melody(S, 'wind', flute, [('A4', 1.5), ('D5', 0.5), ('E5', 1), ('F#5', 1), ('E5', 2), ('C#5', 1), ('A4', 1)], t, beat, 0.08, -0.1)
+    t = sh('B15w')
+    if t is not None:
+        for k in range(3):
+            S.put('wind', flute('E6', 0.12, 0.08, 0.4, glide=('A6', 0.3), vib=0), t + 0.3 + k * 0.5)
+        for k, nm in enumerate(['D4', 'F#4', 'A4', 'D5', 'F#5', 'A5']):
+            S.put('pluck', harp(nm, 0.12, -0.2 + 0.1 * k), t + 0.9 + k * 0.1)
+    # B16: snow — high bells in a white silence
+    t = sh('B16a')
+    if t is not None:
+        chord_pad(S, t, 'D4', ['A4', 'E5'], 10, 0.1, attack=2.5, release=3, bright=3500)
+        for dt, nm in ((0.5, 'A6'), (2.2, 'E6'), (4.0, 'F#6'), (6.0, 'D6'), (7.6, 'A5'), (8.4, 'D6'), (9.0, 'E6'), (9.6, 'F#6')):
+            S.put('mallet', glock(nm, 0.1, -0.3 + 0.1 * (dt % 3), 2.4), t + dt)
+
+
+# ------------------------------------------------------------ Act III: the cape, the loss
+def act3(S, T):
+    sh, evin = T['shot'], T['evin']
+    t = sh('C1')
+    if t is None:
+        return
+    snatch = evin('card_snatch', 'C2')
+    # the wind ostinato: a pulsing low B, piano octaves, a thin high note of worry
+    b8 = 60 / 112 / 2
+    end = snatch or t + 8
+    k = 0
+    while t + k * b8 < end:
+        S.put('low', cello('B2', b8 * 0.8, 0.16 + 0.05 * (k % 2 == 0)), t + k * b8)
+        if k % 4 == 0:
+            S.put('piano', piano(N('B3') + (7 if (k // 4) % 2 else 0), 0.5, 0.14), t + k * b8)
+        k += 1
+    S.put('strings', strings(['F#5'], end - t, 0.07, attack=2, release=0.5), t)
+    c2 = sh('C2')
+    S.put('strings', strings(['B3', 'D4', 'F#4'], (end - c2), 0.14, attack=0.8, release=0.2, trem=0.6, swell=0.8), c2)
+    # the snatch: a hit — and the chase (144 bpm, driving)
+    if snatch:
+        S.put('perc', timp('B1', 0.6), snatch)
+        S.put('strings', strings(['B2', 'F#3', 'B3', 'D4', 'F#4'], 0.4, 0.4, attack=0.01, release=0.3), snatch)
+        sm_in = evin('slowmo_in', 'C4c')
+        beat = 60 / 144
+        k = 0
+        pat = ['B3', 'D4', 'F#4', 'D4', 'B3', 'E4', 'G4', 'E4', 'A3', 'C#4', 'F#4', 'C#4', 'B3', 'D4', 'F#4', 'A4']
+        roots = ['B1', 'G1', 'F#1', 'B1']
+        while snatch + 0.5 + k * beat / 2 < (sm_in or snatch + 8) - 0.05:
+            tt = snatch + 0.5 + k * beat / 2
+            S.put('strings', strings([pat[k % 16]], beat / 2 * 0.85, 0.13, attack=0.01, release=0.05), tt)
+            if k % 8 == 0:
+                S.put('perc', timp(roots[(k // 8) % 4], 0.35), tt)
+                S.put('low', cello(N(roots[(k // 8) % 4]) + 12, beat * 3.6, 0.22), tt)
+            if k % 4 == 2:
+                S.put('perc', brush(0.22, 0.14), tt)
+            k += 1
+        # the motif, urgent, climbing
+        for i, nm in enumerate(['A5', 'D6', 'E6', 'F#6', 'A5', 'D6', 'E6', 'G6', 'B5', 'E6', 'F#6', 'A6']):
+            at = snatch + 1.2 + i * beat
+            if sm_in and at >= sm_in:
+                break
+            S.put('wind', flute(nm, beat * 0.8, 0.12, 0.1), at)
+        sm_out = evin('slowmo_out', 'C4c')
+        if sm_in and sm_out:
+            hold = sm_out - sm_in
+            S.put('strings', strings(['B4', 'C#5', 'F#5', 'G5'], hold + 2.5, 0.2, attack=0.5, release=0.8, swell=0.5), sm_in)
+            for i in range(int((hold + 2) / 0.75)):
+                S.put('perc', kick(0.25), sm_in + i * 0.75)
+            for i in range(int(hold / 0.5)):
+                S.put('mallet', celesta(['F#6', 'E6', 'D6', 'C#6', 'B5'][i % 5], 0.08, 0.2, 2.0), sm_in + 0.3 + i * 0.5)
+        stop = evin('music_stop', 'C4e')
+        if stop:
+            S.put('perc', timp('B1', 0.5, 2.5), stop)
+    loss = evin('music_loss', 'C7')
+    if loss:
+        S.put('piano', piano(N('B1'), 5, 0.4), loss)
+        for i, nm in enumerate(['B2', 'F#3', 'D4', 'C#5']):
+            S.put('piano', piano(N(nm), 5, 0.12), loss + 0.02 + i * 0.03)
+        for i, (dt, nm, d) in enumerate(((1.6, 'F#5', 1.2), (2.8, 'E5', 1.0), (3.9, 'D5', 1.3), (5.4, 'C#5', 3.0))):
+            S.put('piano', piano(N(nm), d, 0.24), loss + dt)
+
+
+# ------------------------------------------------------------ Act IV: the sea
+THEME72 = [('A4', 1.5), ('D5', 0.5), ('E5', 1), ('F#5', 1), ('E5', 2), ('C#5', 1), ('A4', 1), ('D5', 1.5), ('C#5', 0.5), ('B4', 1), ('F#5', 1),
+           ('E5', 3), ('D5', 1), ('D5', 1), ('F#5', 1), ('A5', 2), ('G5', 1.5), ('F#5', 0.5), ('E5', 1), ('D5', 1), ('E5', 1), ('C#5', 1), ('D5', 2)]
+THEME72_CH = [('D2', ['D4', 'F#4', 'A4']), ('C#2', ['E4', 'A4', 'C#5']), ('B1', ['D4', 'F#4', 'B4']), ('G1', ['D4', 'G4', 'B4']),
+              ('F#1', ['D4', 'F#4', 'A4']), ('G1', ['E4', 'G4', 'B4']), ('A1', ['C#4', 'E4', 'G4']), ('D2', ['D4', 'F#4', 'A4', 'E5'])]
+
+
+def act4(S, T):
+    sh, evin = T['shot'], T['evin']
+    t = sh('D2')
+    if t is None:
+        return
+    # eyes open: a harp rises; a high violin holds a note of hope
+    for k, (tt, m) in enumerate(gliss('D4', 'A5', 1.4)):
+        S.put('pluck', harp(m, 0.12, -0.4 + 0.08 * k), t + 0.7 + tt)
+    S.put('strings', strings(['A5'], 4, 0.07, attack=1.5, release=1.5), t + 1)
+    # D3: the climb — everything gathers on the dominant, a timpani roll
+    t3 = sh('D3')
+    t4 = sh('D4')
+    if t3 is not None and t4 is not None:
+        L = t4 - t3
+        S.put('strings', strings(['A2', 'E3', 'A3', 'C#4', 'E4', 'A4'], L, 0.28, attack=L * 0.9, release=0.4, swell=0.9), t3)
+        for i in range(int(L / 0.09)):
+            S.put('perc', timp('A1', 0.05 + 0.25 * (i * 0.09 / L) ** 2, 0.4), t3 + L * 0.35 + i * 0.09 * 0.65)
+        S.put('perc', cym_swell(2.2, 0.3), t4 - 1.9)
+    if t4 is None:
+        return
+    # D4 → D6: the theme, at last, in full
+    q = 60 / 72
+    t0 = t4 + 0.5
+    S.put('perc', timp('D2', 0.55, 3), t0)
+    tt = t0
+    for i, (nm, b) in enumerate(THEME72):
+        S.put('piano', piano(N(nm), b * q * 0.95, 0.4), tt)
+        S.put('mallet', glock(N(nm) + 12, 0.05, 0.2, 1.8), tt)
+        S.put('wind', flute(nm, b * q * 0.9, 0.08, -0.15), tt)
+        tt += b * q
+    for i, (bass, tones) in enumerate(THEME72_CH):
+        at = t0 + i * 4 * q
+        S.put('piano', piano(N(bass) + 12, 4 * q, 0.26), at)
+        chord_pad(S, at, N(bass) + 12, tones, 4 * q, 0.2 + 0.03 * min(i, 4), attack=0.6, release=2.2)
+        S.put('low', cello(N(bass) + 12, 4 * q * 0.95, 0.2), at)
+        for k in range(8):
+            S.put('pluck', harp(N(tones[k % len(tones)]) + (12 if k >= 4 else 0), 0.08, -0.3 + 0.08 * k), at + k * q / 2)
+
+
+# ------------------------------------------------------------ Act V: the beach
+def act5(S, T):
+    sh, evin = T['shot'], T['evin']
+    t1 = sh('E1')
+    if t1 is None:
+        return
+    beat = 60 / 112
+    bar = 4 * beat
+    tb = t1 + 1.6
+    # the beach groove (bright, light), melody in glock + flute
+    def bars(t_from, n, mel_from=0, level=1.0, melody_on=True):
+        for b in range(n):
+            groove_bar(S, t_from + b * bar, beat, mel_from + b, 0.8 * level)
+            if melody_on:
+                melody(S, 'mallet', glock, JOURNEY_MEL[(mel_from + b) % 8], t_from + b * bar, beat, 0.07 * level, 0.25)
+                melody(S, 'wind', flute, JOURNEY_MEL[(mel_from + b) % 8], t_from + b * bar, beat, 0.08 * level, 0.1)
+    e2 = sh('E2')
+    n1 = int((e2 - tb) / bar)
+    bars(tb, max(1, n1))
+    ex = evin('emote', 'E2', 'exclaim')
+    if ex:
+        S.put('pluck', pizz('A5', 0.35, 0.2), ex)
+        S.put('pluck', pizz('E6', 0.3, 0.2), ex + 0.07)
+    qn = evin('emote', 'E2', 'question')
+    if qn:
+        for k, nm in enumerate(['D5', 'F#5', 'B5']):
+            S.put('pluck', pizz(nm, 0.26, 0.1), qn + k * 0.2)
+    # E3: the game — groove, the flight, the brace, the wash (freeze!)
+    t3 = sh('E3')
+    washes = [e for e in T['evs']('wave_wash') if t3 <= e < (T['end']('E3') or 0)]
+    freeze = t3 + 214 / 24
+    k = 0
+    while t3 + (k + 1) * bar < freeze - 1.4:
+        groove_bar(S, t3 + k * bar, beat, k, 0.85)
+        melody(S, 'mallet', marimba, JOURNEY_MEL[(k + 4) % 8], t3 + k * bar, beat, 0.1, 0.25)
+        k += 1
+    # the brace: a held, rising question
+    brace = t3 + k * bar
+    S.put('strings', strings(['A3', 'D4', 'E4', 'A4'], freeze - brace + 0.3, 0.18, attack=0.6, release=0.2, trem=0.4, swell=0.8), brace)
+    S.put('mallet', glock('A6', 0.16, 0.0, 2.4), freeze)
+    S.put('strings', strings(['A5'], 2.2, 0.08, attack=0.05, release=1.2), freeze + 0.1)
+    # E3b: the laugh — a burst of joy
+    tb3 = sh('E3b')
+    if tb3 is not None:
+        joy = tb3 + 30 / 24
+        for k2, nm in enumerate(['D5', 'F#5', 'A5', 'D6', 'F#6', 'A6']):
+            S.put('mallet', glock(nm, 0.12, -0.4 + 0.16 * k2, 1.6), joy + k2 * 0.06)
+        chord_pad(S, joy, 'D3', ['D4', 'F#4', 'A4', 'D5'], 2.2, 0.26, attack=0.05, release=1.2)
+        groove_bar(S, joy + 0.1, beat, 0, 1.0)
+    # E4: the card comes back — the motif, tender; then resolved at last
+    t4a = sh('E4a')
+    if t4a is not None:
+        chord_pad(S, t4a, 'D3', ['A3', 'E4', 'F#4'], 12, 0.14, attack=1.5, release=3)
+        for dt, nm in ((0.6, 'A5'), (1.5, 'D6'), (2.2, 'E6'), (3.2, 'F#6')):
+            S.put('mallet', celesta(nm, 0.16, 0.1, 2.6), t4a + dt)
+    t4b = sh('E4b')
+    if t4b is not None:
+        melody(S, 'piano', piano, [('A4', 1.5), ('D5', 0.5), ('E5', 1), ('F#5', 1), ('A5', 2), ('F#5', 1), ('D5', 3)], t4b + 0.4, 60 / 76, 0.34)
+        for i, (bass, tones) in enumerate([('D2', ['D4', 'F#4', 'A4']), ('G1', ['D4', 'G4', 'B4']), ('A1', ['C#4', 'E4', 'A4']), ('D2', ['D4', 'F#4', 'A4', 'E5'])]):
+            at = t4b + 0.4 + i * 2.4
+            S.put('piano', piano(N(bass) + 12, 2.4, 0.2), at)
+            chord_pad(S, at, N(bass) + 12, tones, 2.6, 0.16, attack=0.8, release=2)
+    t4c = sh('E4c')
+    if t4c is not None:
+        for k2 in range(16):
+            S.put('pluck', harp(['D4', 'F#4', 'A4', 'D5', 'E5', 'F#5', 'A5', 'D6'][k2 % 8], 0.1, -0.4 + 0.05 * k2), t4c + 0.2 + k2 * 0.22)
+    # E5: the finale — the theme's last phrase, broad; the final D add9
+    t5 = sh('E5')
+    if t5 is not None:
+        q = 60 / 66
+        t0 = t5 + 0.8
+        last = [('D5', 1), ('F#5', 1), ('A5', 2), ('G5', 1.5), ('F#5', 0.5), ('E5', 1), ('D5', 1), ('E5', 2), ('C#5', 1), ('A4', 1), ('D5', 4)]
+        tt = t0
+        for nm, b in last:
+            S.put('piano', piano(N(nm), b * q * 0.95, 0.38), tt)
+            S.put('wind', flute(nm, b * q * 0.92, 0.09, -0.1), tt)
+            S.put('mallet', glock(N(nm) + 12, 0.045, 0.2, 2.0), tt)
+            tt += b * q
+        for i, (bass, tones) in enumerate([('F#1', ['D4', 'F#4', 'A4']), ('G1', ['E4', 'G4', 'B4']), ('A1', ['C#4', 'E4', 'A4']), ('D2', ['D4', 'F#4', 'A4', 'E5'])]):
+            at = t0 + i * 4 * q
+            dur = 4 * q if i < 3 else 10
+            S.put('piano', piano(N(bass) + 12, dur, 0.22), at)
+            chord_pad(S, at, N(bass) + 12, tones, dur, 0.18, attack=0.7, release=4 if i == 3 else 2)
+            S.put('low', cello(N(bass) + 12, dur * 0.95, 0.16), at)
+            for k2 in range(8):
+                S.put('pluck', harp(N(tones[k2 % len(tones)]) + (12 if k2 >= 4 else 0), 0.08, -0.3 + 0.08 * k2), at + k2 * q / 2)
+        fin = t0 + 12 * q
+        S.put('perc', timp('D2', 0.22, 3.5), fin)
+        for k2, nm in enumerate(['D3', 'A3', 'D4', 'F#4', 'E5']):
+            S.put('piano', piano(N(nm), 8, 0.17), fin + 0.02 * k2)
+    te = sh('end')
+    if te is not None:
+        for dt, nm, d in ((2.0, 'A4', 0.9), (2.9, 'D5', 0.6), (3.5, 'E5', 0.9), (4.4, 'F#5', 5.0)):
+            S.put('piano', piano(N(nm), d, 0.26), te + dt)
+        S.put('piano', piano(N('D3'), 6, 0.18), te + 4.4)
+
+
 def load_timeline(path):
     tl = json.load(open(path))
     fps = tl['fps']
@@ -481,13 +888,24 @@ def load_timeline(path):
 
     def evs_(ty):
         return [e['t'] / fps for e in evs if e['type'] == ty]
-    T = {'shot': lambda name: shots.get(name), 'ev': ev, 'evs': evs_}
+
+    def evin(ty, shot, kind=None):
+        for e in evs:
+            if e['type'] == ty and e.get('shot') == shot and (kind is None or e.get('kind') == kind):
+                return e['t'] / fps
+        return None
+    ends = {s['name']: (s['start'] + s['dur']) / fps for s in tl['shots']}
+    T = {'shot': lambda name: shots.get(name), 'end': lambda name: ends.get(name), 'ev': ev, 'evs': evs_, 'evin': evin}
     return tl, T
 
 
 def compose(tl, T):
     S = Score(tl['length'] / tl['fps'])
     act1(S, T)
+    act2(S, T)
+    act3(S, T)
+    act4(S, T)
+    act5(S, T)
     return S.render()[: int(tl['length'] / tl['fps'] * SR) + 6 * SR]
 
 

@@ -366,6 +366,8 @@ BEDS = {
     'city_rain': [('rain_light', -24, 11000, 90), ('rain_heavy', -30, 5000, 80), ('city_night', -29, 6000, 60), ('drips', -31, 9000, 300, 'peak')],
     'roof_night': [('wind_light', -27, 7000, 80), ('city_night', -31, 2500, 60), ('rain_light', -36, 8000, 200)],
     'city_night': [('city_night', -23, None, 60), ('drips', -32, 9000, 300, 'peak')],
+    'dream': [('waves_far', -31, 2200, 60), ('wind_soft', -38, 3000, 60)],
+    'morning': [('birds_dawn', -25, None, 400), ('wind_soft', -36, 4000, 60), ('drips', -37, 9000, 300, 'peak')],
     'dawn_edge': [('wind_soft', -31, 6000, 80), ('birds_dawn', -27, None, 400), ('city_night', -34, 3000, 60)],
     'forest': [('forest_birds', -23, None, 150), ('wind_light', -30, 9000, 100)],
     'wind_hills': [('grass_wind', -22, 9000, 60), ('wind_strong', -28, 3000, 50)],
@@ -381,12 +383,13 @@ BEDS = {
 }
 # extra layers for single shots (the stream the cat crosses, the cliff wind)
 SHOT_BEDS = {
-    '2.4': [('stream', -24, None, 120)],
-    '2.5': [('stream', -23, None, 120)],
-    '7.5': [('wind_strong', -24, 3000, 50)],
+    'B6': [('stream', -24, None, 120)],
+    'B8': [('stream', -25, None, 120)],
+    'C5': [('wind_strong', -24, 3000, 50)],
+    'C6': [('wind_strong', -27, 3000, 50)],
 }
 # bed trims in dB for single shots
-AMB_TRIM = {'3.4': -1.5, '3.5': -1.5, '7.6': -5, '8.1': -11, '8.2': -11}
+AMB_TRIM = {'B12': -1.5, 'B13': -1.5, 'C7': -4, 'D1': -11, 'D2': -11, 'D3': -6, 'B3': -3, 'A9': -3}
 # fallbacks if a newly fetched source is missing
 FALLBACK = {'wind_soft': 'wind_light', 'birds_dawn': 'forest_birds', 'rain_tin': 'rain_heavy', 'crickets_field': 'crickets',
             'crickets_night': 'crickets', 'dry_rustle': 'desert_wind', 'snow_wind': 'wind_light', 'sea_gentle': 'waves_beach',
@@ -428,8 +431,8 @@ def src(name):
     return x
 
 
-SHOT_SURFACE = {'A16': 'pavement', 'A18': 'grass'}
-SURFACE = {'act1': 'wet', 'city': 'wet', 'forest': 'grass', 'storm': 'grass', 'night': 'wood', 'waste': 'dirt', 'snow': 'snow',
+SHOT_SURFACE = {'A16': 'pavement', 'A18': 'grass', 'B14': 'pavement', 'B16a': 'snow', 'B16b': 'snow', 'C4c': 'dirt', 'C4e': 'dirt'}
+SURFACE = {'act1': 'wet', 'act2': 'grass', 'act3': 'grass', 'act5': 'sand', 'city': 'wet', 'forest': 'grass', 'storm': 'grass', 'night': 'wood', 'waste': 'dirt', 'snow': 'snow',
            'cape': 'grass', 'sea': 'grass', 'beach': 'sand'}
 
 
@@ -475,7 +478,7 @@ def main():
 
     # rain across the storm: starts at rain_start, heavy through 3.4-3.6
     rs = next((e for e in ev if e['type'] == 'rain_start'), None)
-    storm_end = next((s['start'] + s['dur'] for s in shots if s['name'] == '3.5'), None)
+    storm_end = next((s['start'] + s['dur'] for s in shots if s['name'] in ('B13', '3.5')), None)
     if rs and storm_end:
         t0, t1 = rs['t'] / fps, storm_end / fps
         env = None
@@ -624,6 +627,13 @@ def main():
             env = np.sin(np.pi * np.clip(np.linspace(0, 1, len(x)), 0, 1)) ** 0.8
             x = x * env[:, None]
             M.add('fx', fade(x * db(-27 - loudness(x)), 2.0, 2.5), t)
+        elif ty == 'bird':
+            b = src('birds_dawn')
+            if b is not None:
+                seg = fade(filt(b[int(3 * SR):int(4.6 * SR)], 1500, None), 0.05, 0.3)
+                M.add('fx', lv(seg, -27), t, 1.0, 0.4)
+        elif ty in ('flutter_land', 'flutter_off'):
+            M.add('foley', pk(whoosh(0.18, 1800, 6000, idx)), t - 0.05, db(-40))
         elif ty == 'slowmo_in':
             M.add('fx', lv(sweep(0.9, 2600, 300, idx), -27), t - 0.2)
         elif ty == 'slowmo_out':
@@ -641,7 +651,7 @@ def main():
             M.add('foley', pk(x), t, db(-29))
         elif ty == 'waves_first':
             # the sea heard before it is seen: distant, swelling as the cat climbs
-            end = next((s0['start'] / fps for s0 in shots if s0['name'] == '8.3'), t + 9) + 1.5
+            end = next((s0['start'] / fps for s0 in shots if s0['name'] in ('D4', '8.3')), t + 9) + 1.5
             dur = end - t
             x = filt(loop_to(src('sea_gentle'), int(dur * SR), offset=0.5), 60, 1400)
             x = x * db(-24 - loudness(x)) * np.linspace(0.45, 1.0, len(x))[:, None]

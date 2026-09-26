@@ -21,7 +21,8 @@ import { css, mix } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 // ---- the cape in 3D: a long grass slope rising toward the crest ------------
-export const capeGy = (x, d) => -0.12 * clamp(d, -80, 150);
+// rising to a crest at d = 150, beyond which the land falls away (to the sea)
+export const capeGy = (x, d) => -0.12 * clamp(d, -80, 150) + 0.35 * Math.max(0, d - 152);
 const CAPE3 = woodsLayout({ seed: 33, d0: -80, d1: 320, density: 0, cover: 2400, coverScale: 1.35, kinds: { grass: 0.96, flower: 0.04 }, noPath: true, gy: capeGy });
 const CAPEPAL = {
   haze: '#9a8fb0', hazeFar: '#c9b0bc', ground: '#4a5f4e', groundFar: '#7d7f93', path: '#6b6a60',
@@ -388,29 +389,33 @@ function D2() {
     },
   });
 }
-// ---- D3 low, behind: the last climb toward the lit crest ------------------
+// ---- D3 low, behind: the last climb; the crest glows ahead -----------------
 function D3() {
   const T = 132;
+  const d0 = 136, d1 = 149;
   return shot({
-    name: 'D3', dur: T, unit: 90, anchor: [0.5, 0.66], grade: capeGrade(0.5), post: capePost(0.35),
-    cam: { x: 0.4, y: -1.5 + capeGy(0, 118), z: 1, dz: 118, pitch: 0.14 },
+    name: 'D3', dur: T, unit: 90, anchor: [0.5, 0.7], grade: capeGrade(0.5), post: capePost(0.4),
+    cam: { x: 0.5, y: -1.1 + capeGy(0, d0 - 7), z: 1, dz: d0 - 7 + 20, pitch: 0.16 },
     setup(S) {
-      capeSet(S, { dawn: (t) => 0.45 + 0.2 * (t / T), streaks: 4, split: 10 });
-      // the light beyond the crest
+      capeSet(S, { dawn: (t) => 0.45 + 0.25 * (t / T), streaks: 4, clearItems: 5, edgeKeep: 0.25 });
+      // the dawn light pouring over the crest
       S.layers.push(screenLayer(0.21, (ctx, t, W, H, view) => {
-        const [, Y] = P3(view, 0, capeGy(0, 150), 150);
+        const [, Y] = P3(view, 0, capeGy(0, 152), 152);
         ctx.save();
         ctx.globalCompositeOperation = 'screen';
-        glow(ctx, W * 0.5, Y, W * 0.5, '#ffd8a8', 0.35 + 0.25 * (t / T));
+        glow(ctx, W * 0.5, Y, W * 0.55, '#ffd8a8', 0.4 + 0.3 * (t / T));
+        glow(ctx, W * 0.5, Y, W * 0.18, '#fff2d8', 0.35 + 0.3 * (t / T));
         ctx.restore();
       }));
-      const cat = viewCat(S, { z: 1, mode: 'back', gait: 'walk', light: () => ({ tint: '#e0d0d8', amt: 0.25, lift: '#1c1822' }), rim: () => ({ color: '#ffe0b8', dir: [0, -1], alpha: 0.9, width: 0.05 }), shadow: false,
-        init: { x: 0.2, d: 124, y: capeGy(0, 124), stride: 0.8, tail: 0.5, hPitch: 0.2 } });
+      const cat = viewCat(S, { z: 1, mode: 'back', gait: 'walk', light: () => ({ tint: '#e0d0d8', amt: 0.25, lift: '#1c1822' }), rim: () => ({ color: '#ffe6c0', dir: [0, -1], alpha: 0.95, width: 0.06 }), shadow: false,
+        init: { x: 0.2, d: d0, y: capeGy(0, d0), stride: 0.8, tail: 0.6, tailLow: 0.4, hPitch: 0.25, earRot: -0.1 } });
       for (let k = 1; k <= 6; k++) {
-        const d = 124 + (k / 6) * 14;
+        const d = lerp(d0, d1, k / 6);
         cat.key((T * k) / 6, { d, y: capeGy(0, d) }, 'linear');
       }
-      S.camera.move(0, T, { dz: 126, y: -1.6 + capeGy(0, 126) }, 'linear');
+      cat.key(T * 0.8, { stride: 0.5 }, 'inout');
+      cat.key(T, { stride: 0 }, 'inout');
+      S.camera.move(0, T, { dz: d1 - 9 + 20, y: -1.1 + capeGy(0, d1 - 9) }, 'linear');
     },
   });
 }
