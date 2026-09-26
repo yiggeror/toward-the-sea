@@ -195,12 +195,16 @@ export function wetReflection(ctx, W, H, y0, o = {}) {
   if (hgt <= 2 || y0 <= 2) return;
   const span = Math.min(y0, hgt / (o.stretch ?? 1.6));
   // strip above the line, squeezed (vertical smear) and blurred
-  const sw = Math.max(8, Math.round(W / 4)), sh = Math.max(4, Math.round(span / 8));
+  // (half-width buffer, squeezed 4x vertically: the same softness as before at
+  // twice the sampling density, filtered down with an area filter)
+  const sw = Math.max(8, Math.round(W / 2)), sh = Math.max(4, Math.round(span / 4));
   const A = scratchBuffer('reflA', sw, sh);
   const a = A.getContext('2d');
   a.setTransform(1, 0, 0, 1, 0, 0);
   a.globalCompositeOperation = 'copy';
-  a.filter = `blur(${(o.blur ?? 1.2).toFixed(2)}px)`;
+  a.imageSmoothingEnabled = true;
+  a.imageSmoothingQuality = 'high';
+  a.filter = `blur(${((o.blur ?? 1.2) * 2 * W / 1920).toFixed(2)}px)`;
   a.drawImage(src, 0, y0 - span, W, span, 0, 0, sw, sh);
   a.filter = 'none';
   a.globalCompositeOperation = 'source-over';

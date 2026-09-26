@@ -9,6 +9,7 @@
 import { Camera, makeView, FOCAL } from './view.js';
 import { applyGrade } from './grade.js';
 import { applyPost, scratchBuffer } from './post.js';
+import { setDPX } from '../core/draw.js';
 
 export function shot(def) {
   const S = {
@@ -43,9 +44,12 @@ export function shot(def) {
     draw(ctx, f, W, H) {
       const t = f;
       const cam = S.camera.at(t);
-      const view = makeView(cam, W, H, S.unit, S.anchor, S.D);
+      // dolly: the camera moves back as the lens widens, so distant things keep
+      // their size while the stage shrinks (a real pull-back, not a zoom)
+      const view = makeView(cam, W, H, S.unit, S.anchor, def.dolly ? S.D / Math.max(1e-3, cam.z) : S.D);
       S.view = view;
       const k = W / 1920;
+      setDPX(k);
       const live = S.layers.filter((L) => !((L.from !== undefined && t < L.from) || (L.to !== undefined && t >= L.to)));
       const drawLayer = (g, L) => {
         g.save();

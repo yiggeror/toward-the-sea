@@ -12,7 +12,7 @@ import { lightShafts, motes } from '../env/weather.js';
 import { lampGlow, fogBand, particles, glints, bokeh } from '../env/light.js';
 import { butterfly, butterflyPos, fish } from '../env/creatures.js';
 import { Track } from '../core/tracks.js';
-import { css, mix } from '../core/draw.js';
+import { css, mix, DPX } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 export const FOREST = {
@@ -266,68 +266,110 @@ function s2_3() {
 // ---- 2.4 stream crossing: stone to stone, a hind paw slips in --------------
 function streamGround(x) {
   if (x < 0.4) return 0;
-  if (x >= 2.6 && x <= 4.6) return -0.55;
-  if (x >= 6.9 && x <= 8.9) return -0.6;
+  // the two stepping stones (flat tops of the rocks drawn in 2.4)
+  if (x >= 2.5 && x <= 4.7) return -0.55;
+  if (x >= 6.8 && x <= 9.0) return -0.6;
   if (x >= 11) return 0;
   return 0.9; // water
 }
 function streamLayers(S, x0, x1, o = {}) {
-  // the stream crossing the stage plane: a channel on the ground plane
+  // the stream crossing the stage plane: a channel on the ground plane whose
+  // banks meander (but stay put where the cat crosses, at depth ~0)
+  const wob = (d, seed) => {
+    const k = smoothstep(0.6, 6, Math.abs(d));
+    return k * (noise1(d * 0.16, seed) * 1.1 + noise1(d * 0.55, seed + 7) * 0.16 + Math.sin(d * 0.08 + seed) * 1.2);
+  };
   S.layers.push(screenLayer(0.16, (ctx, t, W, H, view) => {
-    const N = 48;
+    const N = 260;
     const pts = [];
     const dNear = Math.max(-60, -view.D * 0.88);
     for (let i = 0; i <= N; i++) {
-      const d = dNear + Math.pow(i / N, 1.5) * (1500 - dNear);
+      const d = dNear + Math.pow(i / N, 1.9) * (1500 - dNear);
       const p = view.pOf(d), sc = view.scaleAt(p);
       const bend = Math.sin(d * 0.01) * 6;
-      pts.push([view.ox + (x0 + bend - view.cam.x) * sc, view.ox + (x1 + bend - view.cam.x) * sc, view.oy + (0.4 - view.cam.y) * sc]);
+      pts.push([view.ox + (x0 + bend + wob(d, 3) - view.cam.x) * sc, view.ox + (x1 + bend + wob(d, 11) - view.cam.x) * sc, view.oy + (0.4 - view.cam.y) * sc, sc, d]);
     }
-    const g = ctx.createLinearGradient(0, view.oy, 0, H);
-    g.addColorStop(0, FOREST.water);
-    g.addColorStop(1, FOREST.waterDeep);
     const ch = new Path2D();
     pts.forEach(([a, , y], i) => (i ? ch.lineTo(a, y) : ch.moveTo(a, y)));
     for (let i = pts.length - 1; i >= 0; i--) ch.lineTo(pts[i][1], pts[i][2]);
     ch.closePath();
-    // wet banks
-    ctx.strokeStyle = 'rgba(76,90,54,0.55)';
-    ctx.lineWidth = Math.max(2, 0.3 * view.scaleAt(1));
+    const s1 = view.scaleAt(1);
+    // earthy banks: a soft brown band, then a dark wet line at the water
     ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(120,112,70,0.35)';
+    ctx.lineWidth = Math.max(3 * DPX, 0.9 * s1);
     ctx.stroke(ch);
+    ctx.strokeStyle = 'rgba(92,86,52,0.55)';
+    ctx.lineWidth = Math.max(2 * DPX, 0.42 * s1);
+    ctx.stroke(ch);
+    const g = ctx.createLinearGradient(0, view.oy, 0, H);
+    g.addColorStop(0, FOREST.water);
+    g.addColorStop(1, FOREST.waterDeep);
     ctx.fillStyle = g;
     ctx.fill(ch);
     ctx.save();
     ctx.clip(ch);
+    // pebbles showing through the shallows along both banks
+    for (let i = 0; i < 70; i++) {
+      const d = -8 + Math.pow(hash01(i * 3 + 1), 1.7) * 90;
+      const p = view.pOf(d), sc = view.scaleAt(p);
+      if (sc <= 0) continue;
+      const side = hash01(i * 5) < 0.5;
+      const bend = Math.sin(d * 0.01) * 6;
+      const xw = side ? x0 + bend + wob(d, 3) + 0.2 + hash01(i * 7) * 0.9 : x1 + bend + wob(d, 11) - 0.2 - hash01(i * 7) * 0.9;
+      const x = view.ox + (xw - view.cam.x) * sc, y = view.oy + (0.4 - view.cam.y) * sc;
+      const r = (0.07 + 0.12 * hash01(i * 11)) * sc;
+      ctx.fillStyle = css(mix('#7f8f7c', '#b3b59c', hash01(i * 13)), 0.5);
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.38, 0, 0, TAU);
+      ctx.fill();
+    }
     // lighter shallows along both banks, sky glare far away
-    ctx.lineWidth = Math.max(2, 0.6 * view.scaleAt(1));
-    ctx.strokeStyle = 'rgba(190,230,215,0.45)';
+    ctx.lineWidth = Math.max(2 * DPX, 0.9 * s1);
+    ctx.strokeStyle = 'rgba(190,232,214,0.42)';
+    ctx.stroke(ch);
+    ctx.lineWidth = Math.max(DPX, 0.25 * s1);
+    ctx.strokeStyle = 'rgba(236,250,240,0.35)';
     ctx.stroke(ch);
     const sg = ctx.createLinearGradient(0, view.oy + (0.4 - view.cam.y) * view.scaleAt(view.pOf(1500)), 0, H);
     sg.addColorStop(0, 'rgba(240,250,240,0.55)');
     sg.addColorStop(0.3, 'rgba(240,250,240,0)');
     ctx.fillStyle = sg;
     ctx.fillRect(0, 0, W, H);
-    glints(ctx, 0, view.oy + (0.4 - view.cam.y) * view.scaleAt(view.pOf(400)), W, H, t, { n: 40, seed: 17, size: 5 * W / 1920, sizeAt: (py) => 0.5 + py / H, speed: 0.22, alpha: 0.95 });
+    // tree reflections: long soft darker smears under the far trunks
+    for (let i = 0; i < 9; i++) {
+      const x = W * (0.05 + 0.1 * i + 0.04 * hash01(i * 17)) - (view.cam.x * view.scaleAt(view.pOf(60))) % (W * 0.1);
+      const top = view.oy + (0.4 - view.cam.y) * view.scaleAt(view.pOf(300));
+      const rg = ctx.createLinearGradient(0, top, 0, H * 0.95);
+      rg.addColorStop(0, 'rgba(60,80,70,0.16)');
+      rg.addColorStop(1, 'rgba(60,80,70,0)');
+      ctx.fillStyle = rg;
+      ctx.fillRect(x, top, W * 0.018 * (0.6 + hash01(i * 23)), H);
+    }
+    glints(ctx, 0, view.oy + (0.4 - view.cam.y) * view.scaleAt(view.pOf(400)), W, H, t, { n: 50, seed: 17, size: 5 * W / 1920, sizeAt: (py) => 0.5 + py / H, speed: 0.22, alpha: 0.95 });
     ctx.restore();
-    // flowing highlights toward the camera
-    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    // ripples and flowing highlights drifting toward the camera
     ctx.lineCap = 'round';
-    for (let i = 0; i < 28; i++) {
+    for (let i = 0; i < 60; i++) {
       const u = hash01(i * 13);
       const d = 1500 - (((t * 3 + hash01(i * 7) * 1560) % 1560));
       const p = view.pOf(d), sc = view.scaleAt(p);
+      if (sc <= 0) continue;
       const bend = Math.sin(d * 0.01) * 6;
-      const x = view.ox + (lerp(x0, x1, 0.15 + 0.7 * u) + bend - view.cam.x) * sc;
+      const xl = x0 + bend + wob(d, 3), xr = x1 + bend + wob(d, 11);
+      const x = view.ox + (lerp(xl, xr, 0.12 + 0.76 * u) + (Math.sin(t * 0.04 + i) * 0.1) - view.cam.x) * sc;
       const y = view.oy + (0.4 - view.cam.y) * sc;
-      ctx.lineWidth = Math.max(1, 0.05 * sc);
+      const len = (0.3 + 0.5 * hash01(i * 19)) * sc;
+      ctx.strokeStyle = i % 3 ? 'rgba(255,255,255,0.45)' : 'rgba(40,90,100,0.22)';
+      ctx.lineWidth = Math.max(DPX, 0.05 * sc);
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineTo(x + 0.4 * sc, y);
+      ctx.quadraticCurveTo(x + len * 0.5, y - len * 0.06, x + len, y);
       ctx.stroke();
     }
   }));
 }
+
 function s2_4() {
   return shot({
     name: '2.4', dur: 228, unit: 70, anchor: [0.5, 0.6], grade: dayGrade,
@@ -357,15 +399,15 @@ function s2_4() {
       locomote(P, { gait: 'trot', to: -1.4, accel: 6, decel: 8 });
       A.look(P, P.t - 4, 6, { yaw: 0.3, pitch: -0.3, lookY: -0.6 });
       P.t += 2;
-      A.jump(P, { dx: 3.7, dy: -0.55, h: 0.6, antic: 6, hold: 2, flight: 10 });
+      A.jump(P, { dx: 4.35, dy: -0.55, h: 0.65, antic: 6, hold: 2, flight: 10 });
       A.wait(P, 2);
       A.jump(P, { dx: 4.3, dy: -0.05, h: 0.6, antic: 6, hold: 1, flight: 10 });
       // the hind paw slips off the back of the stone into the water
       const ts = P.t + 4;
       const hn = P.curPose().hn;
       P.key(ts, {}, 'hold');
-      P.key(ts + 3, { hn: [hn[0] - 0.55, 0.75], hnC: 0.3, hip: [P.curPose().hip[0] - 0.1, -0.78], pitch: -0.12, archB: 0.2 }, 'in');
-      P.event(ts + 3, 'splash', { x: hn[0] - 0.55, y: 0.5, strength: 0.5 });
+      P.key(ts + 3, { hn: [hn[0] - 0.55, 0.3], hnC: 0.3, hip: [P.curPose().hip[0] - 0.1, -0.84], pitch: -0.1, archB: 0.2 }, 'in');
+      P.event(ts + 3, 'splash', { x: hn[0] - 0.55, y: 0.4, strength: 0.5 });
       P.key(ts + 5, { eyeWide: 0.9, earRot: 0.7, earFlat: 0.3, fluff: 0.5, tailA: 1.0, tailC: 0.1, mouth: 0.3 }, 'out');
       P.emote(ts + 4, 'exclaim', { dur: 18 });
       P.key(ts + 16, {}, 'hold');

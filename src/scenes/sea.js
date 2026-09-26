@@ -2,6 +2,7 @@
 // Sequence 8 — the sea (the view matches the postcard).
 // Sequence 9 — the beach at sunrise: first waves, play, pull back.
 import { shot } from '../film/shot.js';
+import { scratchBuffer } from '../film/post.js';
 import { TITLE, ITALIC } from '../film/fonts.js';
 import { makeCat, follow, ramp, screenLayer, at, standingPose, sittingPose } from '../film/kit.js';
 import { CardProp } from '../film/prop.js';
@@ -11,7 +12,7 @@ import { locomote } from '../anim/gaits.js';
 import * as A from '../anim/actions.js';
 import { skyGradient, glow, clouds } from '../env/sky.js';
 import { profile, fillBelow, groundPlane, groundEllipse } from '../env/terrain.js';
-import { grass, tufts, windField, rock } from '../env/nature.js';
+import { grass, tufts, windField, rock, crag } from '../env/nature.js';
 import { windStreaks, motes } from '../env/weather.js';
 import { lampGlow, fogBand, particles, glints, lightPool, bokeh, wetReflection } from '../env/light.js';
 import { stars } from '../env/sky.js';
@@ -21,7 +22,7 @@ import { Track } from '../core/tracks.js';
 import { drawEmotes } from '../fx/emote.js';
 import { viewRim } from '../fx/rim.js';
 import { idleFace } from '../anim/idle.js';
-import { css, mix } from '../core/draw.js';
+import { css, mix, DPX, rgb } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 // ================================ 7. CAPE =====================================
@@ -85,7 +86,7 @@ function capeFront(S, o = {}) {
   S.layers.push(screenLayer(2.4, (ctx, t, W, H) => windStreaks(ctx, W, H, t, { n: o.streaks ?? 10, seed: 13, alpha: 0.28, dir: 1, color: '#fff2e6' })));
 }
 // terrain drawn as a filled profile at the stage plane
-function paintLand(ctx, g, x0, x1, col, t, step = 0.25) {
+function paintLand(ctx, g, x0, x1, col, t, step = 0.25, edge = null) {
   // body: vertical gradient from the sunlit top edge down into shadow
   let top = Infinity;
   for (let x = x0; x <= x1; x += 1) top = Math.min(top, g(x));
@@ -97,19 +98,36 @@ function paintLand(ctx, g, x0, x1, col, t, step = 0.25) {
   ctx.beginPath();
   ctx.moveTo(x0, 40);
   for (let x = x0; x <= x1; x += step) ctx.lineTo(x, g(x));
-  ctx.lineTo(x1, 40);
+  if (edge) for (const [x, y] of edge) ctx.lineTo(x, y); // ragged boundary (a cliff lip)
+  else ctx.lineTo(x1, 40);
   ctx.closePath();
   ctx.fill();
-  // mottled grass patches
+  // mottled grass patches and brush-like turf strokes (denser near the crest)
   ctx.save();
   ctx.clip();
-  for (let i = 0; i < 40; i++) {
-    const x = x0 + hash01(i * 7 + 1) * (x1 - x0);
-    const y = g(x) + 0.4 + hash01(i * 3) * 6;
-    ctx.fillStyle = css(hash01(i * 5) < 0.5 ? '#5d7a55' : '#3f5445', 0.35);
+  const span = x1 - x0;
+  for (let i = 0; i < Math.round(span * 1.2) + 40; i++) {
+    const x = x0 + hash01(i * 7 + 1) * span;
+    const y = g(x) + 0.4 + hash01(i * 3) * 9;
+    ctx.fillStyle = css(hash01(i * 5) < 0.5 ? '#5d7a55' : '#3f5445', 0.16 + 0.1 * hash01(i * 17));
     ctx.beginPath();
-    ctx.ellipse(x, y, 1 + 2 * hash01(i * 11), 0.25 + 0.4 * hash01(i * 13), 0, 0, TAU);
+    ctx.ellipse(x, y, 1.4 + 3 * hash01(i * 11), 0.18 + 0.3 * hash01(i * 13), 0, 0, TAU);
     ctx.fill();
+  }
+  ctx.lineCap = 'round';
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.strokeStyle = pass ? 'rgba(150,172,120,0.22)' : 'rgba(42,58,46,0.22)';
+    ctx.lineWidth = 0.06;
+    ctx.beginPath();
+    for (let i = 0; i < Math.round(span * 7); i++) {
+      const h = (q) => hash01(i * 13 + pass * 7919 + q);
+      const x = x0 + h(1) * span;
+      const y = g(x) + 0.25 + Math.pow(h(2), 1.6) * 12;
+      const L = 0.25 + 0.5 * h(3);
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + L, y - L * (0.25 + 0.3 * h(4)));
+    }
+    ctx.stroke();
   }
   ctx.restore();
   // warm rim of dawn light along the crest
@@ -219,37 +237,28 @@ function s7_4() {
     setup(S) {
       capeBackdrop(S, { dawn: 0.3, ground: () => 0 });
       terrainLayer(S, chaseGround, -30, 46, CAPE.ground[0]);
-      S.layers.push(at(0, 0.86, (ctx, t) => {
-        // rocky outcrop: a slanted face with ledges, grass on top
-        ctx.fillStyle = CAPE.rock[0];
-        ctx.beginPath();
-        ctx.moveTo(30.4, 1.4);
-        ctx.lineTo(31.0, -1.2);
-        ctx.lineTo(31.5, -2.4);
-        ctx.lineTo(32.4, -2.75);
-        ctx.lineTo(46, -3.0);
-        ctx.lineTo(46, 3);
-        ctx.lineTo(30.4, 3);
-        ctx.fill();
-        ctx.fillStyle = CAPE.rock[1];
-        ctx.beginPath();
-        ctx.moveTo(31.0, -1.2);
-        ctx.lineTo(31.5, -2.4);
-        ctx.lineTo(32.4, -2.75);
-        ctx.lineTo(33.2, -2.4);
-        ctx.lineTo(32.2, -1.6);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(40,36,56,0.35)';
-        ctx.lineWidth = 0.08;
-        ctx.beginPath();
-        ctx.moveTo(31.3, -0.2);
-        ctx.lineTo(33.5, -0.6);
-        ctx.moveTo(34, 0.8);
-        ctx.lineTo(37, 0.4);
-        ctx.stroke();
+      S.layers.push(at(0, 0.86, (ctx) => {
+        // rocky outcrop: a rugged slanted face, a turf cap, the far end dropping away
+        crag(ctx, [
+          [30.1, 3.4, 0], [30.45, 1.3, 1], [30.95, -0.9, 1], [31.35, -2.15, 0.6], [31.95, -2.7, 0.15],
+          [46.0, -2.98, 0.9], [46.5, -1.2, 1.2], [47.3, 1.2, 1.2], [47.8, 3.4, 0],
+        ], { seed: 11, lit: '#b3a0a6', mid: '#77717f', dark: '#403b50', light: [0.8, -0.6], rough: 0.24, rim: 'rgba(255,212,178,0.6)', rimWidth: 0.07 });
+        // turf cap with a ragged underside
+        const top = (x) => lerp(-2.74, -3.0, (x - 31.95) / 14.05);
         ctx.fillStyle = CAPE.ground[0];
-        ctx.fillRect(32.2, -3.05, 13.8, 0.35);
+        ctx.beginPath();
+        ctx.moveTo(31.8, top(31.8) - 0.04);
+        for (let x = 31.8; x <= 46.1; x += 0.25) ctx.lineTo(x, top(x) - 0.06);
+        for (let x = 46.1; x >= 31.8; x -= 0.25) ctx.lineTo(x, top(x) + 0.18 + 0.16 * hash01(Math.round(x * 4) * 7 + 3));
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,214,170,0.5)';
+        ctx.lineWidth = 0.06;
+        ctx.beginPath();
+        for (let x = 31.8; x <= 46.1; x += 0.25) (x === 31.8 ? ctx.moveTo(x, top(x) - 0.05) : ctx.lineTo(x, top(x) - 0.05));
+        ctx.stroke();
       }));
+      S.layers.push(at(0, 0.861, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: (x) => (x > 32 && x < 45.8 ? chaseGround(x) - 0.02 : 90), spacing: 0.9, h: 0.9, width: 0.1, colors: ['#4d6a48', '#638058', '#8c9f73'], seed: 43, wind: capeWind, fill: 0.7 })));
       S.layers.push(at(0, 0.87, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: (x) => (x < 31 ? chaseGround(x) : 50), density: 7, h: 1.0, width: 0.12, colors: CAPE.grass, seed: 17, wind: capeWind })));
       const cat = makeCat(S, { x: -2, facing: 1, ground: chaseGround, wind: tailwind(1.0), ...catDawn });
       const P = cat.perf;
@@ -369,8 +378,24 @@ function ridgeScene(S, o = {}) {
       ctx.fillRect(W * 0.62 - w / 2, y, w, Math.max(1, H * 0.003));
     }
   }));
-  S.layers.push(at(0, 0.8, (ctx, t) => paintLand(ctx, (x) => RIDGE(Math.max(10, x)) + (x < 10 ? (10 - x) * 0.02 : 0), -200, 30, CAPE.ground[0], t, 1)));
+  // the sea cliff below the crest: rock where the turf gives out
+  const lipY = RIDGE(29.99);
+  S.layers.push(at(0, 0.79, (ctx) => crag(ctx, [
+    [21.5, 40, 0], [24.5, 12, 1], [27.2, 4.5, 1], [28.9, 0.4, 0.8], [29.7, lipY + 0.45, 0.4], [30.25, lipY + 0.2, 0.3],
+    [30.9, -0.6, 1], [31.2, 2.6, 1.2], [30.7, 5.2, 1.3], [31.8, 9.5, 1.2], [32.3, 16, 1], [33.6, 26, 1], [34.2, 40, 0.5],
+  ], { seed: 7, lit: '#b7a2a4', mid: '#7a7184', dark: '#3e3a4e', light: [0.85, -0.5], rough: 0.3, rim: 'rgba(255,207,174,0.55)', rimWidth: 0.1, ao: 0.45 })));
+  const edge = [[30.15, lipY + 0.35], [29.6, 0.2], [28.3, 3.2], [26.6, 6.5], [24.2, 13], [21.6, 40]];
+  S.layers.push(at(0, 0.8, (ctx, t) => paintLand(ctx, (x) => RIDGE(Math.max(10, x)) + (x < 10 ? (10 - x) * 0.02 : 0), -200, 29.9, CAPE.ground[0], t, 0.5, edge)));
   S.layers.push(at(0, 0.85, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: (x) => (x < 30 ? RIDGE(Math.max(10, x)) : 90), density: 6, h: 1.1, width: 0.12, colors: CAPE.grass, seed: 23, wind: capeWind })));
+  // rocks breaking through the turf on the ridge face
+  S.layers.push(at(0, 0.8005, (ctx) => {
+    for (const [x, y, w, h, sd] of [[19.2, 2.2, 2.6, 1.3, 3], [24.6, 4.0, 1.8, 0.9, 5], [12.5, 5.2, 2.2, 1.0, 9], [27.4, 1.0, 1.2, 0.8, 13]]) {
+      crag(ctx, [[x - w / 2, y + h * 0.3, 0], [x - w * 0.35, y - h * 0.6, 1], [x + w * 0.1, y - h, 1], [x + w / 2, y - h * 0.2, 1], [x + w * 0.45, y + h * 0.3, 0]],
+        { seed: sd, lit: '#a99aa0', mid: '#6f6a79', dark: '#3e3a4c', light: [0.85, -0.5], rough: 0.12, rim: 'rgba(255,207,174,0.45)', rimWidth: 0.05, facets: 5, strata: 1, ao: 0.2 });
+    }
+  }));
+  // turf hanging over the lip
+  S.layers.push(at(0, 0.851, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: (x) => (x > 28.6 && x < 30.3 ? RIDGE(x) + 0.12 : 90), spacing: 0.35, h: 0.8, width: 0.1, colors: ['#4d6a48', '#638058', '#8c9f73'], seed: 29, wind: capeWind, fill: 1 })));
 }
 function s7_6() {
   return shot({
@@ -585,7 +610,6 @@ function beachWorld(S, o = {}) {
     lampGlow(ctx, W * 0.18, H * 0.12, W * 0.05, '#ffffff', 1, 0.3);
   }));
   S.layers.push(Object.assign(at(30000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 31, n: 5, y: -6000, dy: 2000, w: 12000, h: 1200, speed: 3, wrap: 150000, top: '#ffffff', shade: '#c9d3e2', rim: '#ffffff', light: [-0.6, -0.8] })), { blur: 2.2 }));
-  // far headland with the lighthouse (right), sea to the horizon
   S.layers.push(screenLayer(0.05, (ctx, t, W, H, view) => {
     const hz = view.oy;
     const g = ctx.createLinearGradient(0, hz, 0, H);
@@ -594,185 +618,324 @@ function beachWorld(S, o = {}) {
     ctx.fillStyle = g;
     ctx.fillRect(0, hz, W, H - hz);
   }));
-  S.layers.push(at(9000, 0.06, (ctx, t, view, S2, p) => {
-    // headland (cliff + grass cap) and lighthouse, far right
+  // far headland with the lighthouse (right): a rocky cape in the morning haze
+  S.layers.push(Object.assign(at(9000, 0.06, (ctx, t, view, S2, p) => {
     const X = o.capeX ?? 2600;
-    ctx.fillStyle = '#9a8d86';
+    crag(ctx, [
+      [X - 950, 40, 0], [X - 800, -90, 1], [X - 640, -210, 1], [X - 430, -290, 0.6], [X - 200, -330, 0.4],
+      [X + 4000, -362, 0], [X + 4000, 40, 0],
+    ], { seed: 17, lit: '#c9b8b0', mid: '#a09490', dark: '#77707a', light: [-0.7, -0.7], rough: 26, strata: 5, facets: 22, rim: 'rgba(255,248,236,0.7)', rimWidth: 7, ao: 0.25, dip: 0.02 });
+    // turf cap
+    ctx.fillStyle = '#86a076';
     ctx.beginPath();
-    ctx.moveTo(X - 900, 30);
-    ctx.quadraticCurveTo(X - 700, -260, X - 200, -330);
-    ctx.lineTo(X + 4000, -360);
-    ctx.lineTo(X + 4000, 30);
+    ctx.moveTo(X - 560, -250);
+    ctx.quadraticCurveTo(X - 330, -350, X - 120, -348);
+    ctx.lineTo(X + 4000, -378);
+    ctx.lineTo(X + 4000, -350);
+    ctx.lineTo(X - 160, -322);
+    ctx.quadraticCurveTo(X - 360, -318, X - 560, -250);
     ctx.fill();
-    ctx.fillStyle = '#7f9a70';
+    // lighthouse: tower with a gallery and lantern, a keeper's house beside it
+    const lx = X + 300, ly = -356;
+    ctx.fillStyle = '#e8e2d8';
+    ctx.fillRect(lx + 70, ly - 70, 150, 70);
+    ctx.fillStyle = '#b8574c';
     ctx.beginPath();
-    ctx.moveTo(X - 520, -250);
-    ctx.quadraticCurveTo(X - 300, -345, X - 120, -345);
-    ctx.lineTo(X + 4000, -375);
-    ctx.lineTo(X + 4000, -330);
-    ctx.lineTo(X - 200, -318);
+    ctx.moveTo(lx + 58, ly - 70);
+    ctx.lineTo(lx + 145, ly - 118);
+    ctx.lineTo(lx + 232, ly - 70);
     ctx.fill();
-    const lx = X + 300, ly = -352;
-    ctx.fillStyle = '#f7f4ee';
+    const tg = ctx.createLinearGradient(lx - 40, 0, lx + 40, 0);
+    tg.addColorStop(0, '#fffdf8');
+    tg.addColorStop(0.6, '#f1ece2');
+    tg.addColorStop(1, '#cfc7bd');
+    ctx.fillStyle = tg;
     ctx.beginPath();
-    ctx.moveTo(lx - 40, ly);
-    ctx.lineTo(lx + 40, ly);
-    ctx.lineTo(lx + 27, ly - 330);
-    ctx.lineTo(lx - 27, ly - 330);
+    ctx.moveTo(lx - 42, ly);
+    ctx.lineTo(lx + 42, ly);
+    ctx.lineTo(lx + 28, ly - 330);
+    ctx.lineTo(lx - 28, ly - 330);
     ctx.fill();
     ctx.fillStyle = '#c94f45';
-    ctx.fillRect(lx - 40, ly - 345, 80, 18);
+    ctx.fillRect(lx - 36, ly - 205, 72, 34);
+    ctx.fillStyle = '#3f3a44';
+    ctx.fillRect(lx - 44, ly - 344, 88, 14);
     ctx.fillStyle = '#fff4c8';
-    ctx.fillRect(lx - 22, ly - 385, 44, 40);
+    ctx.fillRect(lx - 22, ly - 392, 44, 48);
     ctx.fillStyle = '#c94f45';
     ctx.beginPath();
-    ctx.moveTo(lx - 32, ly - 385);
-    ctx.lineTo(lx, ly - 420);
-    ctx.lineTo(lx + 32, ly - 385);
+    ctx.moveTo(lx - 30, ly - 392);
+    ctx.quadraticCurveTo(lx, ly - 440, lx + 30, ly - 392);
     ctx.fill();
-  }));
+  }), { haze: { color: '#dfe8ef', amount: 0.32 } }));
   // the beach is a strip of sand ending at depth `beachEnd`; the swash edge runs
-  // diagonally (x = edge(t) + slope * depth); everything else is sea
+  // diagonally (x = edge(t) + slope * depth + a slow meander); beyond is sea
   const slope = o.slope ?? 0.25;
   const beachEnd = o.beachEnd ?? 260;
+  const waves = o.waves || [];
+  const rest = o.rest ?? 6;
+  const meander = (d) => smoothstep(4, 40, Math.abs(d)) * (noise1(d * 0.018, 5) * 7 + noise1(d * 0.07, 9) * 1.4);
+  // the high-water mark: as far as the waves of this shot reach, a little ragged
+  const wetTo = Math.min(rest - 2.4, ...waves.map((w) => w.reach - 0.6));
+  const wetEdge = (d) => wetTo + noise1(d * 0.35, 21) * 0.5 + noise1(d * 1.4, 23) * 0.15;
   S.layers.push(screenLayer(0.1, (ctx, t, W, H, view) => {
     const hz = view.oy;
-    // open sea on the whole ground plane
-    const g = ctx.createLinearGradient(0, hz, 0, H);
-    g.addColorStop(0, BEACH.sea[1]);
-    g.addColorStop(0.35, '#86b3cf');
-    g.addColorStop(1, BEACH.sea[0]);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, hz, W, H - hz);
-    // far wave lines drifting in, denser toward the horizon
-    ctx.lineWidth = Math.max(1, W / 1920);
-    for (let i = 0; i < 90; i++) {
-      const d = 60 + Math.pow(hash01(i * 7), 2.2) * 6000;
+    const k = W / 1920;
+    const edge = swashEdge(t, o);
+    const dk = Math.max(1, view.D / S.D); // > 1 while the camera dollies back
+    const P = (x, d) => {
       const p = view.pOf(d), sc = view.scaleAt(p);
-      const y = view.oy + (0 - view.cam.y) * sc;
-      if (y < hz || y > H) continue;
-      const x = ((hash01(i * 13) * 1.2 + t * 0.0008 * (1 + hash01(i))) % 1.2) * W - W * 0.1;
-      const len = (6 + 30 * sc / view.scaleAt(1)) * (W / 1920) * 4;
-      ctx.strokeStyle = hash01(i * 3) < 0.6 ? 'rgba(255,255,255,0.42)' : 'rgba(40,90,140,0.25)';
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.quadraticCurveTo(x + len / 2, y - len * 0.04, x + len, y);
-      ctx.stroke();
+      return [view.ox + (x - view.cam.x) * sc, view.oy + (0 - view.cam.y) * sc, sc];
+    };
+    // depth samples, from just in front of the lens to the end of the beach
+    const dNear = -view.D * 0.82;
+    const N = 140;
+    const ds = [];
+    for (let i = 0; i <= N; i++) ds.push(dNear + Math.pow(i / N, 1.9) * (beachEnd - dNear));
+    const shore = (d) => edge + d * slope + meander(d); // the swash front (moves with the waves)
+    const restShore = (d) => Math.max(rest, edge) + d * slope + meander(d); // where the sea begins
+    const line = (fx) => ds.map((d) => P(fx(d), d));
+    // a band between two x(d) curves as a closed path (extended below the frame)
+    const band = (fa, fb) => {
+      const A = line(fa), B = line(fb);
+      const path = new Path2D();
+      path.moveTo(A[0][0], Math.max(A[0][1], H + 20));
+      A.forEach(([x, y]) => path.lineTo(x, y));
+      for (let i = B.length - 1; i >= 0; i--) path.lineTo(B[i][0], B[i][1]);
+      path.lineTo(B[0][0], Math.max(B[0][1], H + 20));
+      path.closePath();
+      return path;
+    };
+    // ---- the beach floor, painted one pixel row at a time: every row is a
+    // single depth, so a horizontal gradient runs exactly across it (dry sand,
+    // wet sand, the glossy edge, the sheet of water, the sea) without seams
+    const far = P(0, beachEnd)[1];
+    const seaStops = [[0, rgb(BEACH.sea[1])], [0.3, rgb('#79acd0')], [1, rgb('#3a78ab')]];
+    const grad3 = (stops, u) => {
+      u = clamp(u, 0, 1);
+      for (let i = 1; i < stops.length; i++) {
+        if (u <= stops[i][0]) {
+          const [ua, ca] = stops[i - 1], [ub, cb] = stops[i];
+          return mix(ca, cb, (u - ua) / Math.max(1e-6, ub - ua));
+        }
+      }
+      return stops[stops.length - 1][1];
+    };
+    const sandA = rgb(BEACH.sand[1]), sandB = rgb(BEACH.sand[0]);
+    const wetC = rgb(BEACH.wet), gloss = rgb('#d3e4ea');
+    const base1 = view.scaleAt(1);
+    const y0row = Math.max(0, Math.ceil(hz));
+    if (view.cam.y < -1e-3) {
+      for (let y = y0row; y < H; y++) {
+        const yc = y + 0.5;
+        const seaC = grad3(seaStops, (yc - hz) / Math.max(1, H - hz));
+        const sc = (yc - view.oy) / -view.cam.y;
+        if (sc <= 1e-6) continue;
+        const d = view.D * base1 / sc - view.D;
+        if (d > beachEnd || d < dNear) {
+          ctx.fillStyle = css(seaC);
+          ctx.fillRect(0, y, W, 1);
+          continue;
+        }
+        const sandC = mix(sandA, sandB, clamp((yc - far) / Math.max(1, H - far), 0, 1));
+        const X = (xw) => view.ox + (xw - view.cam.x) * sc;
+        const xs = shore(d), xr = restShore(d);
+        const xwet = Math.min(xs - 0.05, wetEdge(d) + d * slope + meander(d));
+        const sheet = xr - xs; // width of the thin sheet of water run up over the sand
+        const stops = [
+          [X(xwet), sandC],
+          [X(lerp(xwet, xs, 0.25)), mix(sandC, wetC, 0.35)],
+          [X(lerp(xwet, xs, 0.55)), wetC],
+          [X(lerp(xwet, xs, 0.88)), mix(wetC, gloss, 0.55)],
+          [X(xs), gloss],
+          [X(xs + Math.min(0.25, sheet * 0.3 + 0.05)), mix(wetC, rgb('#eef7f6'), 0.68)],
+          [X(xs + sheet * 0.35 + 0.08), mix(wetC, rgb('#d5eceb'), 0.58)],
+          [X(xs + sheet * 0.7 + 0.1), mix(wetC, rgb('#b8e3e0'), 0.55)],
+          [X(xr + 0.2), mix(wetC, rgb('#a6dcd6'), 0.62)],
+          [X(xr + 1.1), rgb('#a6dcd6')],
+          [X(xr + 2.6), rgb('#6fb6cf')],
+          [X(xr + 5.5), seaC],
+        ];
+        const xa = Math.min(0, stops[0][0]) - 1, xb = Math.max(W, stops[stops.length - 1][0]) + 1;
+        const g = ctx.createLinearGradient(xa, 0, xb, 0);
+        g.addColorStop(0, css(stops[0][0] > xa ? sandC : stops[0][1]));
+        let last = 0;
+        for (const [x, c] of stops) {
+          const u = clamp((x - xa) / (xb - xa), 0, 1);
+          if (u < last) continue;
+          g.addColorStop(u, css(c));
+          last = u;
+        }
+        g.addColorStop(1, css(seaC));
+        ctx.fillStyle = g;
+        ctx.fillRect(0, y, W, 1);
+      }
     }
-    // sunlight glittering on the water
-    glints(ctx, 0, hz, W, (H - hz) * 0.6, t, { n: 70, seed: 5, size: 7 * W / 1920, sizeAt: (py) => 0.4 + 1.2 * (py - hz) / Math.max(1, H - hz), bias: 1.6, speed: 0.18, alpha: 0.95, alphaAt: (px) => 0.4 + 0.6 * Math.max(0, 1 - Math.abs(px / W - 0.3) * 1.5) });
-    // haze on the horizon
+    // ---- the open sea: swell crests rolling in and breaking, glitter
+    ctx.lineCap = 'round';
+    const K = 9;
+    for (let c = 0; c < K; c++) {
+      const ph = (t * 0.0045 + c / K) % 1;
+      const off = 3.2 + Math.pow(1 - ph, 1.4) * 60; // distance from the shore line
+      const brk = 1 - smoothstep(3.2, 14, off); // breaking near the shore
+      const fade = Math.sin(ph * Math.PI);
+      if (fade < 0.02) continue;
+      for (let i = 0; i < ds.length - 1; i += 1) {
+        const d = ds[i];
+        if (d > 170 * dk) break;
+        if (hash01(c * 131 + i * 7 + Math.floor(t * 0.0045 + c / K) * 17) < 0.5 - 0.45 * brk) continue;
+        const [xa, ya, sa] = P(restShore(d) + off + Math.sin(d * 0.3 + c) * 0.4, d);
+        const [xb, yb] = P(restShore(ds[i + 1]) + off + Math.sin(ds[i + 1] * 0.3 + c) * 0.4, ds[i + 1]);
+        if (ya > H + 40 && yb > H + 40) continue;
+        const a = fade * (0.09 + 0.64 * brk) * (0.4 + 0.6 * smoothstep(0, 60, sa)) * (1 - 0.75 * smoothstep(120, 420, sa));
+        ctx.strokeStyle = css('#f6fbfd', a);
+        ctx.lineWidth = Math.max(0.8 * k, (0.05 + 0.1 * brk) * sa);
+        ctx.beginPath();
+        ctx.moveTo(xa, ya);
+        ctx.lineTo(xb, yb);
+        ctx.stroke();
+        ctx.strokeStyle = css('#2d6a9c', 0.12 * fade);
+        ctx.lineWidth = Math.max(0.8 * k, 0.12 * sa);
+        ctx.beginPath();
+        ctx.moveTo(xa - 0.25 * sa, ya);
+        ctx.lineTo(xb - 0.25 * sa, yb);
+        ctx.stroke();
+      }
+    }
+    glints(ctx, 0, hz, W, (H - hz) * 0.6, t, { n: 90, seed: 5, size: 7 * k, sizeAt: (py) => 0.4 + 1.2 * (py - hz) / Math.max(1, H - hz), bias: 1.6, speed: 0.18, alpha: 0.95, alphaAt: (px) => 0.4 + 0.6 * Math.max(0, 1 - Math.abs(px / W - 0.3) * 1.5) });
     const hzg = ctx.createLinearGradient(0, hz - H * 0.03, 0, hz + H * 0.04);
     hzg.addColorStop(0, 'rgba(246,244,238,0)');
     hzg.addColorStop(0.45, 'rgba(246,244,238,0.6)');
     hzg.addColorStop(1, 'rgba(246,244,238,0)');
     ctx.fillStyle = hzg;
     ctx.fillRect(0, hz - H * 0.03, W, H * 0.07);
-    const edge = swashEdge(t, o);
-    const N = 36;
-    const pts = [];
-    // never sample the shore behind (or right at) the lens
-    const dNear = Math.max(-40, -view.D * 0.6);
-    for (let i = 0; i <= N; i++) {
-      const d = dNear + Math.pow(i / N, 1.6) * (beachEnd - dNear);
-      const p = view.pOf(d), sc = view.scaleAt(p);
-      const xe = edge + d * slope;
-      pts.push([view.ox + (xe - view.cam.x) * sc, view.oy + (0 - view.cam.y) * sc, sc]);
-    }
-    const last = pts[pts.length - 1];
-    // sand (left of the shoreline, nearer than beachEnd)
-    const sg = ctx.createLinearGradient(0, last[1], 0, H);
-    sg.addColorStop(0, BEACH.sand[1]);
-    sg.addColorStop(1, BEACH.sand[0]);
-    ctx.fillStyle = sg;
-    ctx.beginPath();
-    ctx.moveTo(-10, H + 10);
-    pts.forEach(([x, y]) => ctx.lineTo(x, y));
-    ctx.lineTo(-10, last[1]);
-    ctx.closePath();
-    ctx.fill();
-    // sand ripples and speckles
+    // ---- dry sand texture: speckles, wind ripples, shells and pebbles
+    const sandPath = new Path2D();
+    const S0 = line((d) => Math.min(shore(d) - 0.05, wetEdge(d) + d * slope + meander(d)) + 0.6);
+    sandPath.moveTo(-10, H + 20);
+    sandPath.lineTo(S0[0][0], Math.max(S0[0][1], H + 20));
+    S0.forEach(([x, y]) => sandPath.lineTo(x, y));
+    sandPath.lineTo(-10, far);
+    sandPath.closePath();
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(-10, H + 10);
-    pts.forEach(([x, y]) => ctx.lineTo(x, y));
-    ctx.lineTo(-10, last[1]);
-    ctx.closePath();
-    ctx.clip();
-    ctx.strokeStyle = 'rgba(160,125,85,0.18)';
-    ctx.lineWidth = Math.max(1, W / 1920);
-    for (let i = 0; i < 40; i++) {
-      const d = -30 + Math.pow(hash01(i * 5), 1.8) * 200;
+    ctx.clip(sandPath);
+    for (let i = 0; i < 900; i++) {
+      const d = -8 * dk + Math.pow(hash01(i * 5 + 1), 2.2) * 160 * dk;
+      const [x, y, sc] = P(view.cam.x + (hash01(i * 9 + 2) - 0.5) * (W / Math.max(1e-3, view.scaleAt(view.pOf(d)))) * 1.3, d);
+      if (y < hz || y > H + 4) continue;
+      const r = Math.max(0.5 * k, (0.008 + 0.012 * hash01(i * 3)) * sc);
+      ctx.fillStyle = hash01(i * 7) < 0.6 ? 'rgba(150,118,80,0.28)' : 'rgba(255,250,236,0.5)';
+      ctx.fillRect(x, y, r * 2, r);
+    }
+    ctx.strokeStyle = 'rgba(160,125,85,0.2)';
+    for (let i = 0; i < 70; i++) {
+      const d = -30 * dk + Math.pow(hash01(i * 5), 1.8) * 200 * dk;
       const p = view.pOf(d), sc = view.scaleAt(p);
       const y = view.oy + (0 - view.cam.y) * sc;
       const x = W * hash01(i * 9) - W * 0.1;
+      ctx.lineWidth = Math.max(k, 0.03 * sc);
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.quadraticCurveTo(x + sc * 2, y - sc * 0.08, x + sc * 4, y);
+      ctx.quadraticCurveTo(x + sc * 1.5, y - sc * 0.06, x + sc * 3, y);
+      ctx.quadraticCurveTo(x + sc * 4.5, y + sc * 0.05, x + sc * 6, y);
       ctx.stroke();
     }
-    ctx.restore();
-    // wet sand band just landward of the edge: darker, glossy
-    const wet = new Path2D();
-    pts.forEach(([x, y], i) => (i ? wet.lineTo(x, y) : wet.moveTo(x, y)));
-    for (let i = pts.length - 1; i >= 0; i--) wet.lineTo(pts[i][0] - 3.2 * pts[i][2], pts[i][1]);
-    wet.closePath();
-    ctx.fillStyle = BEACH.wet;
-    ctx.fill(wet);
-    S.wetPath = wet;
-    S.wetTop = Math.min(...pts.map((q) => q[1]));
-    // shallow turquoise water over the sand just seaward of the edge
-    const shallow = new Path2D();
-    pts.forEach(([x, y], i) => (i ? shallow.lineTo(x, y) : shallow.moveTo(x, y)));
-    for (let i = pts.length - 1; i >= 0; i--) shallow.lineTo(pts[i][0] + 9 * pts[i][2], pts[i][1]);
-    shallow.closePath();
-    ctx.save();
-    ctx.clip(shallow);
-    for (let i = 0; i < pts.length - 1; i++) {
-      const [xa, ya, sa] = pts[i], [xb, yb] = pts[i + 1];
-      const g = ctx.createLinearGradient(xa, 0, xa + 9 * sa, 0);
-      g.addColorStop(0, 'rgba(170,225,220,0.85)');
-      g.addColorStop(0.5, 'rgba(120,195,210,0.55)');
-      g.addColorStop(1, 'rgba(90,160,200,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(Math.min(xa, xb) - 2, Math.min(ya, yb) - 1, 9 * sa + Math.abs(xb - xa) + 4, Math.abs(yb - ya) + 2);
+    for (let i = 0; i < 26; i++) {
+      const d = -4 * dk + Math.pow(hash01(i * 13 + 5), 1.5) * 60 * dk;
+      const xw = (o.shellX ?? 0) + (hash01(i * 17) - 0.6) * 40 * dk;
+      if (xw > shore(d) - 0.5) continue;
+      const [x, y, sc] = P(xw, d);
+      if (y > H + 10) continue;
+      const r = (0.05 + 0.07 * hash01(i * 19)) * sc;
+      const shell = hash01(i * 23) < 0.45;
+      ctx.fillStyle = shell ? '#f3e6dc' : '#a39a90';
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.5, (hash01(i * 29) - 0.5) * 0.6, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = shell ? 'rgba(214,160,150,0.8)' : 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(x - r * 0.2, y - r * 0.15, r * 0.45, r * 0.18, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(120,95,70,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(x + r * 0.2, y + r * 0.35, r * 0.9, r * 0.2, 0, 0, TAU);
+      ctx.fill();
     }
     ctx.restore();
-    // broken foam lines of the incoming swash: wavy, dashed, drifting landward and fading
-    ctx.lineCap = 'round';
-    for (let k = 0; k < 4; k++) {
-      const ph = ((t * 0.012 + k * 0.25) % 1);
-      const offU = (1 - ph) * 8 + 0.3;
-      const a = Math.sin(ph * Math.PI) * 0.75;
-      for (let i = 0; i < pts.length - 1; i++) {
-        if (hash01(i * 7 + k * 31 + Math.floor(t * 0.012 + k * 0.25) * 3) < 0.35) continue;
-        const [xa, ya, sa] = pts[i], [xb, yb, sb] = pts[i + 1];
-        const wob = Math.sin(i * 2.1 + k + t * 0.05) * 0.3;
-        ctx.strokeStyle = css(BEACH.foam, a);
-        ctx.lineWidth = Math.max(1, 0.1 * sa * (1.2 - ph * 0.6));
+    // the glossy strip at the water mirrors the cat (see the reflection layer)
+    S.wetPath = band((d) => shore(d), (d) => lerp(shore(d), Math.min(shore(d) - 0.05, wetEdge(d) + d * slope + meander(d)), 0.6));
+    S.wetTop = far;
+    S.wetFrom = wetEdge(0); // the high-water mark at the stage
+    // ---- footprints of the cat, washed away by the next wave that reaches them
+    const cat = S.actors[0];
+    if (cat && cat.perf) {
+      for (const e of cat.perf.events) {
+        if (e.type !== 'step' || e.t > t || e.x === undefined) continue;
+        const near = e.leg && e.leg[1] === 'n';
+        const d = near ? -0.14 : 0.14;
+        const xw = e.x + (e.leg && e.leg[0] === 'h' ? -0.04 : 0.04);
+        if (xw > shore(d) - 0.1) continue;
+        const washed = waves.some((w) => w.t > e.t && t > w.t + w.dur * 0.25 && w.reach < xw);
+        if (washed) continue;
+        const age = t - e.t;
+        const [x, y, sc] = P(xw, d);
+        const wet = xw > wetEdge(d) + d * slope;
+        ctx.fillStyle = css(wet ? '#8d7a62' : '#b89b73', (wet ? 0.5 : 0.42) * Math.min(1, age / 2));
         ctx.beginPath();
-        ctx.moveTo(xa + (offU + wob) * sa, ya);
-        ctx.quadraticCurveTo((xa + xb) / 2 + (offU + wob + 0.25) * sa, (ya + yb) / 2, xb + (offU + wob) * sb, yb);
+        ctx.ellipse(x, y, 0.075 * sc, 0.03 * sc, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = css('#fff6e6', 0.3 * Math.min(1, age / 2));
+        ctx.beginPath();
+        ctx.ellipse(x - 0.02 * sc, y - 0.012 * sc, 0.05 * sc, 0.012 * sc, 0, 0, TAU);
+        ctx.fill();
+      }
+    }
+    // ---- foam: broken lines of the incoming swash drifting landward, the
+    // lacy front with small bubbles
+    for (let kk = 0; kk < 9; kk++) {
+      const ph = ((t * 0.012 + kk / 9) % 1);
+      const offU = (1 - ph) * 7 + 0.25;
+      const a = Math.sin(ph * Math.PI) * 0.7;
+      for (let i = 0; i < ds.length - 1; i++) {
+        const d = ds[i];
+        if (d > 120 * dk) break;
+        if (hash01(i * 7 + kk * 31 + Math.floor(t * 0.012 + kk / 9) * 3) < 0.45) continue;
+        const wob = Math.sin(i * 0.7 + kk + t * 0.05) * 0.25;
+        const xA = lerp(restShore(d) + 7, shore(d) + 0.25, ph), xB = lerp(restShore(ds[i + 1]) + 7, shore(ds[i + 1]) + 0.25, ph);
+        const [xa, ya, sa] = P(xA + wob, d), [xb, yb] = P(xB + wob, ds[i + 1]);
+        ctx.strokeStyle = css(BEACH.foam, a * (1 - 0.65 * smoothstep(140, 420, sa)));
+        ctx.lineWidth = Math.max(0.8 * k, Math.min(4 * k, 0.045 * sa * (1.2 - ph * 0.6)));
+        ctx.beginPath();
+        ctx.moveTo(xa, ya);
+        ctx.lineTo(xb, yb);
         ctx.stroke();
       }
     }
-    // the swash front: a lacy foam edge with bubbles
-    ctx.strokeStyle = BEACH.foam;
+    const front = line((d) => shore(d) + Math.sin(d * 2.1 + t * 0.2) * 0.06);
     ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(1.5, 0.22 * view.scaleAt(1));
-    ctx.beginPath();
-    pts.forEach(([x, y, sc], i) => {
-      const wob = Math.sin(i * 1.7 + t * 0.2) * 0.14 * sc;
-      i ? ctx.lineTo(x + wob, y) : ctx.moveTo(x + wob, y);
-    });
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    for (let i = 0; i < pts.length; i++) {
-      const [x, y, sc] = pts[i];
-      for (let b = 0; b < 2; b++) {
-        const r = sc * (0.04 + 0.05 * hash01(i * 3 + b + Math.floor(t / 6)));
+    for (const [w, a, dx] of [[0.09, 0.95, 0], [0.04, 0.6, 0.22], [0.03, 0.45, 0.5]]) {
+      ctx.strokeStyle = css(BEACH.foam, a);
+      ctx.beginPath();
+      let drawing = false;
+      for (let i = 0; i < front.length; i++) {
+        const [x, y, sc] = front[i];
+        if (hash01(i * 3 + Math.round(dx * 10) + Math.floor(t / 8)) < (dx ? 0.35 : 0.04)) { drawing = false; continue; }
+        const xx = x + dx * sc;
+        if (drawing) ctx.lineTo(xx, y);
+        else ctx.moveTo(xx, y);
+        drawing = true;
+      }
+      ctx.lineWidth = Math.max(1.2 * k, w * view.scaleAt(1));
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    for (let i = 0; i < front.length; i++) {
+      const [x, y, sc] = front[i];
+      if (y > H + 20) continue;
+      for (let b = 0; b < 3; b++) {
+        const r = Math.max(0.6 * k, sc * (0.01 + 0.018 * hash01(i * 3 + b + Math.floor(t / 6))));
         ctx.beginPath();
-        ctx.arc(x + sc * (0.2 + 0.5 * hash01(i * 5 + b)), y + (hash01(i + b * 9) - 0.5) * sc * 0.1, r, 0, TAU);
+        ctx.arc(x + sc * (0.12 + 0.6 * hash01(i * 5 + b)), y + (hash01(i + b * 9) - 0.5) * sc * 0.06, r, 0, TAU);
         ctx.fill();
       }
     }
@@ -794,13 +957,46 @@ function beachWorld(S, o = {}) {
       tufts(ctx, view, p, t, { ground: dune, spacing: 5, h: 4, width: 0.35, colors: BEACH.duneGrass, seed: 3, wind: windField({ base: 0.3, gust: 0.4, dir: 1 }), fill: 0.6 * 1, dy: 0.5 });
     }));
   }
-  // the wet sand mirrors the sky and the cat
-  S.layers.push(screenLayer(1.01, (ctx, t, W, H, view) => {
-    if (!S.wetPath) return;
+  // the wet sand mirrors the cat standing on it (drawn just before the cat)
+  S.layers.push(screenLayer(0.995, (ctx, t, W, H, view) => {
+    const cat = S.actors[0] && S.actors[0].actor;
+    if (!S.wetPath || !cat) return;
     const y0 = view.oy + (0 - view.cam.y) * view.scaleAt(view.pOf(0));
-    if (y0 >= H || y0 <= 0) return;
-    wetReflection(ctx, W, H, y0, { alpha: 0.4, stretch: 1.0, blur: 0.8, mode: 'source-over', clipPath: S.wetPath, fade: false });
-    // sparkle on the wet sheen
+    if (y0 >= H) return;
+    const B = scratchBuffer('beachRefl', W, H);
+    const b = B.getContext('2d');
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    b.globalCompositeOperation = 'source-over';
+    b.globalAlpha = 1;
+    b.filter = 'none';
+    b.clearRect(0, 0, W, H);
+    b.translate(0, 2 * y0);
+    b.scale(1, -1);
+    const hipX = S.actors[0].perf.poseAt(t).hip[0];
+    const onWet = smoothstep(S.wetFrom - 0.4, S.wetFrom + 0.6, hipX);
+    if (onWet <= 0.01) return;
+    const light = cat.opts.light ? cat.opts.light(t) : null;
+    cat._draw(b, t, view.actorCam(1), { style: Object.assign({}, cat.opts.style || {}, light ? { light } : {}), noSmear: true });
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    // fade with distance below the feet
+    b.globalCompositeOperation = 'destination-in';
+    const g = b.createLinearGradient(0, y0, 0, y0 + H * 0.22);
+    g.addColorStop(0, 'rgba(0,0,0,0.5)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    b.fillStyle = g;
+    b.fillRect(0, 0, W, H);
+    b.globalCompositeOperation = 'source-over';
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clip(S.wetPath);
+    ctx.globalAlpha = onWet;
+    ctx.filter = `blur(${(1.2 * W / 1920).toFixed(2)}px)`;
+    ctx.drawImage(B, 0, 0);
+    ctx.filter = 'none';
+    ctx.restore();
+  }));
+  S.layers.push(screenLayer(1.01, (ctx, t, W, H) => {
+    if (!S.wetPath) return;
     ctx.save();
     ctx.clip(S.wetPath);
     glints(ctx, 0, S.wetTop, W, H - S.wetTop, t, { n: 30, seed: 41, size: 6 * W / 1920, speed: 0.2, alpha: 0.9 });
@@ -951,22 +1147,23 @@ function s9_5() {
   const waves = [];
   for (let i = 0; i < 6; i++) waves.push({ t: i * 70, dur: 100, reach: i % 2 ? -3 : 0 });
   return shot({
-    name: '9.5', dur: 420, unit: 70, anchor: [0.5, 0.58], fadeOut: 72, post: beachPost, grade: beachGrade,
+    name: '9.5', dur: 420, unit: 70, anchor: [0.5, 0.58], fadeOut: 72, post: beachPost, grade: beachGrade, dolly: true,
     cam: { x: 0, y: -2, z: 1 },
     setup(S) {
       // pull back: the lens widens until the cat is tiny; the height follows
       // the zoom so the shoreline (and the cat) stay in frame all the way
       S.camera.key(0, { y: 0 });
-      S.camera.move(20, 400, { z: 0.06, x: 60 }, 'inout');
+      S.camera.move(20, 400, { z: 0.06, x: 2 }, 'inout');
       S.camera.follow = (t, c) => [0, -1.15 / Math.max(0.05, c.z)];
-      beachWorld(S, { rest: 7, waves, slope: 0.3, capeX: 2400 });
+      beachWorld(S, { rest: 9.5, waves, slope: 0.3, capeX: 2400, beachEnd: 5000 });
       const cat = makeCat(S, { x: -2, facing: 1, ...catMorning });
       const P = cat.perf;
       P.key(0, { happy: 0.6, smile: 0.9, mouth: 0.3, mouthW: 0.6, blush: 0.4 });
       P.emote(10, 'notes', { dur: 100 });
       P.t = 6;
       for (let k = 0; k < 4; k++) {
-        locomote(P, { gait: 'trot', dist: 5 + k, accel: 5, decel: 5, surfaceAt: () => 'sand' });
+        // back and forth along the water's edge (locomote distances are absolute)
+        locomote(P, { gait: 'trot', dist: (k % 2 ? -1 : 1) * (5 + k), accel: 5, decel: 5, surfaceAt: () => 'sand' });
         if (k % 2 === 0) A.jump(P, { dx: 2, dy: 0, h: 0.8, antic: 3, hold: 0, flight: 8 });
         A.turnAround(P);
       }

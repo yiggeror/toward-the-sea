@@ -17,7 +17,7 @@ import { Track } from '../core/tracks.js';
 import { drawPortrait, drawCatBack } from '../cat/views.js';
 import { drawEmotes } from '../fx/emote.js';
 import { idleFace } from '../anim/idle.js';
-import { css, mix } from '../core/draw.js';
+import { css, mix, DPX } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 export const NIGHT = {
@@ -137,7 +137,7 @@ function nightStreet(S, o = {}) {
       // ripples from drips
       ctx.save();
       ctx.strokeStyle = 'rgba(210,225,255,0.35)';
-      ctx.lineWidth = Math.max(1, e.ry * 0.05);
+      ctx.lineWidth = Math.max(DPX, e.ry * 0.05);
       for (let i = 0; i < 3; i++) {
         const per = 34 + i * 9;
         const tt = t + i * 13 + Math.abs(pd.x) * 7;
@@ -496,7 +496,7 @@ function s1_6() {
           const x = hash01(i * 7 + 1) * W, y = hash01(i * 11 + 2) * H * 0.7, r = (30 + 90 * hash01(i * 13)) * W / 1920;
           ctx.fillStyle = css(i % 3 ? '#f2c677' : '#7f93c2', 0.12 + 0.1 * hash01(i));
           ctx.beginPath();
-          ctx.arc(x + Math.sin(t * 0.01 + i) * 4, y, r, 0, TAU);
+          ctx.arc(x + Math.sin(t * 0.01 + i) * 4 * W / 1920, y, r, 0, TAU);
           ctx.fill();
         }
       }));

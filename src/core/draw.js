@@ -4,6 +4,14 @@ import { clamp, lerp, dist, norm, sub, add, mul, noise1, TAU } from './math.js';
 
 // ---------- colour ----------
 const _cc = new Map();
+// device pixels per 1080p pixel for the frame being drawn (2 when the offline
+// renderer supersamples). Set by the shot at the start of every frame; used
+// wherever a size is clamped in pixels, so a 2x render keeps the 1080p look.
+export let DPX = 1;
+export function setDPX(v) {
+  DPX = v;
+}
+
 export function rgb(hex) {
   if (Array.isArray(hex)) return hex;
   let c = _cc.get(hex);

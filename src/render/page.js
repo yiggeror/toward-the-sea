@@ -3,10 +3,16 @@
 // WebSocket (binary, no encoding step).
 const q = new URLSearchParams(location.search);
 const W = +(q.get('w') || 1920), H = +(q.get('h') || 1080);
+// supersampling: every frame is drawn at ss× the output size and filtered
+// down (anti-aliases thin lines, doubles the resolution of the half- and
+// quarter-size post buffers). Offline only; render time is not a concern.
+const SS = Math.max(1, +(q.get('ss') || 1));
 const cv = document.getElementById('c');
 cv.width = W;
 cv.height = H;
 const ctx = cv.getContext('2d', { willReadFrequently: true });
+const big = SS > 1 ? new OffscreenCanvas(Math.round(W * SS), Math.round(H * SS)) : null;
+const bctx = big ? big.getContext('2d') : ctx;
 let timeline;
 async function load() {
   const what = q.get('timeline') || 'reel';
@@ -37,13 +43,26 @@ window.__profile = (f) => {
   shot.layers.forEach((L, k) => (L.draw = orig[k]));
   return { shot: shot.name, local, layers: times.map((t, k) => `${k}:z${(shot.layers[k].z ?? '').toString().slice(0, 5)}:${(t / 3).toFixed(1)}`).join('  ') };
 };
+function reset(g, w, h) {
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = 'source-over';
+  g.filter = 'none';
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, w, h);
+}
 window.renderFrame = (f) => {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, W, H);
-  timeline.draw(ctx, f, W, H);
+  if (!big) {
+    reset(ctx, W, H);
+    timeline.draw(ctx, f, W, H);
+    return;
+  }
+  reset(bctx, big.width, big.height);
+  timeline.draw(bctx, f, big.width, big.height);
+  reset(ctx, W, H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(big, 0, 0, W, H);
 };
 window.streamFrames = async (port, from, to) => {
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);

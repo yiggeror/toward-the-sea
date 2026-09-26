@@ -3,11 +3,11 @@ import { computeSkeleton, tailPoints } from './rig.js';
 import { buildHead, drawHead } from './head.js';
 import { drawTorso, drawLeg, drawTail } from './body.js';
 import { PAL, M } from './model.js';
-import { css, mix, rgb, mulc, screenc } from '../core/draw.js';
+import { css, mix, rgb, mulc, screenc, DPX } from '../core/draw.js';
 import { angLerp, clamp, smoothstep, PI, lerp } from '../core/math.js';
 
 export function makeStyle(scale, opts = {}) {
-  const lwPx = opts.lwPx ?? clamp(scale * 0.0145, 1.05, 3.2);
+  const lwPx = opts.lwPx ?? clamp(scale * 0.0145, 1.05 * DPX, 3.2 * DPX);
   // scene light: multiply by a tint (coloured ambient), then lift (screen) for readability
   const L = opts.light;
   const far = opts.farShade;

@@ -6,7 +6,9 @@
 //
 // usage: node tools/render.mjs --timeline film|reel --w 1920 --h 1080 \
 //          --out build/film_1080p.mp4 [--jobs 3] [--crf 17] [--preset slow]
-//          [--from 0] [--to N] [--audio build/mix.wav]
+//          [--from 0] [--to N] [--audio build/mix.wav] [--ss 2]
+//
+// --ss draws every frame at ss× resolution and filters it down (supersampling).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -26,6 +28,8 @@ const jobs = +arg('jobs', 3);
 const crf = arg('crf', '17');
 const preset = arg('preset', 'slow');
 const audio = arg('audio', null);
+const ss = +arg('ss', 1);
+const x264 = arg('x264', 'aq-mode=3:aq-strength=0.9');
 const tmpDir = path.join(path.dirname(out), `.segments_${path.basename(out, '.mp4')}`);
 fs.mkdirSync(tmpDir, { recursive: true });
 
@@ -36,7 +40,7 @@ async function openPage() {
   const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
   page.on('pageerror', (e) => console.error('[pageerror]', e.message));
   page.on('console', (m) => { if (m.type() === 'error') console.error('[page]', m.text()); });
-  await page.goto(`http://127.0.0.1:${port}/web/render/index.html?timeline=${timeline}&w=${W}&h=${H}`);
+  await page.goto(`http://127.0.0.1:${port}/web/render/index.html?timeline=${timeline}&w=${W}&h=${H}&ss=${ss}`);
   await page.waitForFunction(() => window.__ready === true || window.__error, null, { timeout: 300000 });
   const err = await page.evaluate(() => window.__error);
   if (err) throw new Error(err);
@@ -50,7 +54,7 @@ await probe.close();
 fs.mkdirSync(path.join(ROOT, 'build'), { recursive: true });
 fs.writeFileSync(path.join(path.dirname(out), `events_${timeline}.json`), JSON.stringify({ fps: 24, length, events }, null, 0));
 const from = +arg('from', 0), to = Math.min(+arg('to', length), length);
-console.log(`timeline "${timeline}": ${length} frames (${(length / 24).toFixed(1)} s); rendering ${from}..${to} at ${W}x${H} with ${jobs} jobs`);
+console.log(`timeline "${timeline}": ${length} frames (${(length / 24).toFixed(1)} s); rendering ${from}..${to} at ${W}x${H}${ss > 1 ? ` (supersampled ${ss}x)` : ''} with ${jobs} jobs`);
 
 const total = to - from;
 const per = Math.ceil(total / jobs);
@@ -66,7 +70,7 @@ async function runJob(k) {
   const ff = spawn('ffmpeg', [
     '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${W}x${H}`, '-r', '24', '-i', '-',
     '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p',
-    '-c:v', 'libx264', '-preset', preset, '-crf', crf, '-tune', 'animation',
+    '-c:v', 'libx264', '-preset', preset, '-crf', crf, '-tune', 'animation', '-x264-params', x264,
     '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
     '-r', '24', seg,
   ], { stdio: ['pipe', 'inherit', 'inherit'] });

@@ -21,7 +21,7 @@ export function rain(ctx, W, H, t, spec) {
     const speed = (spec.speed || 0.09) * H * (0.6 + 0.5 * depth);
     const len = (spec.len || 60) * s * (0.5 + 0.7 * depth) * (0.7 + 0.6 * speed / H / 0.09);
     ctx.strokeStyle = css(spec.color || '#c9d6e6', (spec.alpha ?? 0.5) * a);
-    ctx.lineWidth = Math.max(0.6, 1.3 * s * wk * depth);
+    ctx.lineWidth = Math.max(0.6 * s, 1.3 * s * wk * depth);
     ctx.beginPath();
     const span = H + len + 200 * s;
     for (let i = 0; i < n; i++) {

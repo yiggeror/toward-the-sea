@@ -260,3 +260,116 @@ export function leafyPlant(ctx, x, gy, h, color, seed, bend = 0) {
     ctx.fill();
   }
 }
+
+/**
+ * A rugged rock mass (outcrop, sea cliff). `outline` is a closed polygon in
+ * world units: [[x, y, rough], ...], where `rough` scales the noise applied to
+ * the edge that starts at that point (0 keeps an edge exact, e.g. a walkable
+ * top). Filled with a lit-to-shadow gradient, then facets, strata and a lit rim.
+ * o: { lit, mid, dark (colours), light: [dx, dy] toward the light, seed,
+ *      rough (amplitude, H), strata (count), rim (colour), facets (count) }
+ */
+export function crag(ctx, outline, o = {}) {
+  const seed = o.seed ?? 1;
+  const amp = o.rough ?? 0.22;
+  // subdivide and roughen
+  const pts = [];
+  const n = outline.length;
+  for (let i = 0; i < n; i++) {
+    const [ax, ay, r = 1] = outline[i], [bx, by] = outline[(i + 1) % n];
+    const L = Math.hypot(bx - ax, by - ay);
+    const m = Math.max(1, Math.ceil(L / 0.18));
+    const nx = -(by - ay) / (L || 1), ny = (bx - ax) / (L || 1);
+    for (let k = 0; k < m; k++) {
+      const u = k / m;
+      const s = (i * 7.31 + u * L) * 0.9;
+      const off = r * amp * (noise1(s, seed) * 0.8 + noise1(s * 3.1, seed + 5) * 0.35 + (hash01(seed * 13 + i * 97 + k) - 0.5) * 0.25);
+      const edge = k === 0 ? 0 : 1; // corners stay put
+      pts.push([ax + (bx - ax) * u + nx * off * edge, ay + (by - ay) * u + ny * off * edge]);
+    }
+  }
+  const path = new Path2D();
+  pts.forEach(([x, y], i) => (i ? path.lineTo(x, y) : path.moveTo(x, y)));
+  path.closePath();
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [x, y] of pts) {
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+  }
+  const [lx, ly] = o.light || [-0.6, -0.8];
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = Math.max(x1 - x0, y1 - y0) * 0.6;
+  const g = ctx.createLinearGradient(cx + lx * R, cy + ly * R, cx - lx * R, cy - ly * R);
+  g.addColorStop(0, o.lit || '#9c97a6');
+  g.addColorStop(0.45, o.mid || '#7a7686');
+  g.addColorStop(1, o.dark || '#4a4658');
+  ctx.save();
+  ctx.fillStyle = g;
+  ctx.fill(path);
+  ctx.clip(path);
+  // facets: broken planes catching more or less light
+  const nf = o.facets ?? Math.round((x1 - x0) * (y1 - y0) * 0.35) + 4;
+  for (let i = 0; i < nf; i++) {
+    const h = (q) => hash01(seed * 31 + i * 17 + q);
+    const fx = x0 + h(1) * (x1 - x0), fy = y0 + h(2) * (y1 - y0);
+    const s = 0.5 + h(3) * 1.6;
+    const a = h(4) * TAU;
+    const lit = h(5) < 0.55;
+    ctx.fillStyle = lit ? css(o.lit || '#9c97a6', 0.18 + 0.2 * h(6)) : css(o.dark || '#4a4658', 0.14 + 0.2 * h(6));
+    ctx.beginPath();
+    for (let k = 0; k < 4; k++) {
+      const aa = a + k * (TAU / 4) + (h(10 + k) - 0.5) * 0.9;
+      const rr = s * (0.5 + 0.6 * h(20 + k));
+      const px = fx + Math.cos(aa) * rr, py = fy + Math.sin(aa) * rr * 0.7;
+      k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  // strata / cracks: jagged, roughly parallel lines
+  const ns = o.strata ?? Math.round((y1 - y0) * 0.8) + 2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (let i = 0; i < ns; i++) {
+    const h = (q) => hash01(seed * 53 + i * 29 + q);
+    let x = x0 + h(1) * (x1 - x0) * 0.8, y = y0 + (i + 0.5 + (h(2) - 0.5) * 0.6) * ((y1 - y0) / ns);
+    const len = (0.3 + 0.7 * h(3)) * (x1 - x0) * 0.6;
+    ctx.strokeStyle = css(o.dark || '#4a4658', 0.35 + 0.25 * h(4));
+    ctx.lineWidth = 0.05 + 0.05 * h(5);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    const steps = Math.max(3, Math.round(len / 0.5));
+    for (let k = 0; k < steps; k++) {
+      x += len / steps;
+      y += (hash01(seed * 7 + i * 11 + k) - 0.45) * 0.35 + (o.dip ?? 0.08) * (len / steps);
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // a lit lip above each crack
+    ctx.strokeStyle = css(o.lit || '#9c97a6', 0.25);
+    ctx.lineWidth = 0.035;
+    ctx.stroke();
+  }
+  // ambient occlusion toward the base
+  const ao = ctx.createLinearGradient(0, y0, 0, y1);
+  ao.addColorStop(0, 'rgba(20,18,30,0)');
+  ao.addColorStop(1, `rgba(20,18,30,${o.ao ?? 0.35})`);
+  ctx.fillStyle = ao;
+  ctx.fillRect(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2);
+  ctx.restore();
+  // lit rim along the edges that face the light
+  if (o.rim) {
+    ctx.strokeStyle = o.rim;
+    ctx.lineWidth = o.rimWidth ?? 0.08;
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length];
+      const nx = (by - ay), ny = -(bx - ax); // outward normal for a clockwise outline
+      const L = Math.hypot(nx, ny) || 1;
+      if ((nx * lx + ny * ly) / L > 0.25) {
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+      }
+    }
+    ctx.stroke();
+  }
+  return path;
+}

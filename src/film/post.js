@@ -34,6 +34,8 @@ function brightPass(src, W, H, th, knee, tint, name = 'bright') {
   const A = buf(name, w, h);
   const a = A.getContext('2d', { willReadFrequently: true });
   a.globalCompositeOperation = 'copy';
+  a.imageSmoothingEnabled = true;
+  a.imageSmoothingQuality = 'high'; // area-filtered: small highlights must not flicker
   a.drawImage(src, 0, 0, w, h);
   a.globalCompositeOperation = 'source-over';
   const img = a.getImageData(0, 0, w, h);
@@ -134,7 +136,7 @@ export function rays(ctx, W, H, o, t) {
   }
   r.globalAlpha = 1;
   r.globalCompositeOperation = 'source-over';
-  const B = blurInto('raysBlur', R, 1.2);
+  const B = blurInto('raysBlur', R, 1.2 * W / 1920);
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = 'screen';

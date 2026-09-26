@@ -68,14 +68,19 @@ export function applyGrade(ctx, W, H, g, t) {
     ctx.fillRect(0, 0, W, H);
   }
   if (g.grain > 0) {
+    // one grain cell per output pixel at 1080p: scaled (unsmoothed) with the
+    // frame so a supersampled render keeps the same grain after filtering
     const tile = grain();
+    const k = W / 1920;
     ctx.globalCompositeOperation = 'overlay';
     ctx.globalAlpha = clamp(g.grain, 0, 1) * 0.35;
     const ox = Math.floor(hash01(Math.floor(t / 2) * 31 + 1) * 192), oy = Math.floor(hash01(Math.floor(t / 2) * 57 + 2) * 192);
     const pat = ctx.createPattern(tile, 'repeat');
-    ctx.translate(-ox, -oy);
+    if (k !== 1 && pat.setTransform) pat.setTransform(new DOMMatrix([k, 0, 0, k, 0, 0]));
+    ctx.imageSmoothingEnabled = false;
+    ctx.translate(-ox * k, -oy * k);
     ctx.fillStyle = pat;
-    ctx.fillRect(ox, oy, W, H);
+    ctx.fillRect(ox * k, oy * k, W, H);
   }
   ctx.restore();
 }
