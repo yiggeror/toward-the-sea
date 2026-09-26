@@ -8,14 +8,16 @@
 
 ## 观看 · Watch
 
-成片在 [`video/`](video/)，1920×1080、24 fps、H.264 + AAC 立体声：
+成片在 [`video/`](video/)，1920×1080、24 fps、H.264 + AAC 立体声，8 分 13 秒。每一帧都先按 3840×2160
+绘制再滤波缩小（2× 超采样），所以线条和细节比直接画 1080p 更干净。
 
-（渲染完成后放入 `video/`：1080p 成片按大小分成几段 MP4。）
+- `video/toward-the-sea_1080p_part1.mp4`
+- `video/toward-the-sea_1080p_part2.mp4`
 
-各段首尾在关键帧处切开，可以单独播放，也可以无损拼回一个完整文件：
+GitHub 单个文件不能超过 100 MB，所以成片在关键帧处切成两段；两段可以依次单独播放，也可以无损拼回一个完整文件：
 
 ```sh
-cd video && ffmpeg -f concat -safe 0 -i parts.txt -c copy 去看海吧_1080p.mp4
+cd video && ffmpeg -f concat -safe 0 -i parts.txt -c copy toward-the-sea_1080p.mp4
 ```
 
 网页播放器（可选，实时绘制同一部片子）：`npm run serve`，然后打开 <http://localhost:8080/web/player/>。
