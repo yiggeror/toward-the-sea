@@ -301,7 +301,7 @@ function drawEye(ctx, ef, pose, st) {
   const gz = toEye(ef, (pose.lookX || 0) * ef.r, -(pose.lookY || 0) * ef.r);
   // cross-eyed: each pupil slides toward the nose
   const cross = clamp(pose.cross || 0, 0, 1);
-  const gx = clamp(gz[0] * 0.18 - cross * 0.85, -1, 0.5), gy = clamp(gz[1] * 0.16 - cross * 0.22, -0.4, 0.2);
+  const gx = clamp(gz[0] * 0.18 - cross * 1.05, -1.2, 0.5), gy = clamp(gz[1] * 0.16 - cross * 0.3, -0.5, 0.2);
   const size = (1 + 0.28 * (pose.eyeWide || 0) + 0.14 * sparkle + 0.06 * tear) * (0.92 + 0.2 * clamp(pose.pupil ?? 0.45, 0, 1));
   const rx = 0.62 * size, ry = 0.8 * size;
   const arc = (pts, w) => fillStroke(ctx, pts, (i, t) => w * Math.sin(0.2 + t * (Math.PI - 0.4)), ink);

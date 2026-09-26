@@ -13,7 +13,7 @@ import { css, mix } from '../core/draw.js';
 import { lampGlow, lightCone, lightPool, fogBand, wetReflection, particles, glints } from '../env/light.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
-const STORM = {
+export const STORM = {
   sky: [[0, '#2c3342'], [0.45, '#4d5669'], [0.8, '#8a8d8a'], [1, '#c2b98f']],
   skyDark: [[0, '#151a26'], [0.5, '#2b3243'], [0.85, '#4a5160'], [1, '#6c6e6c']],
   hillFar: '#6a7682', hillMid: '#5b6a5c', hillNear: '#56674f',
@@ -22,20 +22,20 @@ const STORM = {
   cloud: '#5e6678', cloudDark: '#474e5e',
   rain: '#c9d3e1',
 };
-const stormPost = { bloom: { threshold: 0.82, knee: 0.12, strength: 0.55, radius: 24, tint: '#dfe6ff' } };
-const moonPost = { bloom: { threshold: 0.62, knee: 0.25, strength: 0.6, radius: 26, tint: '#e6ecff' } };
-const catStorm = {
+export const stormPost = { bloom: { threshold: 0.82, knee: 0.12, strength: 0.55, radius: 24, tint: '#dfe6ff' } };
+export const moonPost = { bloom: { threshold: 0.62, knee: 0.25, strength: 0.6, radius: 26, tint: '#e6ecff' } };
+export const catStorm = {
   light: () => ({ tint: '#a9b2c6', amt: 0.35, lift: '#15181e' }),
   rim: () => ({ color: '#e1e8ff', dir: [0.2, -0.98], alpha: 0.35, width: 0.05 }),
 };
-const headwind = (base = 1.1, gustAt = []) => (t) => {
+export const headwind = (base = 1.1, gustAt = []) => (t) => {
   let g = 0;
   for (const [a, b] of gustAt) g = Math.max(g, smoothstep(a, a + 8, t) * (1 - smoothstep(b - 8, b, t)));
   return [-(base + 0.25 * Math.sin(t * 0.21) + 0.9 * g), 0.06];
 };
 
 // flash level of the strikes at time t (for lighting clouds and the scene)
-function strikeLight(strikes, t) {
+export function strikeLight(strikes, t) {
   let k = 0;
   for (const s of strikes || []) {
     const a = t - s.t;
@@ -44,7 +44,7 @@ function strikeLight(strikes, t) {
   }
   return k;
 }
-function stormSky(S, o = {}) {
+export function stormSky(S, o = {}) {
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
     skyGradient(ctx, W, H, o.dark ? STORM.skyDark : STORM.sky);
     // a pale band of light low under the storm
@@ -96,7 +96,7 @@ function stormSky(S, o = {}) {
     }));
   }
 }
-function hills(S, o = {}) {
+export function hills(S, o = {}) {
   const far = profile({ base: 0, amp: 300, freq: 0.0009, seed: 31 });
   const mid = profile({ base: 0, amp: 60, freq: 0.004, seed: 33 });
   const wind = o.wind || windField({ base: -0.3, gust: -0.9, speed: 0.3, wave: 0.05, dir: -1 });
@@ -303,10 +303,10 @@ function s3_5() {
 
 // ---- the bus stop -----------------------------------------------------------
 export const SHELTER = { x0: -10, x1: 10, roof: -24, bench: -3.9, benchX0: -7.5, benchX1: 7.5 };
-function shelterGround(x) {
+export function shelterGround(x) {
   return x >= SHELTER.benchX0 && x <= SHELTER.benchX1 ? SHELTER.bench : 0;
 }
-function shelterBack(ctx, P, lampOn = 0) {
+export function shelterBack(ctx, P, lampOn = 0) {
   // back wall (inside), bench, side walls — drawn behind the cat
   const { x0, x1, roof, bench, benchX0, benchX1 } = SHELTER;
   ctx.fillStyle = P.wall;
@@ -361,7 +361,7 @@ function shelterBack(ctx, P, lampOn = 0) {
     ctx.restore();
   }
 }
-function shelterFront(ctx, P, t, rainAmt) {
+export function shelterFront(ctx, P, t, rainAmt) {
   const { x0, x1, roof } = SHELTER;
   // posts + roof (corrugated edge)
   ctx.fillStyle = P.post;
@@ -402,8 +402,8 @@ function shelterFront(ctx, P, t, rainAmt) {
     ctx.stroke();
   }
 }
-const SHELTER_DAY = { wall: '#6d7380', wallShade: '#5b606c', poster: '#c9c3b2', posterInk: '#7a7466', bench: '#8a7560', benchShade: '#6b5a49', floor: '#6f7079', post: '#4d525d', roof: '#5f6572', roofEdge: '#4a4f5a', sign: '#3e6fa3', signInk: '#f2f2f2' };
-const SHELTER_NIGHT = { wall: '#2c3242', wallShade: '#23283a', poster: '#4b4a50', posterInk: '#3a3940', bench: '#3d3634', benchShade: '#2e2927', floor: '#2a2e3a', post: '#1c202b', roof: '#262b38', roofEdge: '#1b1f29', sign: '#24344c', signInk: '#8a93a6' };
+export const SHELTER_DAY = { wall: '#6d7380', wallShade: '#5b606c', poster: '#c9c3b2', posterInk: '#7a7466', bench: '#8a7560', benchShade: '#6b5a49', floor: '#6f7079', post: '#4d525d', roof: '#5f6572', roofEdge: '#4a4f5a', sign: '#3e6fa3', signInk: '#f2f2f2' };
+export const SHELTER_NIGHT = { wall: '#2c3242', wallShade: '#23283a', poster: '#4b4a50', posterInk: '#3a3940', bench: '#3d3634', benchShade: '#2e2927', floor: '#2a2e3a', post: '#1c202b', roof: '#262b38', roofEdge: '#1b1f29', sign: '#24344c', signInk: '#8a93a6' };
 
 function s3_6() {
   return shot({
@@ -472,14 +472,14 @@ function s3_7() {
 }
 
 // =============================== 4. NIGHT ===================================
-const NIGHTS = {
+export const NIGHTS = {
   sky: [[0, '#050a1c'], [0.5, '#101d44'], [0.85, '#1f2c58'], [1, '#2e3a66']],
 };
-const catMoon = {
+export const catMoon = {
   light: () => ({ tint: '#7c87b2', amt: 0.5, lift: '#12162a' }),
   rim: () => ({ color: '#cfdcff', dir: [-0.6, -0.8], alpha: 0.55, width: 0.05 }),
 };
-function nightSky(S, o = {}) {
+export function nightSky(S, o = {}) {
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
     skyGradient(ctx, W, H, NIGHTS.sky);
     stars(ctx, W, H, o.stars ?? 120, 17, 0.7, t, o.starAlpha ?? 0.8);

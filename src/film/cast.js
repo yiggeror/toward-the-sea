@@ -29,7 +29,7 @@ let seedN = 101;
  * returns { track, key(t, part, ease), emote(t, kind, o), events }
  */
 export function viewCat(S, o = {}) {
-  const tr = new Track(Object.assign({ x: 0, y: 0, d: 0, stride: 0, crouch: 0, tail: 0.7, tailSway: 0.5, lift: 0, lean: 0, tailFlick: 0, cardSwing: 0, cardBend: 0, bob: 0, air: 0, push: 0 }, FACE, o.init || {}));
+  const tr = new Track(Object.assign({ x: 0, y: 0, d: 0, stride: 0, crouch: 0, tail: 0.7, tailSway: 0.5, lift: 0, lean: 0, tailFlick: 0, cardSwing: 0, cardBend: 0, bob: 0, air: 0, push: 0, tailLow: 0 }, FACE, o.init || {}));
   tr.key(0, {}, 'linear');
   const events = [];
   const seed = o.seed ?? seedN++;

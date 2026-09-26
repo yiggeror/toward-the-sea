@@ -26,22 +26,22 @@ import { css, mix, DPX, rgb } from '../core/draw.js';
 import { hash01, clamp, lerp, TAU, smoothstep, noise1 } from '../core/math.js';
 
 // ================================ 7. CAPE =====================================
-const CAPE = {
+export const CAPE = {
   sky: (k) => [[0, css(mix('#1f2a5c', '#5a79bd', k))], [0.45, css(mix('#6a5f9e', '#b7a4cc', k))], [0.78, css(mix('#d98a8a', '#f5b9a0', k))], [1, css(mix('#f3b47f', '#ffd9a6', k))]],
   hillFar: '#51597a', hillMid: '#4f6660', ground: ['#4d6450', '#6b8067'],
   grass: ['#4f6b4c', '#62805a'], grassLight: ['#7b9a6c', '#8faa7c'],
   rock: ['#6c6a76', '#8a8793', null],
 };
-const catDawn = {
+export const catDawn = {
   light: () => ({ tint: '#c9c6dc', amt: 0.3, lift: '#1c1822' }),
   rim: () => ({ color: '#ffd9b8', dir: [0.85, -0.5], alpha: 0.75, width: 0.06 }),
 };
-const tailwind = (base = 0.9) => (t) => [base + 0.4 * Math.sin(t * 0.17) + 0.3 * noise1(t * 0.05, 3), -0.05];
-const capeWind = windField({ base: 0.5, gust: 0.9, speed: 0.35, wave: 0.07, dir: 1 });
-const capeGrade = (k = 0) => ({ vignette: 0.38, vignetteColor: '#231f3c', grain: 0.38, topGlow: '#ffd9c0', topGlowAmt: 0.06 + 0.08 * k });
-const capePost = (k = 0) => ({ bloom: { threshold: 0.84, knee: 0.12, strength: 0.5 + 0.2 * k, radius: 28, tint: '#ffcfa8' } });
+export const tailwind = (base = 0.9) => (t) => [base + 0.4 * Math.sin(t * 0.17) + 0.3 * noise1(t * 0.05, 3), -0.05];
+export const capeWind = windField({ base: 0.5, gust: 0.9, speed: 0.35, wave: 0.07, dir: 1 });
+export const capeGrade = (k = 0) => ({ vignette: 0.38, vignetteColor: '#231f3c', grain: 0.38, topGlow: '#ffd9c0', topGlowAmt: 0.06 + 0.08 * k });
+export const capePost = (k = 0) => ({ bloom: { threshold: 0.84, knee: 0.12, strength: 0.5 + 0.2 * k, radius: 28, tint: '#ffcfa8' } });
 
-function capeBackdrop(S, o = {}) {
+export function capeBackdrop(S, o = {}) {
   const k = o.dawn ?? 0.3;
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
     const kk = typeof k === 'function' ? k(t) : k;
@@ -81,12 +81,12 @@ function capeBackdrop(S, o = {}) {
   }));
   S.layers.push(at(10, 0.3, (ctx, t, view, S2, p) => grass(ctx, view, p, t, { ground: o.ground || (() => 0), density: 5, h: 1.7, width: 0.16, colors: CAPE.grass, seed: 5, wind: capeWind })));
 }
-function capeFront(S, o = {}) {
+export function capeFront(S, o = {}) {
   S.layers.push(at(-6, 2, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: () => 0.7, spacing: 2.2, h: 2.6, width: 0.2, colors: ['#39523b', '#446046'], seed: o.seed ?? 7, wind: capeWind, fill: 0.55 })));
   S.layers.push(screenLayer(2.4, (ctx, t, W, H) => windStreaks(ctx, W, H, t, { n: o.streaks ?? 10, seed: 13, alpha: 0.28, dir: 1, color: '#fff2e6' })));
 }
 // terrain drawn as a filled profile at the stage plane
-function paintLand(ctx, g, x0, x1, col, t, step = 0.25, edge = null) {
+export function paintLand(ctx, g, x0, x1, col, t, step = 0.25, edge = null) {
   // body: vertical gradient from the sunlit top edge down into shadow
   let top = Infinity;
   for (let x = x0; x <= x1; x += 1) top = Math.min(top, g(x));
@@ -137,7 +137,7 @@ function paintLand(ctx, g, x0, x1, col, t, step = 0.25, edge = null) {
   for (let x = x0; x <= x1; x += step) (x === x0 ? ctx.moveTo(x, g(x) + 0.04) : ctx.lineTo(x, g(x) + 0.04));
   ctx.stroke();
 }
-function terrainLayer(S, g, x0, x1, col, z = 0.85) {
+export function terrainLayer(S, g, x0, x1, col, z = 0.85) {
   S.layers.push(at(0, z, (ctx, t) => paintLand(ctx, g, x0, x1, col, t)));
   S.layers.push(at(0, z + 0.001, (ctx, t, view, S2, p) => tufts(ctx, view, p, t, { ground: g, spacing: 0.7, h: 1.1, width: 0.1, colors: ['#4d6a48', '#638058', '#8c9f73'], seed: 41, wind: capeWind, fill: 0.9 })));
 }
@@ -587,19 +587,19 @@ function s8_4() {
 }
 
 // ================================ 9. THE BEACH =================================
-const BEACH = {
+export const BEACH = {
   sky: [[0, '#5d9ad6'], [0.5, '#a9cbe6'], [0.85, '#e8eef0'], [1, '#fdebd6']],
   sand: ['#dcc29a', '#efdfbf'], wet: '#b59d7e', sea: ['#3f7fb3', '#8fc0da'], foam: '#fdfdf9',
   dune: '#d7c19a', duneGrass: ['#8f9a6c', '#a7ae7c'],
 };
-const catMorning = {
+export const catMorning = {
   light: () => ({ tint: '#fff2e2', amt: 0.1, lift: '#0e0a08' }),
   rim: () => ({ color: '#fff0d8', dir: [-0.8, -0.6], alpha: 0.5, width: 0.05 }),
 };
-const beachGrade = { vignette: 0.28, vignetteColor: '#5a5060', grain: 0.3, topGlow: '#fff3e0', topGlowAmt: 0.1 };
-const beachPost = { bloom: { threshold: 0.88, knee: 0.1, strength: 0.5, radius: 24, tint: '#fff4e0' }, rays: { pos: [0.18, 0.12], radius: 0.3, strength: 0.25, length: 0.5, threshold: 0.92, knee: 0.06, tint: '#fff0d0' } };
+export const beachGrade = { vignette: 0.28, vignetteColor: '#5a5060', grain: 0.3, topGlow: '#fff3e0', topGlowAmt: 0.1 };
+export const beachPost = { bloom: { threshold: 0.88, knee: 0.1, strength: 0.5, radius: 24, tint: '#fff4e0' }, rays: { pos: [0.18, 0.12], radius: 0.3, strength: 0.25, length: 0.5, threshold: 0.92, knee: 0.06, tint: '#fff0d0' } };
 // the water edge along the stage (x of the swash front at depth 0) as a function of time
-function swashEdge(t, o = {}) {
+export function swashEdge(t, o = {}) {
   const waves = o.waves || [];
   let x = o.rest ?? 6;
   for (const w of waves) {
@@ -612,7 +612,7 @@ function swashEdge(t, o = {}) {
   }
   return x + Math.sin(t * 0.05) * 0.15;
 }
-function beachWorld(S, o = {}) {
+export function beachWorld(S, o = {}) {
   S.layers.push(screenLayer(0, (ctx, t, W, H) => {
     skyGradient(ctx, W, H, BEACH.sky);
     glow(ctx, W * 0.18, H * 0.12, W * 0.6, '#fff6e2', 0.55);

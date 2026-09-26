@@ -20,6 +20,12 @@ export const SEA = {
 };
 
 export const PALETTES = {
+  dream: {
+    skyTop: '#0b1433', skyMid: '#1d2d62', skyBot: '#3f4f8a', horizonGlow: '#9fb4ea', cloud: '#5a6aa0', cloudShade: '#1f2a52', cloudRim: '#dfe6ff', cloudGlow: '#8ea2e0',
+    seaFar: '#8fa4d8', seaMid: '#3a4f8e', seaNear: '#141f46', glint: '#eef2ff', mist: '#7f93cc',
+    land: '#1e2b40', landDark: '#131c2c', cliff: '#3a3f5a', cliffShade: '#222640', cliffLit: '#7a84aa',
+    tower: '#dfe4f2', towerShade: '#8a90a8', cap: '#5a3a4a', lamp: '#fff2c4', island: '#2a3560', foam: '#dfe6ff', sun: '#f6f3ff',
+  },
   postcard: {
     skyTop: '#5fa3d8', skyMid: '#a3cdea', skyBot: '#e2f1f7', horizonGlow: '#f4fbff', cloud: '#ffffff', cloudShade: '#c9dbea', cloudRim: '#ffffff', cloudGlow: null,
     seaFar: '#86bddb', seaMid: '#4b8dbd', seaNear: '#2a6699', glint: '#ffffff', mist: '#eef6fa',
