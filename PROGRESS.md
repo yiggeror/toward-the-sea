@@ -5,6 +5,58 @@ resume in a new session.
 
 ## Status
 
+**v2 — director's cut** (1920×1080, 24 fps, 7 139 frames = 4:57.5, every frame
+drawn at 3840×2160 and filtered down). 66 shots in five acts
+(`docs/treatment_v2.md`), score composed to picture (`tools/score.py`), mix
+−18 LUFS integrated, −1.5 dBFS peak. The v1 film (8:13) is kept in `video/v1/`
+for comparison; its log follows below.
+
+## v2: the feedback and what changed
+
+The user rejected v1 as a whole: awkward poses (the sitting body, turning to
+look at the butterfly), a floating air-conditioner, a vending machine out of
+scale with the cat, blurred pasted foreground grass; and above all a camera
+that was almost always a horizontal side view, cuts that did not connect,
+long stretches of the cat walking under nothing but ambience, a flat
+documentary rhythm with no emotion until the sea, repeated recombined actions
+(the same walk before different backgrounds, the beach game repeating), 2D
+"sticker" backgrounds that together with the side camera looked like a cheap
+side-scroller recording — long and hard to follow. The reference was an
+earlier short ("关闭电脑之后") with strong staging, story control and music.
+Asked to act as director and overhaul it, cutting scenes where needed:
+
+- **Story**: re-cut to five acts around one through-line, the postcard (it
+  arrives with the wind, wears on the journey, is taken by the wind, comes
+  back from the sea washed blank). The wasteland was cut; every shot has a
+  job (establish, react, reveal, gag, feel). 8:13 → 4:57.
+- **Camera**: a perspective camera (`src/film/persp.js`: pivot, yaw, pitch,
+  truck, dolly, crane; near-plane clipping) and real 3D sets, so the same
+  place is shot from the front, behind, over the shoulder, POV, high and low:
+  the city lane (`src/env/lane.js`), forest/stream/hill/cape heightfields
+  (`src/env/woods.js`, silhouettes filled from profile slices so slopes read
+  from any heading), the storm plateau and bus shelter
+  (`src/scenes/storm3.js`), the beach (`src/scenes/beach3.js`: per-cell ray
+  shading of sand, wet sand, a clear sky-reflecting swash, surf and sea with
+  the sun's glitter; 3D foam and swell lines; dune, headland, sun, clouds and
+  gulls in world coordinates; footprints the waves wash away).
+- **Character in depth**: front/back/sitting views staged in world space
+  (`src/film/cast.js` viewCat) with gait phase from path length and
+  footfall events; side performances can play on a turned stage plane.
+- **Rhythm and emotion**: close-ups, inserts, reaction shots and reverse
+  angles; gags with holds; slow motion (the rooftop leap, the dive for the
+  card) via a time warp with events re-timed to output frames; silence after
+  the loss; the full theme at the reveal.
+- **Score**: composed to the exported timeline (cues on cuts, stingers on
+  the gag frames, the music holding its breath in slow motion), synthesized
+  piano/strings/marimba/celesta/glockenspiel/harp/flute/percussion.
+- **Polish passes**: cross-eyes, tail poses (never an 'arm' sideways),
+  props to scale, near-lens clutter cleared, framing and continuity checked
+  on contact sheets of every shot; the beach finale (first the same side view
+  five times) and the storm run/bus stop (flat v1 side views) were rebuilt on
+  the new 3D sets.
+
+## v1 (superseded)
+
 **v1.0 — final film** (1920×1080, 24 fps, 11 826 frames = 8:12.75, every frame
 drawn at 3840×2160 and filtered down). Mastered at CRF 16 (≈ 690 MB, kept out
 of git), distributed at CRF 19 + AAC 256 kb/s (309 MB) in `video/` as four

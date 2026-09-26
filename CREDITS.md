@@ -4,8 +4,8 @@
 
 - 故事、角色、画面、动画：全部由本仓库的代码逐帧绘制（Canvas 2D，程序动画，无素材图片）。
   Story, character, images and animation: drawn frame by frame by the code in this repository.
-- 配乐：原创，在 `tools/music.py` 中用代码作曲并合成（加法合成钢琴、弦乐垫音、钟声、卷积混响），没有使用采样。
-  Music: original score composed and synthesized in code (`tools/music.py`), no samples.
+- 配乐：原创，在 `tools/score.py`（乐器见 `tools/music.py`）中按画面用代码作曲并合成（加法合成钢琴、弦乐、马林巴、钢片琴、钟琴、竖琴、长笛、轻打击，卷积混响），没有使用采样。
+  Music: original score composed to picture and synthesized in code (`tools/score.py`, `tools/music.py`), no samples.
 - 程序合成的拟音（`tools/mix.py`）：肉垫落地（湿路面、泥土、木板）、嗅闻、舔嘴、喷嚏、铁罐滚动、挥爪风声、甩下的水珠、
   喘气、打滑、表情提示音（感叹号、问号、闪光、音符）。
   Synthesized foley: paw pads, sniffs, licks, a sneeze, the rolling can, swishes, droplets, panting, skids, emotion cues.
@@ -37,10 +37,7 @@ The mix uses Freesound's high-quality Ogg previews, looped, filtered, levelled a
 | 夜里一只近处的蟋蟀 / a single close cricket (4.x) | [200906 Cricket, single close loud, PEC pm.flac](https://freesound.org/people/TRP/sounds/568820/) | TRP | CC0 1.0 |
 | 夜晚田野的虫鸣 / night insects (4.x) | [Cicada Insects 8_26_13 8_06 PM.wav](https://freesound.org/people/harryScary/sounds/268962/) | harryScary | CC0 1.0 |
 | 远处驶过的卡车 / a truck passing far away in the night (4.2) | [200715 Distant truck pass, middle of night, water, PEC 3am.flac](https://freesound.org/people/TRP/sounds/567745/) | TRP | CC0 1.0 |
-| 猫头鹰 / the owl (4.2) | [Bird - Tawny owl, female](https://freesound.org/people/Vrymaa/sounds/735744/) | Vrymaa | CC0 1.0 |
 | 柔和的风 / soft breeze (1.10, 4.4, 8.x, 9.x) | [Soft breeze at Budaorsi koparok - No2](https://freesound.org/people/rubindaniel/sounds/844818/) | rubindaniel | CC0 1.0 |
-| 荒原的风 / wasteland wind (5.x) | [Dark Sahara Egypt](https://freesound.org/people/szegvari/sounds/557552/) | szegvari | CC0 1.0 |
-| 干草沙沙、风滚草 / dry grass, the tumbleweed (5.x) | [A light breeze, the rustle of reeds. The rustle of dry grass](https://freesound.org/people/ReflektWave/sounds/843069/) | ReflektWave | CC0 1.0 |
 | 雪原夜风 / snowfield wind (6.x) | [Quiet Winter Night with Light Snow & Wind – Altenthann Ambience - 260215_001](https://freesound.org/people/TSP-Talk/sounds/845502/) | TSP-Talk | CC0 1.0 |
 | 踩雪声（切成单步）/ snow footsteps, cut into single steps (6.x) | [Footsteps on snow (clean)](https://freesound.org/people/xkeril/sounds/611277/) | xkeril | CC0 1.0 |
 | 草地脚步（切成单步）/ grass footsteps, cut into single steps | [Footsteps in Grass and Picking.mp3](https://freesound.org/people/dominictreis/sounds/343696/) | dominictreis | CC0 1.0 |
@@ -53,7 +50,7 @@ The mix uses Freesound's high-quality Ogg previews, looped, filtered, levelled a
 | 明信片被风吹动 / the postcard flapping | [Flapping 4](https://freesound.org/people/NearTheAtmoshphere/sounds/676456/) | NearTheAtmoshphere | CC0 1.0 |
 | 明信片的纸声 / paper handling (pick up, put down, pat) | [Crumpling Paper](https://freesound.org/people/aldenroth2/sounds/272015/) | aldenroth2 | CC0 1.0 |
 | 甩水（抖毛）/ body shakes after getting wet | [Blanket Shaking Movement 1_4](https://freesound.org/people/Joao_Janz/sounds/493283/) | Joao_Janz | CC0 1.0 |
-| 铁罐落地 / the tin can (1.9) | [Hit_Metal_Tin 01.wav](https://freesound.org/people/Denis%20Chapon/sounds/109436/) | Denis Chapon | CC0 1.0 |
+| rain_light | [230803 Thunder, distant rolling boom like explosion light rain, mixpreroof, Toronto 11pm](https://freesound.org/people/TRP/sounds/717876/) | TRP | CC0 1.0 |
 
 ## 字体 · Fonts
 
