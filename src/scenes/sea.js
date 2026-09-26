@@ -474,13 +474,24 @@ function s8_3() {
       // foreground: the cliff top grass and Xiaohui from behind, sitting
       S.layers.push(screenLayer(1, (ctx, t, W, H) => {
         const s = W / 1920;
-        ctx.fillStyle = '#3d4a45';
+        const cg = ctx.createLinearGradient(0, H * 0.78, 0, H);
+        cg.addColorStop(0, '#56654f');
+        cg.addColorStop(0.3, '#3d4a45');
+        cg.addColorStop(1, '#262d33');
+        ctx.fillStyle = cg;
         ctx.beginPath();
         ctx.moveTo(0, H * 0.84);
         ctx.quadraticCurveTo(W * 0.25, H * 0.78, W * 0.52, H * 0.86);
         ctx.lineTo(W * 0.56, H);
         ctx.lineTo(0, H);
         ctx.fill();
+        // the sunrise catches the edge of the cliff top
+        ctx.strokeStyle = css('#ffcf9e', 0.35 + 0.35 * smoothstep(0, 250, t));
+        ctx.lineWidth = 3 * s;
+        ctx.beginPath();
+        ctx.moveTo(0, H * 0.84);
+        ctx.quadraticCurveTo(W * 0.25, H * 0.78, W * 0.52, H * 0.86);
+        ctx.stroke();
         const wind = capeWind;
         grass(ctx, { xRange: () => [0, W * 0.56], W }, 1, t, { ground: (x) => H * 0.84 + (x / W) * H * 0.02, density: 0.15 / s, h: 26 * s, width: 5 * s, colors: ['#2f3b37', '#3c4a44'], seed: 5, wind: (x, tt) => wind(x / (30 * s), tt) * 0.6 });
         const hp = { hPitch: 0.05 + 0.05 * smoothstep(200, 300, t), earRot: 0.05, earLR: Math.sin(t * 0.02) * 0.1, tail: 0.5 + 0.1 * Math.sin(t * 0.02), breath: 0.5 + 0.5 * Math.sin(t * 0.08), hRoll: 0.08 * smoothstep(250, 320, t) };
@@ -942,8 +953,11 @@ function s9_5() {
     name: '9.5', dur: 420, unit: 70, anchor: [0.5, 0.58], fadeOut: 72, post: beachPost, grade: beachGrade,
     cam: { x: 0, y: -2, z: 1 },
     setup(S) {
-      // pull back: the camera rises and the lens widens until the cat is tiny
-      S.camera.move(20, 400, { z: 0.06, y: -28, x: 60 }, 'inout');
+      // pull back: the lens widens until the cat is tiny; the height follows
+      // the zoom so the shoreline (and the cat) stay in frame all the way
+      S.camera.key(0, { y: 0 });
+      S.camera.move(20, 400, { z: 0.06, x: 60 }, 'inout');
+      S.camera.follow = (t, c) => [0, -1.15 / Math.max(0.05, c.z)];
       beachWorld(S, { rest: 7, waves, slope: 0.3, capeX: 2400 });
       const cat = makeCat(S, { x: -2, facing: 1, ...catMorning });
       const P = cat.perf;

@@ -164,14 +164,31 @@ export function facades(ctx, view, p, t, spec) {
     if (spec.shop && hash01(b.s + 11) < 0.55) {
       // lit shop front: warm interior, shelves, awning, sign board
       const sx = b.x + b.w * (0.12 + 0.3 * hash01(b.s + 12)), sw = Math.min(b.w * 0.5, 4.2);
-      const warm = hash01(b.s + 13) < 0.7 ? '#ffd79a' : '#dff4ff';
+      const warm = hash01(b.s + 13) < 0.7 ? '#f0b870' : '#bfe0f0';
       const g = ctx.createLinearGradient(0, spec.base - 2.5, 0, spec.base);
-      g.addColorStop(0, css(warm, 0.95));
-      g.addColorStop(1, css(mix(warm, '#ff9f5a', 0.35), 0.95));
+      g.addColorStop(0, css(warm, 0.85));
+      g.addColorStop(1, css(mix(warm, '#c86a3a', 0.4), 0.9));
       ctx.fillStyle = g;
       ctx.fillRect(sx, spec.base - 2.5, sw, 2.5);
       ctx.fillStyle = 'rgba(60,40,40,0.35)';
       for (let k = 0; k < 3; k++) ctx.fillRect(sx + 0.2, spec.base - 2.2 + k * 0.72, sw - 0.4, 0.12);
+      // goods on the shelves
+      const goods = ['#e56b5d', '#f2c14e', '#6fb3d9', '#8fcf7a', '#d98bd0', '#f7f1e3'];
+      for (let k = 0; k < 3; k++) {
+        for (let q = 0; q < Math.floor((sw - 0.4) / 0.22); q++) {
+          const hh = 0.18 + 0.2 * hash01(b.s * 3 + k * 17 + q);
+          ctx.fillStyle = css(goods[Math.floor(hash01(b.s + k * 7 + q * 3) * goods.length)], 0.75);
+          ctx.fillRect(sx + 0.25 + q * 0.22, spec.base - 2.2 + k * 0.72 - hh, 0.16, hh);
+        }
+      }
+      // a shopkeeper's silhouette at the counter
+      if (hash01(b.s + 16) < 0.5) {
+        ctx.fillStyle = 'rgba(40,30,40,0.45)';
+        ctx.beginPath();
+        ctx.ellipse(sx + sw * 0.72, spec.base - 1.55, 0.2, 0.24, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillRect(sx + sw * 0.72 - 0.3, spec.base - 1.32, 0.6, 1.0);
+      }
       ctx.fillStyle = P.frame;
       ctx.fillRect(sx + sw * 0.5 - 0.05, spec.base - 2.5, 0.1, 2.5);
       const aw = NEON[Math.floor(hash01(b.s + 14) * NEON.length)];
@@ -182,7 +199,7 @@ export function facades(ctx, view, p, t, spec) {
       ctx.lineTo(sx + sw + 0.1, spec.base - 3.2);
       ctx.lineTo(sx - 0.1, spec.base - 3.2);
       ctx.fill();
-      if (spec.glowWin) glow(ctx, sx + sw / 2, spec.base - 1.2, sw * 0.9, warm, 0.35);
+      if (spec.glowWin) glow(ctx, sx + sw / 2, spec.base - 1.2, sw * 0.9, warm, 0.18);
       pushLight(ctx, spec.lights, sx + sw / 2, spec.base, sw * 0.9, warm, 0.9);
       if (spec.neon !== undefined) neonSign(ctx, sx, spec.base - 4.1, sw, 0.8, aw, t, b.s, { flicker: hash01(b.s + 15) < 0.25 });
     }
@@ -324,8 +341,13 @@ export function car(ctx, x, base, P, pass = 'front', scale = 1) {
     }
     return;
   }
-  // body
-  ctx.fillStyle = P.body;
+  // body: glossy paint — sky reflected on the upper panels, dark below
+  const bg = ctx.createLinearGradient(0, base - H, 0, base);
+  bg.addColorStop(0, css(mix(P.body, '#9fb0e0', 0.35)));
+  bg.addColorStop(0.45, P.body);
+  bg.addColorStop(0.75, css(mix(P.body, '#0c0e1c', 0.45)));
+  bg.addColorStop(1, css(mix(P.body, '#0c0e1c', 0.7)));
+  ctx.fillStyle = bg;
   ctx.beginPath();
   ctx.moveTo(x, base - clr);
   ctx.lineTo(x, base - H * 0.55);
@@ -367,6 +389,20 @@ export function car(ctx, x, base, P, pass = 'front', scale = 1) {
   ctx.fillStyle = P.hi;
   ctx.fillRect(x + L * 0.26, base - H * 1.02, L * 0.36, 0.06 * scale);
   ctx.fillRect(x + L * 0.02, base - H * 0.62, L * 0.96, 0.05 * scale);
+  // warm streak of a street lamp caught in the paint, and raindrops beaded on it
+  const sg = ctx.createLinearGradient(x + L * 0.55, 0, x + L * 0.95, 0);
+  sg.addColorStop(0, 'rgba(255,210,150,0)');
+  sg.addColorStop(0.5, 'rgba(255,214,160,0.55)');
+  sg.addColorStop(1, 'rgba(255,210,150,0)');
+  ctx.fillStyle = sg;
+  ctx.fillRect(x + L * 0.55, base - H * 0.57, L * 0.4, 0.07 * scale);
+  ctx.fillStyle = 'rgba(210,225,255,0.35)';
+  for (let i = 0; i < 24; i++) {
+    const u = hash01(i * 7 + 3), v = hash01(i * 11 + 5);
+    ctx.beginPath();
+    ctx.arc(x + L * (0.05 + 0.9 * u), base - H * (0.6 + 0.35 * v * (u > 0.2 && u < 0.72 ? 1 : 0.2)), 0.025 * scale, 0, TAU);
+    ctx.fill();
+  }
   // lights
   ctx.fillStyle = P.tail || '#b0473f';
   ctx.fillRect(x - 0.02, base - H * 0.55, 0.14 * scale, 0.3 * scale);

@@ -33,18 +33,22 @@ export function stars(ctx, W, H, n, seed, yMax = 0.6, twinkleT = 0, alpha = 1) {
 export function moon(ctx, x, y, r, color = '#fdf6df', phase = 0.0) {
   glow(ctx, x, y, r * 6, color, 0.18);
   glow(ctx, x, y, r * 2.2, color, 0.3);
-  ctx.fillStyle = color;
+  ctx.save();
   ctx.beginPath();
   ctx.arc(x, y, r, 0, TAU);
-  ctx.fill();
+  ctx.clip();
   if (phase > 0) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.arc(x + r * phase * 1.3, y - r * 0.2, r, 0, TAU);
-    ctx.fill();
-    ctx.restore();
+    // the unlit part stays dim (earthshine) instead of punching a hole
+    ctx.fillStyle = css(color, 0.12);
+    ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+    const cut = new Path2D();
+    cut.rect(x - r * 3, y - r * 3, r * 6, r * 6);
+    cut.arc(x + r * phase * 1.3, y - r * 0.2, r, 0, TAU);
+    ctx.clip(cut, 'evenodd');
   }
+  ctx.fillStyle = color;
+  ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  ctx.restore();
 }
 
 /**

@@ -38,7 +38,7 @@ const catNight = {
   rim: () => ({ color: '#ffd89c', dir: [0.75, -0.66], alpha: 0.85, width: 0.07 }),
 };
 const nightGrade = { vignette: 0.5, vignetteColor: '#141228', grain: 0.45 };
-const nightPost = { bloom: { threshold: 0.5, knee: 0.3, strength: 0.8, radius: 26, wide: 0.9 } };
+const nightPost = { bloom: { threshold: 0.6, knee: 0.3, strength: 0.7, radius: 26, wide: 0.9 } };
 
 // ---- shared night backdrop (depth model) ----------------------------------
 // Street cross-section (depth behind the cat's line on the road, world H):
@@ -586,9 +586,11 @@ function alleyUp(ctx, W, H, t, lift) {
       }
     }
   };
-  skyGradient(ctx, W, H, [[0, '#0b1022'], [0.6, '#1c2442'], [1, '#2e2f52']]);
-  // stars in the narrow sky strip
-  stars(ctx, W, H, 40, 77, 1.0, t, 0.6);
+  skyGradient(ctx, W, H, [[0, '#070b1f'], [0.5, '#1a2150'], [1, '#3a2d5c']]);
+  // stars and a soft moon glow in the narrow strip of sky
+  stars(ctx, W, H, 70, 77, 1.0, t, 0.8);
+  glow(ctx, W * 0.56, H * 0.12 + lift * 0.3, W * 0.28, '#c9d4ff', 0.28);
+  moon(ctx, W * 0.56, H * 0.12 + lift * 0.3, W * 0.014, '#f6efd6', 0.3);
   drawWall(wallL, '#2b3249', 0);
   drawWall(wallR, '#262d43', 1);
   // wires crossing the gap

@@ -13,10 +13,12 @@ console.log('build ms', Date.now() - t0, await page.evaluate(() => window.__erro
 const res = await page.evaluate((step) => {
   const out = [];
   const n = window.__length;
+  const c = document.getElementById('c').getContext('2d');
   for (let f = 0; f < n; f += step) window.renderFrame(f); // warm caches
   for (let f = 0; f < n; f += step) {
     const a = performance.now();
     window.renderFrame(f);
+    c.getImageData(0, 0, 1, 1); // force the raster flush
     out.push([f, performance.now() - a]);
   }
   return out;
