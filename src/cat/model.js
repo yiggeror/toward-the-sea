@@ -107,12 +107,17 @@ export const STRIPES = [
 ];
 
 // Head model (head-local 3D, y-up, x forward, z = cat's left side).
+// A broad round cranium, cheeks that are widest a little below the eyes, a
+// soft jaw that rounds the bottom of the face, and a small muzzle. Markings are
+// projected from the `mark` shell (it encloses every part, so a boundary drawn
+// on it always reaches the silhouette).
 export const HEAD = {
-  cranium: { c: [0, 0, 0], r: [0.48, 0.44, 0.53] },
-  cheeks: { c: [0.04, -0.17, 0.31], r: [0.36, 0.3, 0.33] },
-  muzzle: { c: [0.3, -0.17, 0], r: [0.17, 0.13, 0.2] },
-  chin: { c: [0.26, -0.28, 0], r: [0.12, 0.07, 0.12] },
-  eye: { c: [0.405, -0.05, 0.245], n: [1, 0.0, 0.62], r: 0.085 },
-  nose: [0.47, -0.125, 0],
-  earBase: { f: [0.18, 0.38, 0.1], b: [-0.2, 0.24, 0.44], tip: [0.02, 0.8, 0.5], depth: 0.12 },
+  cranium: { c: [0, 0.03, 0], r: [0.46, 0.43, 0.5] },
+  cheeks: { c: [0.07, -0.1, 0.27], r: [0.33, 0.3, 0.31] },
+  jaw: { c: [0.15, -0.25, 0], r: [0.24, 0.19, 0.25] },
+  muzzle: { c: [0.33, -0.13, 0], r: [0.165, 0.12, 0.185] },
+  mark: { c: [0.03, -0.03, 0], r: [0.5, 0.49, 0.6] },
+  eye: { c: [0.37, -0.03, 0.27], n: [1, -0.08, 0.68], r: 0.098 },
+  nose: [0.49, -0.1, 0],
+  earBase: { f: [0.1, 0.42, 0.12], b: [-0.22, 0.14, 0.5], tip: [-0.03, 0.75, 0.51], depth: 0.13 },
 };

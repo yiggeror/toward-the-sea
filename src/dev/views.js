@@ -260,3 +260,22 @@ export async function shotsheet(ctx, W, H, q) {
   });
   window.__info = `film ${tl.length} frames ${(tl.length / 24).toFixed(1)}s`;
 }
+
+// head lab: big heads at several yaws/pitches (+ optional expression) for design work
+export function headlab(ctx, W, H, q) {
+  const s = +(q.get('s') || 200);
+  const bg = q.get('dark') ? '#1d2233' : '#efe8df';
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const yaws = (q.get('yaws') || '0,0.5,1.0,1.57').split(',').map(Number);
+  const pitches = (q.get('pitches') || '0').split(',').map(Number);
+  const ex = q.get('ex') ? EXPRESSIONS.find((e) => e.id === q.get('ex')).p : {};
+  const body = !q.get('nobody');
+  const cols = yaws.length, rows = pitches.length;
+  const cw = W / cols, ch = H / rows;
+  pitches.forEach((pt, r) => yaws.forEach((y, c) => {
+    const p = Object.assign({}, ex, { hYaw: y - Math.PI / 2, hPitch: pt + (ex.hPitch || 0), noBody: !body });
+    ctx.save(); ctx.beginPath(); ctx.rect(c * cw, r * ch, cw, ch); ctx.clip();
+    drawPortrait(ctx, p, { x: c * cw + cw / 2, y: r * ch + ch * 0.5, scale: s });
+    ctx.restore();
+  }));
+}

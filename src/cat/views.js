@@ -160,7 +160,7 @@ export function drawCatFront(ctx, p, opts) {
   }
   // head
   const g = headFrame([0, -SIT_H - 0.42 - (p.breath || 0) * 0.01], Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p));
-  drawHead(ctx, buildHead(g), st);
+  drawHead(ctx, buildHead(g), st, { under: bp });
   ctx.restore();
 }
 
@@ -188,7 +188,7 @@ export function drawCatBack(ctx, p, opts) {
   const tpts = tailLine([0.06, -0.12], 0.05, -1.6 * tw - (p.tailFlick || 0), 1.75).map(([x, y]) => [x, Math.min(y, -0.13)]);
   drawRingedTail(ctx, tpts, st);
   const g = headFrame([0, -SIT_H - 0.42], -Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p));
-  drawHead(ctx, buildHead(g), st);
+  drawHead(ctx, buildHead(g), st, { under: bp });
   ctx.restore();
 }
 
@@ -200,28 +200,50 @@ export function fullFace(p) {
   }, p);
 }
 
-/** Head-only portrait with a bit of neck/chest (for expression sheets & close-ups). */
+/** Head-and-shoulders portrait (expression sheets & close-ups). */
 export function drawPortrait(ctx, p, opts) {
   const s = opts.scale;
   const st = makeStyle(s, opts);
   ctx.save();
   ctx.translate(opts.x, opts.y);
   ctx.scale(s, s);
-  // shoulders/chest blob under the head
   const low = p.low || 0;
-  const body = [[-0.62, 0.9], [-0.55, 0.35], [-0.32, 0.08], [0, 0.02], [0.32, 0.08], [0.55, 0.35], [0.62, 0.9]];
-  const bp = new Path2D();
-  smoothTo(bp, body, false);
-  bp.lineTo(0.62, 1.2); bp.lineTo(-0.62, 1.2); bp.closePath();
+  const br = 1 + 0.018 * (p.breath || 0);
+  const hc = [0, -0.15 + low - 0.012 * (p.breath || 0)];
+  let bp = null;
   if (!p.noBody) {
+    // neck rising into the head, sloping shoulders, white bib
+    const sh = (p.shrug || 0) * 0.12;
+    const body = [
+      [-0.3, 0.1 + low], [-0.36, 0.3 + low * 0.6], [-0.54 * br, 0.52 - sh], [-0.7 * br, 0.8 - sh], [-0.8 * br, 1.2], [-0.84 * br, 1.8],
+      [0.84 * br, 1.8], [0.8 * br, 1.2], [0.7 * br, 0.8 - sh], [0.54 * br, 0.52 - sh], [0.36, 0.3 + low * 0.6], [0.3, 0.1 + low],
+    ];
+    bp = new Path2D();
+    smoothTo(bp, body, true);
+    ctx.lineJoin = 'round';
     ctx.lineWidth = st.lw * 2; ctx.strokeStyle = st.line; ctx.stroke(bp);
     ctx.fillStyle = st.grey; ctx.fill(bp);
     ctx.save(); ctx.clip(bp);
-    ctx.fillStyle = st.white; ctx.beginPath(); ctx.ellipse(0, 0.55, 0.36, 0.62, 0, 0, TAU); ctx.fill();
+    // bib: white from the chin down the chest
+    const bib = new Path2D();
+    smoothTo(bib, [[-0.3, 0.08 + low], [-0.38, 0.45], [-0.4, 0.9], [-0.26, 1.4], [0, 1.6], [0.26, 1.4], [0.4, 0.9], [0.38, 0.45], [0.3, 0.08 + low]], true);
+    ctx.fillStyle = st.white; ctx.fill(bib);
+    // soft shade the head casts on the chest
+    if (st.shade) {
+      ctx.save();
+      ctx.translate(0, 0.44 + low);
+      ctx.scale(1, 0.45);
+      const g = ctx.createRadialGradient(0, 0, 0.05, 0, 0, 0.42);
+      g.addColorStop(0, css('#5d566a', 0.16));
+      g.addColorStop(1, css('#5d566a', 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(-0.6, -0.6, 1.2, 1.2);
+      ctx.restore();
+    }
     ctx.restore();
   }
-  const g = headFrame([0, -0.15 + low], Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p));
-  drawHead(ctx, buildHead(g), st);
+  const g = headFrame(hc, Math.PI / 2 + (p.hYaw || 0), p.hPitch || 0, p.hRoll || 0, fullFace(p));
+  drawHead(ctx, buildHead(g), st, { under: bp });
   ctx.restore();
 }
 

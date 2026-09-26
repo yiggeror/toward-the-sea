@@ -6,6 +6,7 @@ import {
   add3, mul3, norm3, cross3, dot3, sub3, rotAxis3, clamp, lerp, DEG, TAU, smoothstep, add, sub, mul, norm, dist,
 } from '../core/math.js';
 import { smoothTo, brushLine, fillStroke, clipOutside, css, mix } from '../core/draw.js';
+import { polyArea } from '../core/math.js';
 
 // ---------- projection helpers ----------
 function ellipse2D(head, c, r) {
@@ -48,13 +49,15 @@ function ellRadius(e, d) {
   return 1 / Math.sqrt(u * u + v * v);
 }
 
-// sphere-ish surface point on cranium by azimuth lam (0 fwd, + toward left/z+) and elevation phi
-function sph(lam, phi, r = HEAD.cranium.r) {
+// point on the marking shell by azimuth lam (0 fwd, + toward left/z+) and elevation phi
+const MK = HEAD.mark;
+function sph(lam, phi) {
   const cp = Math.cos(phi);
-  return [r[0] * cp * Math.cos(lam), r[1] * Math.sin(phi), r[2] * cp * Math.sin(lam)];
+  return [MK.c[0] + MK.r[0] * cp * Math.cos(lam), MK.c[1] + MK.r[1] * Math.sin(phi), MK.c[2] + MK.r[2] * cp * Math.sin(lam)];
 }
-function sphN(p, r = HEAD.cranium.r) {
-  return norm3([p[0] / (r[0] * r[0]), p[1] / (r[1] * r[1]), p[2] / (r[2] * r[2])]);
+function sphN(p) {
+  const q = sub3(p, MK.c), r = MK.r;
+  return norm3([q[0] / (r[0] * r[0]), q[1] / (r[1] * r[1]), q[2] / (r[2] * r[2])]);
 }
 
 // Project a marking region given in (lam, phi) degrees, clipped to the visible
@@ -111,9 +114,10 @@ function projMark(head, cran, pts, push = 1.4) {
   return out.length >= 3 ? out : null;
 }
 
-// white face region boundary elevation (deg) as function of |azimuth| (deg)
+// white face region boundary elevation (deg) as function of |azimuth| (deg):
+// grey mask over the eyes and upper cheeks, white below (simplified sheet)
 const FACE_B = [
-  [0, 6], [8, 0], [16, -6], [26, -12], [38, -18], [52, -24], [68, -31], [85, -40], [110, -55], [150, -72], [180, -80],
+  [0, 4], [10, -3], [20, -10], [33, -14], [50, -18], [70, -22], [90, -27], [115, -37], [145, -52], [180, -64],
 ];
 function faceB(lamAbs) {
   for (let i = 1; i < FACE_B.length; i++) {
@@ -125,7 +129,7 @@ function faceB(lamAbs) {
   return -80;
 }
 // blaze half-width (deg azimuth) as function of elevation (deg)
-const BLAZE_W = [[-40, 30], [-10, 22], [2, 17], [12, 12], [24, 7], [36, 3.2], [46, 0.8]];
+const BLAZE_W = [[-40, 32], [-10, 24], [0, 20], [12, 13.5], [24, 7.5], [36, 3.4], [46, 0.9]];
 function blazeW(phi) {
   for (let i = 1; i < BLAZE_W.length; i++) {
     if (phi <= BLAZE_W[i][0]) {
@@ -322,14 +326,19 @@ export function buildHead(sk) {
   const head = sk.head, pose = sk.pose;
   const cran = ellipse2D(head, HEAD.cranium.c, HEAD.cranium.r);
   const cc = HEAD.cheeks.c;
-  const cheekL = ellipse2D(head, [cc[0], cc[1], cc[2]], HEAD.cheeks.r);
-  const cheekR = ellipse2D(head, [cc[0], cc[1], -cc[2]], HEAD.cheeks.r);
+  const puff = 1 + 0.08 * clamp(pose.puff || 0, -1, 1); // cheek puff (smile / pout)
+  const cr = [HEAD.cheeks.r[0], HEAD.cheeks.r[1], HEAD.cheeks.r[2] * puff];
+  const cheekL = ellipse2D(head, [cc[0], cc[1], cc[2]], cr);
+  const cheekR = ellipse2D(head, [cc[0], cc[1], -cc[2]], cr);
   const muz = ellipse2D(head, HEAD.muzzle.c, HEAD.muzzle.r);
-  const chin = ellipse2D(head, HEAD.chin.c, HEAD.chin.r);
-  const ells = [cran, cheekL, cheekR, muz, chin];
+  // the jaw drops a little when the mouth opens wide
+  const jo = clamp(pose.mouth || 0, 0, 1) * 0.035;
+  const jaw = ellipse2D(head, [HEAD.jaw.c[0], HEAD.jaw.c[1] - jo, 0], HEAD.jaw.r);
+  const mark = ellipse2D(head, HEAD.mark.c, HEAD.mark.r);
+  const ells = [cran, cheekL, cheekR, muz, jaw];
   const earL = earGeom(head, 1, pose), earR = earGeom(head, -1, pose);
   const eyeL = eyeFrame(head, 1, pose), eyeR = eyeFrame(head, -1, pose);
-  return { head, pose, cran, cheekL, cheekR, muz, chin, ells, earL, earR, eyeL, eyeR };
+  return { head, pose, cran, cheekL, cheekR, muz, jaw, mark, ells, earL, earR, eyeL, eyeR };
 }
 
 function resampleClosed(pts, n) {
@@ -353,45 +362,54 @@ export function headOutline(g) {
   const hull = convexHull(pts);
   return resampleClosed(hull, 30);
 }
-function headUnionPath(g, fluff, tufts = false) {
+function headUnionPath(g, fluff, tufts = true) {
   const p = new Path2D();
-  smoothTo(p, headOutline(g), true);
+  const out = headOutline(g);
+  smoothTo(p, out, true);
   if (!tufts) return p;
-  // cheek fur tufts on the silhouette (lower cheeks)
-  const k = 1 + 0.5 * (fluff || 0);
-  for (const e of [g.cheekL, g.cheekR]) {
-    const cand = [];
-    const N = 56;
-    for (let i = 0; i < N; i++) {
-      const t = (i / N) * TAU;
-      const pt = ellPoint(e, t);
-      let sil = true;
-      for (const o of g.ells) if (o !== e && inEll(o, pt[0], pt[1], 1.02)) { sil = false; break; }
-      if (!sil) continue;
-      const nrm = ellNormal(e, t);
-      // lower & outward (lateral), not on top or straight under the jaw
-      const lat = Math.abs(nrm[0]);
-      if (nrm[1] < 0.1 || lat < 0.55) continue;
-      cand.push({ pt, nrm, t });
+  // cheek fur: two small tufts where the lower cheek turns into the silhouette
+  // (placed from the 3D cheek direction, so they never land under the chin)
+  const k = (1 + 0.7 * clamp(fluff || 0, 0, 1.5)) * (g.head.s || 1);
+  const cx = g.cran.cx, cy = g.cran.cy;
+  const n = out.length;
+  const area = polyArea(out);
+  for (const side of [1, -1]) {
+    const w = g.head.vec(norm3([0.1, -0.34, side]));
+    const sil = 1 - smoothstep(0.3, 0.72, Math.abs(w[2]));
+    if (sil <= 0.02) continue;
+    const d = norm([w[0], w[1]]);
+    let best = -1e9, bi = 0;
+    for (let i = 0; i < n; i++) {
+      const v = (out[i][0] - cx) * d[0] + (out[i][1] - cy) * d[1];
+      if (v > best) { best = v; bi = i; }
     }
-    // pick 2 evenly spaced
-    if (cand.length >= 4) {
-      const picks = [Math.floor(cand.length * 0.3), Math.floor(cand.length * 0.7)];
-      for (const ix of picks) {
-        const { pt, nrm } = cand[ix];
-        const tan = [-nrm[1], nrm[0]];
-        const sgn = tan[1] > 0 ? 1 : -1; // sweep downward
-        const bw = 0.04;
-        const a = [pt[0] + tan[0] * bw, pt[1] + tan[1] * bw];
-        const b = [pt[0] - tan[0] * bw, pt[1] - tan[1] * bw];
-        const tip = [pt[0] + nrm[0] * 0.05 * k + tan[0] * 0.045 * sgn, pt[1] + nrm[1] * 0.05 * k + tan[1] * 0.045 * sgn];
-        const inner = [pt[0] - nrm[0] * 0.05, pt[1] - nrm[1] * 0.05];
-        p.moveTo(a[0], a[1]);
-        p.quadraticCurveTo(pt[0] + nrm[0] * 0.035 * k, pt[1] + nrm[1] * 0.035 * k, tip[0], tip[1]);
-        p.quadraticCurveTo(pt[0] + nrm[0] * 0.01, pt[1] + nrm[1] * 0.01, b[0], b[1]);
-        p.lineTo(inner[0], inner[1]);
-        p.closePath();
-      }
+    // walk a little along the outline in the downward direction for the 2nd tuft
+    const down = out[(bi + 1) % n][1] > out[(bi - 1 + n) % n][1] ? 1 : -1;
+    for (const [off, L] of [[-1, 0.05], [1, 0.042]]) {
+      const i = (bi + off * down + n) % n;
+      const pt = out[i];
+      const a = out[(i - 1 + n) % n], b = out[(i + 1) % n];
+      let tan = norm([b[0] - a[0], b[1] - a[1]]);
+      let nrm = [tan[1], -tan[0]];
+      if ((pt[0] - cx) * nrm[0] + (pt[1] - cy) * nrm[1] < 0) nrm = [-nrm[0], -nrm[1]];
+      if (tan[1] < 0) tan = [-tan[0], -tan[1]]; // sweep downward
+      const len = L * k * sil, bw = 0.03 * (g.head.s || 1);
+      const q = (u, v) => [pt[0] + tan[0] * u + nrm[0] * v, pt[1] + tan[1] * u + nrm[1] * v];
+      // small pointed flick: base on the outline, tip out and a little down
+      const quad = (a, c, b, m) => {
+        const r = [];
+        for (let j = 1; j <= m; j++) {
+          const t = j / m, u = 1 - t;
+          r.push([u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]]);
+        }
+        return r;
+      };
+      const b0 = q(-bw, 0), tip = q(len * 0.45, len), b1 = q(bw, 0);
+      const poly = [q(0, -0.05), b0, ...quad(b0, q(-bw * 0.1, len * 0.7), tip, 5), ...quad(tip, q(bw * 0.45, len * 0.35), b1, 5)];
+      if (Math.sign(polyArea(poly)) !== Math.sign(area)) poly.reverse();
+      p.moveTo(poly[0][0], poly[0][1]);
+      for (let j = 1; j < poly.length; j++) p.lineTo(poly[j][0], poly[j][1]);
+      p.closePath();
     }
   }
   return p;
@@ -437,25 +455,33 @@ function drawEar(ctx, e, st, headPath) {
 
 function drawWhiskers(ctx, g, side, st) {
   const head = g.head, pose = g.pose;
+  // whiskers of the far cheek only show while the face is roughly frontal;
+  // otherwise they would poke out under the chin like a goatee
+  const vz = head.vec([0, 0, side])[2];
+  const vis = smoothstep(-0.5, -0.12, vz) * smoothstep(-0.85, -0.35, head.vec([1, 0, 0])[2]);
+  if (vis <= 0.01) return;
   const wk = clamp(pose.whisk || 0, -1, 1);
   const specs = [
-    [[0.43, -0.155, 0.12], [0.3, 0.16, 1], 0.64],
-    [[0.425, -0.185, 0.13], [0.24, 0.02, 1], 0.7],
-    [[0.415, -0.215, 0.12], [0.2, -0.12, 1], 0.6],
+    [[0.425, -0.135, 0.12], [0.24, 0.13, 1], 0.9],
+    [[0.418, -0.165, 0.13], [0.2, 0.0, 1], 0.98],
+    [[0.405, -0.195, 0.12], [0.16, -0.14, 1], 0.86],
   ];
   const wind = st.whiskerWind || [0, 0];
+  const a0 = ctx.globalAlpha;
+  ctx.globalAlpha = a0 * vis;
   specs.forEach(([r, d, L], i) => {
     const root = [r[0], r[1], r[2] * side];
-    const dd = norm3([d[0] + wk * 0.45, d[1] + wk * 0.05, d[2] * side]);
-    const droop = [0, -0.05 - 0.02 * i, 0];
-    const m3 = add3(add3(root, mul3(dd, L * 0.5)), mul3(droop, 0.4));
+    const dd = norm3([d[0] + wk * 0.45, d[1] + wk * 0.08 - (pose.whiskDroop || 0) * 0.3, d[2] * side]);
+    const droop = [0, -0.04 - 0.025 * i, 0];
+    const m3 = add3(add3(root, mul3(dd, L * 0.5)), mul3(droop, 0.35));
     const t3 = add3(add3(root, mul3(dd, L)), droop);
     const a = head.proj(root), b = head.proj(m3), c = head.proj(t3);
     const wob = st.whiskerWob ? st.whiskerWob(i + side * 3) : 0;
     const bb = [b[0] + wind[0] * 0.3 + wob * 0.01, b[1] + wind[1] * 0.3];
     const cb = [c[0] + wind[0] + wob * 0.03, c[1] + wind[1] + wob * 0.02];
-    brushLine(ctx, [[a[0], a[1]], bb, cb], st.lw * 0.75, st.whisker, { taperIn: 0.05, taperOut: 0.85, minW: 0.1, seed: 11 + i + side });
+    brushLine(ctx, [[a[0], a[1]], bb, cb], st.lw * 0.7, st.whisker, { taperIn: 0.05, taperOut: 0.9, minW: 0.08, seed: 11 + i + side });
   });
+  ctx.globalAlpha = a0;
 }
 
 function drawMouth(ctx, g, st) {
@@ -527,45 +553,53 @@ function drawMouth(ctx, g, st) {
   }
 }
 
-export function drawHead(ctx, g, st) {
+// opts.under: region (the neck/chest) where the head outline is not inked, so
+// the face flows into the chest the way it does on the model sheet.
+export function drawHead(ctx, g, st, opts = {}) {
   const pose = g.pose;
-  const headPath = headUnionPath(g, pose.fluff, st.tufts);
+  const headPath = headUnionPath(g, pose.fluff, st.tufts ?? true);
   const ears = [g.earL, g.earR].sort((a, b) => a.depth - b.depth);
   const cz = g.cran.z;
   // ears behind head
   for (const e of ears) if (e.depth < cz - 0.12) drawEar(ctx, e, st, null);
   const farSide = g.head.basis.l[2] >= 0 ? -1 : 1;
   // head mass
+  ctx.save();
+  if (opts.under) clipOutside(ctx, opts.under);
   ctx.lineJoin = 'round';
   ctx.lineWidth = st.lw * 2;
   ctx.strokeStyle = st.line;
   ctx.stroke(headPath);
-  ctx.fillStyle = st.grey;
+  ctx.restore();
+  ctx.fillStyle = st.white;
   ctx.fill(headPath);
-  // markings
+  // markings: the head is white underneath; grey is painted around the white
+  // face and blaze, so the white chin melts into the white chest without a fringe
   ctx.save();
   ctx.clip(headPath);
   const face = [];
   for (let lam = -178; lam <= 178; lam += 6) face.push([lam, faceB(Math.abs(lam))]);
   for (let lam = 178; lam >= -178; lam -= 30) face.push([lam, -88]);
-  const facePoly = projMark(g.head, g.cran, face, 1.5);
-  ctx.fillStyle = st.white;
-  if (facePoly) {
-    const fp = new Path2D();
-    smoothTo(fp, facePoly, true);
-    ctx.fill(fp);
-  }
-  // blaze
+  const facePoly = projMark(g.head, g.mark, face, 1.25);
   const bl = [];
   for (let ph = -40; ph <= 56; ph += 6) bl.push([blazeW(ph), ph]);
   bl.push([0, 60]);
   for (let ph = 56; ph >= -40; ph -= 6) bl.push([-blazeW(ph), ph]);
-  const blp = projMark(g.head, g.cran, bl, 1.0);
+  const blp = projMark(g.head, g.mark, bl, 1.0);
+  ctx.save();
+  if (facePoly) {
+    const fp = new Path2D();
+    smoothTo(fp, facePoly, true);
+    clipOutside(ctx, fp);
+  }
   if (blp) {
     const bp = new Path2D();
     smoothTo(bp, blp, true);
-    ctx.fill(bp);
+    clipOutside(ctx, bp);
   }
+  ctx.fillStyle = st.grey;
+  ctx.fill(headPath);
+  ctx.restore();
   // soft grey transition shade on white under the chin
   // stripes
   const stripe = (pts, w) => {

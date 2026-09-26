@@ -21,6 +21,13 @@ export function makeStyle(scale, opts = {}) {
     return css(col);
   };
   const lineCol = flat || (L && L.line ? L.line : opts.lineColor || PAL.line);
+  // in dark scenes whiskers read as light hairs against the background
+  let dark = 0;
+  if (L && L.tint && L.amt > 0) {
+    const c = rgb(L.tint);
+    dark = L.amt * (1 - (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255);
+  }
+  const whiskerCol = opts.whiskerColor || (dark > 0.12 ? '#efe8e0' : lineCol);
   return {
     lw: lwPx / scale,
     line: css(lineCol),
@@ -33,7 +40,7 @@ export function makeStyle(scale, opts = {}) {
     pink: shade(PAL.pink),
     pinkPad: shade(PAL.pinkPad),
     eyeColor: flat || '#2b2727',
-    whisker: flat || css(opts.whiskerColor || lineCol, 0.85),
+    whisker: flat || css(whiskerCol, dark > 0.12 ? 0.75 : 0.85),
     shade: flat || opts.shade === false ? null : css('#6f6a7a', 0.13),
     lineSoftFlat: flat,
     boil: opts.boil ?? 0,
@@ -109,7 +116,7 @@ export function drawCat(ctx, pose, opts = {}) {
   if (!fnTop) drawLeg(ctx, sk.legs.fn, st, { bodyPath: torsoPath, saddle: torsoPath.saddle });
   if (opts.beforeHead) opts.beforeHead(ctx, sk, st);
   const hg = buildHead(sk);
-  drawHead(ctx, hg, st);
+  drawHead(ctx, hg, st, { under: torsoPath });
   if (fnTop) drawLeg(ctx, sk.legs.fn, st, { bodyPath: torsoPath, saddle: torsoPath.saddle });
   if (tailFront) drawTail(ctx, tpts, st, sk.pose.fluff);
   if (opts.after) opts.after(ctx, sk, st);
