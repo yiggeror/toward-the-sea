@@ -6,7 +6,7 @@
 //
 // usage: node tools/render.mjs --timeline film|reel --w 1920 --h 1080 \
 //          --out build/film_1080p.mp4 [--jobs 3] [--crf 17] [--preset slow]
-//          [--from 0] [--to N] [--audio build/mix.wav] [--ss 2]
+//          [--from 0] [--to N] [--audio build/mix.wav] [--ss 2] [--keyframes 1536,3072]
 //
 // --ss draws every frame at ss× resolution and filters it down (supersampling).
 import fs from 'node:fs';
@@ -30,6 +30,9 @@ const preset = arg('preset', 'slow');
 const audio = arg('audio', null);
 const ss = +arg('ss', 1);
 const x264 = arg('x264', 'aq-mode=3:aq-strength=0.9');
+// frames that must start a new closed GOP (IDR), e.g. the cut points of the
+// distribution parts (tools/split_parts.py plans them)
+const keyframes = (arg('keyframes', '') || '').split(',').filter(Boolean).map(Number);
 const tmpDir = path.join(path.dirname(out), `.segments_${path.basename(out, '.mp4')}`);
 fs.mkdirSync(tmpDir, { recursive: true });
 
@@ -67,10 +70,12 @@ async function runJob(k) {
   if (a >= b) return;
   const seg = path.join(tmpDir, `seg_${String(k).padStart(2, '0')}.mp4`);
   segs[k] = seg;
+  const kf = keyframes.filter((f) => f > a && f < b).map((f) => ((f - a) / 24).toFixed(6));
   const ff = spawn('ffmpeg', [
     '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${W}x${H}`, '-r', '24', '-i', '-',
     '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p',
     '-c:v', 'libx264', '-preset', preset, '-crf', crf, '-tune', 'animation', '-x264-params', x264,
+    ...(kf.length ? ['-force_key_frames', kf.join(','), '-forced-idr', '1'] : []),
     '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
     '-r', '24', seg,
   ], { stdio: ['pipe', 'inherit', 'inherit'] });
@@ -110,7 +115,9 @@ srv.close();
 const list = path.join(tmpDir, 'list.txt');
 fs.writeFileSync(list, segs.filter(Boolean).map((s) => `file '${s}'`).join('\n'));
 const args = ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list];
-if (audio) args.push('-i', audio, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '256k', '-shortest');
+// (no perceptual noise substitution: its random noise would differ wherever a
+// decoder starts, so parts cut from this stream could not decode bit-exact)
+if (audio) args.push('-i', audio, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '256k', '-aac_pns', '0', '-shortest');
 args.push('-c:v', 'copy', '-movflags', '+faststart', out);
 await new Promise((r, j) => spawn('ffmpeg', args, { stdio: 'inherit' }).on('close', (c) => (c === 0 ? r() : j(new Error('concat failed')))));
 for (const s of segs.filter(Boolean)) fs.unlinkSync(s);

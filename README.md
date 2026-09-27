@@ -13,20 +13,28 @@
 
 | 文件 | 内容 | 时间 |
 |---|---|---|
-| `video/toward-the-sea_1080p_part1.mp4` | 城市雨夜：车底下的眼睛、明信片拍在脸上、画里的海动起来、下定决心 | 0:00–0:51 |
-| `video/toward-the-sea_1080p_part2.mp4` | 叼起卡片奔跑、月下飞越屋顶、黎明出城（片名）；森林、蝴蝶、过溪 | 0:51–1:43 |
-| `video/toward-the-sea_1080p_part3.mp4` | 掉进溪水、踩过四种地面、顶风上山、暴雨、冲进公交站、夜里灯灭、梦见海、醒来 | 1:43–2:28 |
-| `video/toward-the-sea_1080p_part4.mp4` | 雪原（雪花落在鼻尖）；海角：狂风夺走明信片、追、失去、眼泪 | 2:28–3:18 |
-| `video/toward-the-sea_1080p_part5.mp4` | 海浪声、爬上最后的坡、看见大海；冲下沙丘、奔向海、与浪游戏 | 3:18–4:10 |
-| `video/toward-the-sea_1080p_part6.mp4` | 浪漫过爪子、洗白的明信片回来、目送它漂走、沿着海岸远去、片尾 | 4:10–4:56 |
+| `video/toward-the-sea_1080p_part1.mp4` | 城市雨夜：车底下的眼睛、明信片拍在脸上、画里的海动起来、下定决心、叼起卡片奔跑 | 0:00–0:56 |
+| `video/toward-the-sea_1080p_part2.mp4` | 月下飞越屋顶、黎明出城（片名）；森林、蝴蝶、过溪、踩过四种地面、顶风上山、第一滴雨 | 0:56–2:00 |
+| `video/toward-the-sea_1080p_part3.mp4` | 暴雨、冲进公交站、夜里灯灭、梦见海、醒来；雪原（雪花落在鼻尖） | 2:00–2:42 |
+| `video/toward-the-sea_1080p_part4.mp4` | 海角：狂风夺走明信片、追、失去、眼泪；耳朵动了一下 | 2:42–3:22 |
+| `video/toward-the-sea_1080p_part5.mp4` | 睁眼、爬上最后的坡、看见大海；海边：与浪游戏、洗白的明信片回来、沿着海岸远去、片尾 | 3:22–4:56 |
 
-成片 H.264 CRF 17 + AAC 256 kb/s，共 357 MB。
+成片 H.264 CRF 17 + AAC 256 kb/s，共 358 MB。
 
-GitHub 单个文件不能超过 100 MB，所以成片在关键帧处切成几段；每段都能单独播放，也可以无损拼回一个完整文件：
+GitHub 单个文件不能超过 100 MB，所以成片分成 5 段存放，而且**段与段之间严丝合缝**：
+
+- 切点只落在画面帧（24 fps）和 AAC 音频帧（1024 个采样，48 kHz）恰好对齐、同时又是画面关键帧的位置（每 64 帧对齐一次，渲染时让关键帧正好落在切点上）。
+- 每段的画面就是原片的那些帧，不重新编码；每段的声音就是原片同一段时间的音频数据，前面再多带一个"预滚"音频包，播放器解码后丢掉，所以每段从第一个采样起就和整片完全一样，结尾也和画面在同一个采样上结束。
+- 按顺序连续播放，或者在剪辑软件里首尾相接，接缝处都不会有停顿、重复或卡顿。
+
+拼回一个完整文件（逐帧、逐采样与整片一致）：
 
 ```sh
-cd video && ffmpeg -f concat -safe 0 -i parts.txt -c copy toward-the-sea_1080p.mp4
+python3 tools/split_parts.py join video/parts.txt toward-the-sea_1080p.mp4
 ```
+
+`python3 tools/split_parts.py verify video/parts.txt --src <整片>` 会逐帧（解码后的画面校验和）、逐采样地检查每一段和每一处接缝。
+（不要用 `ffmpeg -f concat -c copy` 直接拼：它不认每段开头的预滚包，接缝处会多出 21 ms 的声音。）
 
 第一版（v1，8 分 13 秒，几乎全是横向侧面镜头）保留在 [`video/v1/`](video/v1/) 以供对照。
 
@@ -63,7 +71,11 @@ python3 tools/mix.py --report                # -> build/mix.wav（--report 打�
 # 4. 逐帧渲染并封装（多个无头页面并行，每帧原始 RGBA 通过 WebSocket 送进 ffmpeg）
 #    --ss 2：每一帧先按 3840×2160 绘制再滤波缩小到 1080p
 node tools/render.mjs --timeline film --w 1920 --h 1080 --ss 2 --jobs 4 --crf 17 --preset slow \
-  --audio build/mix.wav --out build/film_1080p.mp4
+  --audio build/mix.wav --keyframes 1344,2880,3904,4864 --out build/film_1080p.mp4
+#    切分成能无缝拼接的段（切点由 plan 选出，--keyframes 要与之一致）：
+#    python3 tools/split_parts.py plan build/film_1080p.mp4 --max-mb 85
+#    python3 tools/split_parts.py split build/film_1080p.mp4 --cuts 1344,2880,3904,4864 --out video
+#    python3 tools/split_parts.py verify video/parts.txt --src build/film_1080p.mp4
 #    只看某几帧：node tools/frame.mjs --shots E2,E4c --u 0.5 --ss 2   （PNG 输出到 build/frames）
 #    镜头联系表：node tools/snap.mjs out.png "view=shotstrip&seq=act5&shots=E1,E2&us=0.2,0.8"
 

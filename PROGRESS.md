@@ -10,8 +10,25 @@ frame drawn at 3840×2160 and filtered down). 67 shots in five acts
 (`docs/treatment_v2.md`), score composed to picture (`tools/score.py`), mix
 −18 LUFS integrated, −1.5 dBFS peak. The v1 film (8:13) is kept in `video/v1/`
 for comparison; its log follows below. Master at CRF 17 + AAC 256 kb/s
-(357 MB) in `video/` as six keyframe-cut parts under 100 MB (`parts.txt`
-re-joins them losslessly); rendered in 39 minutes on 4 cores (`--ss 2 --jobs 4`).
+(358 MB) in `video/` as five parts under 100 MB that join without a seam
+(`tools/split_parts.py`, see below); rendered in 41 minutes on 4 cores
+(`--ss 2 --jobs 4 --keyframes 1344,2880,3904,4864`).
+
+**Parts that join exactly.** The first v2 parts were cut with ffmpeg's segment
+muxer at keyframes: each part's sound came out tens of milliseconds longer or
+shorter than its picture and shifted against it (audio packets starting
+60-80 ms before the cut, lengths off by up to 74 ms), so joining them repeated
+or dropped a little sound and held a frame at every seam — the user heard and
+saw the hiccups. `tools/split_parts.py` now cuts only on frames that are
+multiples of 64 (where the 24 fps and 1024-sample AAC grids coincide) and
+IDR frames (`render.mjs --keyframes`); pictures are stream-copied, each
+part's sound is the master's own AAC packets for the same span plus one
+pre-roll packet dropped by the MP4 edit list, so every part decodes
+bit-identical to the film from its first sample and ends with its picture.
+`verify` checks decoded frame checksums and every sample, laid end to end and
+re-joined (`join`); the audio is encoded without perceptual noise
+substitution so the parts can decode bit-exact. The chat copy went out as a
+single 720p file (two-pass, 28 MB) so there is no join to watch across at all.
 
 ## v2: the feedback and what changed
 
