@@ -383,6 +383,7 @@ BEDS = {
 }
 # extra layers for single shots (the stream the cat crosses, the cliff wind)
 SHOT_BEDS = {
+    'B15a': [('rain_light', -29, 8000, 150)],  # the rain easing off as night falls
     'B6': [('stream', -24, None, 120)],
     'B8': [('stream', -25, None, 120)],
     'C5': [('wind_strong', -24, 3000, 50)],
