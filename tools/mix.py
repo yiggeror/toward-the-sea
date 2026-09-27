@@ -580,6 +580,21 @@ def main():
             M.add('fx', pk(filt(load('thunder_far'), 30, 5000)), t, db(-10) * e.get('amt', 1), -0.3)
         elif ty == 'thunder_crack':
             M.add('fx', pk(load('thunder_crack')), t - 0.05, db(-4))
+        elif ty == 'lamp_off':
+            # the tube in the shelter giving out: a few buzzing stutters, a tick
+            n = int(1.3 * SR)
+            tt = np.arange(n) / SR
+            hum = (np.sin(2 * np.pi * 100 * tt) + 0.5 * np.sin(2 * np.pi * 200 * tt) + 0.25 * np.sin(2 * np.pi * 300 * tt)) * 0.35
+            gate = np.zeros(n)
+            for g0, g1 in ((0.0, 0.18), (0.26, 0.33), (0.42, 0.47), (0.55, 0.57)):
+                gate[int(g0 * SR):int(g1 * SR)] = 1
+            gate = np.convolve(gate, np.ones(int(0.004 * SR)) / int(0.004 * SR), mode='same')
+            x = hum * gate + filt(noise(1.3, idx), 2000, 8000) * gate * 0.05
+            tick = np.zeros(n)
+            k0 = int(0.6 * SR)
+            tick[k0:k0 + int(0.03 * SR)] = filt(noise(0.03, idx + 1), 1500, 9000) * env_exp(int(0.03 * SR), 0.004)
+            x = x + tick * 2.0
+            M.add('fx', pk(np.stack([x, x], axis=1)) * db(-33), t - 0.55)
         elif ty == 'truck_pass':
             x = filt(load('truck_far'), 40, 3000)
             from scipy.ndimage import uniform_filter1d

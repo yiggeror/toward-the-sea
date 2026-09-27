@@ -3,13 +3,15 @@
 // ahead, from the side, from behind as the cat runs for its light, and from
 // inside looking back out at the storm.
 import { shot } from '../film/shot.js';
-import { makeCat, screenLayer, follow } from '../film/kit.js';
+import { makeCat, screenLayer, follow, at, sittingPose } from '../film/kit.js';
 import { viewCat } from '../film/cast.js';
 import { toCam, projC, nearC, fill3, path3, camPos } from '../film/persp.js';
 import { woodsLayout, drawWoods } from '../env/woods.js';
 import { rain, flashAt } from '../env/weather.js';
 import { lampGlow } from '../env/light.js';
-import { stormSky, catStorm, SHELTER_DAY, headwind } from './storm.js';
+import { skyGradient, stars, moon, clouds } from '../env/sky.js';
+import { CardProp } from '../film/prop.js';
+import { stormSky, catStorm, SHELTER_DAY, SHELTER_NIGHT, NIGHTS, catMoon, moonPost, headwind } from './storm.js';
 import { locomote } from '../anim/gaits.js';
 import * as A from '../anim/actions.js';
 import { css, mix } from '../core/draw.js';
@@ -36,12 +38,33 @@ const camAt = (x, d, yaw, unit, back, h, o = {}) => {
   return Object.assign({ yaw, px: x + back * Math.sin(yaw), pd: d + back * Math.cos(yaw), dz: D - back, x: 0, y: TOP - h, z: 1 }, o);
 };
 
+// the plateau at night: the storm has blown over, a few stars, the moon behind
+// thinning cloud
+export const NIGHTPAL = { haze: '#1a2135', hazeFar: '#222a42', ground: '#1c2622', groundFar: '#252d3a', path: '#34363a', grass: ['#1f2c27', '#26352d', '#2e3f34', '#35483b'], flowers: ['#5a5e70', '#55586a', '#4d5064', '#50546a'], sun: '#9fb3e0', moss: '#222c24', stone: '#353944', stoneLit: '#4f5566' };
+const breeze = (x, t) => -0.25 - 0.15 * Math.sin(x * 0.05 + t * 0.05);
+function nightSkyLayers(S, o = {}) {
+  S.layers.push(screenLayer(0, (ctx, t, W, H) => {
+    skyGradient(ctx, W, H, NIGHTS.sky);
+    stars(ctx, W, H, o.stars ?? 60, 17, 0.7, t, o.starAlpha ?? 0.4);
+    if (o.moon) {
+      const m = typeof o.moon === 'function' ? o.moon(t) : o.moon;
+      if (m.a > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = m.a;
+        moon(ctx, W * m.x, H * m.y, W * 0.02, '#f3f0de', 0);
+        ctx.restore();
+      }
+    }
+  }));
+  S.layers.push(Object.assign(at(25000, 0.01, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 91, n: 5, y: -5200, dy: 1600, w: 22000, h: 2400, speed: -4, wrap: 120000, top: '#39415e', shade: '#1c2236', rim: '#8d9ac2', light: [-0.3, -1], alpha: 0.85 })), { blur: 10 }));
+}
 function hillSet(S, o = {}) {
-  stormSky(S, { cloudSpeed: o.cloudSpeed ?? 24, dark: true, strikes: o.strikes, curtains: 5 });
-  S.layers.push(screenLayer(0.2, (ctx, t, W, H, view) => drawWoods(ctx, view, HILL, { t, wind: gale, pal: STORMPAL, fogD: 200, flecks: 0, clearNear: o.clearNear, clearItems: o.clearItems, edgeKeep: o.edgeKeep })));
-  if (o.shelter !== false) S.layers.push(screenLayer(0.3, (ctx, t, W, H, view) => drawShelter(ctx, view, t, o.lamp ?? 1)));
+  if (o.night) nightSkyLayers(S, o.night);
+  else stormSky(S, { cloudSpeed: o.cloudSpeed ?? 24, dark: true, strikes: o.strikes, curtains: 5 });
+  S.layers.push(screenLayer(0.2, (ctx, t, W, H, view) => drawWoods(ctx, view, HILL, { t, wind: o.night ? breeze : gale, pal: o.night ? NIGHTPAL : STORMPAL, fogD: 200, flecks: 0, clearNear: o.clearNear, clearItems: o.clearItems, edgeKeep: o.edgeKeep })));
+  if (o.shelter !== false) S.layers.push(screenLayer(0.3, (ctx, t, W, H, view) => drawShelter(ctx, view, t, typeof o.lamp === 'function' ? o.lamp(t) : o.lamp ?? 1, o.night ? SHELTER_NIGHT : SHELTER_DAY, o.drip ?? 1)));
   // gusts: pale streaks racing low over the grass
-  S.layers.push(screenLayer(2.4, (ctx, t, W, H) => {
+  if (!o.night) S.layers.push(screenLayer(2.4, (ctx, t, W, H) => {
     ctx.strokeStyle = 'rgba(220,228,240,0.16)';
     ctx.lineWidth = 1.2 * W / 1920;
     const dir = o.windDir ?? 1;
@@ -57,14 +80,14 @@ function hillSet(S, o = {}) {
   if (o.rain !== false) S.layers.push(Object.assign(screenLayer(2.5, (ctx, t, W, H, view) => {
     ctx.save();
     if (o.rainClip) o.rainClip(ctx, view, t);
-    rain(ctx, W, H, t, { density: o.rainDensity ?? 1.2, angle: o.rainAngle ?? -0.3, speed: 0.12, color: '#c9d3e1', alpha: 0.5, seed: o.seed ?? 5 });
+    const dens = typeof o.rainDensity === 'function' ? o.rainDensity(t) : o.rainDensity ?? 1.2;
+    if (dens > 0.01) rain(ctx, W, H, t, { density: dens, angle: o.rainAngle ?? -0.3, speed: 0.12, color: o.night ? '#8d98b6' : '#c9d3e1', alpha: o.night ? 0.35 : 0.5, seed: o.seed ?? 5 });
     ctx.restore();
   })));
 }
 
 // ---- the shelter in 3D ---------------------------------------------------------
-function drawShelter(ctx, view, t, lamp) {
-  const P = SHELTER_DAY;
+function drawShelter(ctx, view, t, lamp, P = SHELTER_DAY, drip = 1) {
   const { x, d, w, deep, h, bench } = SH;
   const g = TOP, f = g - 0.5; // ground, floor slab top
   const [cx, cd] = camPos(view);
@@ -75,14 +98,18 @@ function drawShelter(ctx, view, t, lamp) {
   fill3(ctx, view, [[x - w - 1, f, d - 1], [x + w + 1, f, d - 1], [x + w + 1, g, d - 1], [x - w - 1, g, d - 1]], css(mix(P.floor, '#1c2029', 0.3)));
   // back wall: corrugated panels, damp, a timetable
   const back = d + deep;
-  const warm = (c, k) => css(mix(c, '#e8b878', k * lamp));
+  // at night the one tube is all the light there is: a pool falling off down
+  // the wall rather than a flat wash
+  const nk = P === SHELTER_DAY ? 1 : 0.55;
+  const warm = (c, k) => css(mix(c, '#e8b878', k * lamp * nk));
   const wg = ctx.createLinearGradient(0, projC(view, toCam(view, x, f - h, back))[1], 0, projC(view, toCam(view, x, f, back))[1]);
   wg.addColorStop(0, warm(P.wall, 0.5));
   wg.addColorStop(0.55, warm(P.wall, 0.3));
   wg.addColorStop(1, warm(P.wall, 0.15));
   fill3(ctx, view, [[x - w, f, back], [x + w, f, back], [x + w, f - h, back], [x - w, f - h, back]], wg);
   for (let u = x - w; u < x + w; u += 1.2) fill3(ctx, view, [[u, f, back - 0.01], [u + 0.45, f, back - 0.01], [u + 0.45, f - h, back - 0.01], [u, f - h, back - 0.01]], warm(P.wallShade, 0.25));
-  fill3(ctx, view, [[x - 3.5, f - 13, back - 0.02], [x + 1, f - 13, back - 0.02], [x + 1, f - 7.2, back - 0.02], [x - 3.5, f - 7.2, back - 0.02]], P.poster);
+  // the timetable: paper, so it catches the lamp more than the tin around it
+  fill3(ctx, view, [[x - 3.5, f - 13, back - 0.02], [x + 1, f - 13, back - 0.02], [x + 1, f - 7.2, back - 0.02], [x - 3.5, f - 7.2, back - 0.02]], css(mix(P.poster, '#f2e6cc', 0.75 * lamp * nk)));
   for (let i = 0; i < 5; i++) fill3(ctx, view, [[x - 3, f - 12.2 + i * 1.0, back - 0.03], [x - (i % 2) * 1.2, f - 12.2 + i * 1.0, back - 0.03], [x - (i % 2) * 1.2, f - 11.9 + i * 1.0, back - 0.03], [x - 3, f - 11.9 + i * 1.0, back - 0.03]], P.posterInk);
   // bench along the back
   const b0 = x - 5.5, b1 = x + 5.5, bd0 = back - 2.4, bd1 = back - 0.3, by = f - bench;
@@ -147,11 +174,11 @@ function drawShelter(ctx, view, t, lamp) {
     ctx.save();
     if (path3(ctx, view, [[x - w, f, back - 0.05], [x + w, f, back - 0.05], [x + w, f - h, back - 0.05], [x - w, f - h, back - 0.05]])) {
       ctx.clip();
-      const qw = toCam(view, x + 2, ly + 4, back);
+      const qw = toCam(view, x + 2, ly + 4 + (1 - nk) * 5, back);
       if (qw[2] > nearC(view)) {
         const s = (view.base * view.cam.z * view.D) / qw[2];
         const [X, Y] = projC(view, qw);
-        const gg = ctx.createRadialGradient(X, Y, 0, X, Y, 20 * s);
+        const gg = ctx.createRadialGradient(X, Y, 0, X, Y, 20 * s * nk);
         gg.addColorStop(0, css('#ffd9a0', 0.55 * lamp));
         gg.addColorStop(0.6, css('#ffcf90', 0.16 * lamp));
         gg.addColorStop(1, css('#ffcf90', 0));
@@ -174,10 +201,10 @@ function drawShelter(ctx, view, t, lamp) {
     fill3(ctx, view, [[x - w - 2.5, r0, d - 2], [x + w + 2.5, r0, d - 2], [x + w + 2.5, r1, d - 2], [x - w - 2.5, r1, d - 2]], P.roofEdge);
   }
   // drips off the front edge of the roof
-  ctx.strokeStyle = css('#dfe6f2', 0.7);
+  ctx.strokeStyle = css('#dfe6f2', 0.7 * drip);
   ctx.lineWidth = Math.max(1 * K, 1.8 * K);
   ctx.beginPath();
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 90 * Math.min(1, drip * 3); i++) {
     const xx = x - w - 2.3 + (i / 90) * (2 * w + 4.6);
     const ph = hash01(i * 7) * 30;
     const yy = r0 + ((t * 2.2 + ph * 3) % 18);
@@ -331,6 +358,96 @@ export function B14() {
       S.camera.key(tArr + 12, { dz: FOCAL / unit - 4 + 25 }, 'out');
       S.camera.key(T, { dz: FOCAL / unit - 4 + 27, y: TOP - 1.2 }, 'inout');
       S.extraEvents = [{ t: tArr, type: 'shelter' }, { t: tArr, type: 'amb', name: 'rain_shelter' }, { t: sh0, type: 'shake' }];
+    },
+  });
+}
+
+// ---- the night at the bus stop ------------------------------------------------
+// The stage plane runs along the bench; the side-view cat sits on it. The
+// camera looks in through the open front from the plateau.
+const BENCH_D = SH.d + SH.deep - 1.35;
+const FLOOR = TOP - 0.5, BENCH_Y = FLOOR - SH.bench;
+const benchG = (x) => (Math.abs(x - 0.6) <= 5.5 ? BENCH_Y : FLOOR); // stage x (pivot at SH.x − 0.6… see px below)
+const nightGrade = { vignette: 0.55, vignetteColor: '#0d1020', grain: 0.5 };
+const lampLight = (k) => ({ tint: css(mix('#7c87b2', '#e8c9a0', k)), amt: 0.5 - 0.3 * k, lift: '#12162a' });
+
+// B15a: from out on the plateau, pushing in slowly: the cat on the bench
+// beside the card, still sad, still wanting to go; it curls up to sleep; the
+// lamp flickers and goes out
+export function B15a() {
+  const T = 96, unit = 64, D = FOCAL / unit;
+  const lampAt = (t) => (t < 48 ? 0.85 : t < 74 ? (hash01(Math.floor(t / 2) * 13) > 0.45 ? 0.75 : 0.12) : t < 78 ? 0.35 : 0);
+  return shot({
+    name: 'B15a', dur: T, unit, anchor: [0.5, 0.6], xfade: 30, grade: nightGrade, post: { bloom: { threshold: 0.8, knee: 0.15, strength: 0.45, radius: 24, tint: '#ffe0b0' } },
+    cam: { yaw: 0, px: SH.x - 0.6, pd: BENCH_D, dz: 0, x: 0.8, y: FLOOR - 4.6, z: 1, pitch: 0.02 },
+    setup(S) {
+      hillSet(S, { night: { stars: 40, starAlpha: 0.3 }, lamp: lampAt, drip: 0.6, rainDensity: (t) => 0.4 - 0.25 * (t / T), rainAngle: -0.1, clearNear: 4, seed: 13 });
+      const card = new CardProp({ x: -0.4, y: BENCH_Y, sx: 1, sy: 0.34, skew: -0.3 });
+      S.layers.push(at(0, 0.95, (ctx, t) => card.draw(ctx, t, { wear: 0.45 })));
+      const cat = makeCat(S, { ground: benchG, depth: 1e-6, marks: false, pose0: sittingPose(1.6, -1, benchG, { hYaw: 0.9, hPitch: -0.45, lookY: -0.7, sad: 0.5, tear: 0.35, eye: 0.85, earRot: 0.3 }),
+        light: (t) => lampLight(lampAt(t)), rim: () => catMoon.rim() });
+      const P = cat.perf;
+      P.key(10, { smile: 0.35, sad: 0.3, blush: 0.25 }, 'inout'); // …it still wants to go
+      P.key(20, {}, 'hold');
+      A.blink(P, 26, 10);
+      P.key(40, { tear: 0, sad: 0.1, smile: 0.3, blush: 0.15 }, 'inout');
+      P.t = 46;
+      A.curlSleep(P);
+      const t0 = P.t;
+      P.emote(t0 + 10, 'zzz', { dur: 200 });
+      A.wait(P, 100);
+      P.overlays.push(A.breathing(t0, t0 + 400, 64));
+      // the slow push in
+      S.camera.key(0, {}, 'inout');
+      S.camera.key(T, { dz: 11 }, 'inout');
+      S.extraEvents = [{ t: 0, type: 'amb', name: 'night_shelter' }, { t: 76, type: 'lamp_off' }];
+    },
+  });
+}
+
+// B15b: closer, the lamp dark: asleep beside the card; a truck's headlights
+// sweep across the back wall; an ear turns to it and relaxes
+export function B15b() {
+  const T = 60, unit = 150;
+  return shot({
+    name: 'B15b', dur: T, unit, anchor: [0.5, 0.56], grade: { vignette: 0.6, vignetteColor: '#0b0e1c', grain: 0.5 }, post: moonPost,
+    cam: { yaw: 0, px: SH.x - 0.6, pd: BENCH_D, dz: 0, x: 0.4, y: FLOOR - 4.9, z: 1, pitch: 0.02 },
+    setup(S) {
+      hillSet(S, { night: { stars: 20, starAlpha: 0.2 }, lamp: 0, drip: 0.25, rainDensity: 0, clearNear: 4 });
+      const card = new CardProp({ x: -0.4, y: BENCH_Y, sx: 1, sy: 0.34, skew: -0.3 });
+      S.layers.push(at(0, 0.95, (ctx, t) => card.draw(ctx, t, { wear: 0.45 })));
+      // start curled up: the end pose of curlSleep on a scratch performance
+      const tmp = makeCat({ actors: [], layers: [] }, { ground: benchG, pose0: sittingPose(1.6, -1, benchG), layer: false });
+      A.curlSleep(tmp.perf);
+      const endPose = tmp.perf.curPose();
+      const cat = makeCat(S, { ground: benchG, depth: 1e-6, marks: false, pose0: Object.assign({}, endPose), ...catMoon });
+      const Q = cat.perf;
+      Q.overlays.push(A.breathing(0, 400, 66));
+      Q.emote(0, 'zzz', { dur: 110 });
+      A.earTwitch(Q, 20, 'L', 0.7);
+      Q.key(26, { earRot: 0.55 }, 'out');
+      Q.key(50, { earRot: 0.3 }, 'inout');
+      // the headlights: a warm band sliding across the back wall and the bench
+      S.layers.push(screenLayer(1.1, (ctx, t, W, H, view) => {
+        const a = (t - 4) / 54;
+        if (a < 0 || a > 1) return;
+        const back = SH.d + SH.deep - 0.06;
+        const xw = SH.x + lerp(9, -9, a);
+        const q0 = toCam(view, xw - 2.5, FLOOR, back), q1 = toCam(view, xw + 2.5, FLOOR, back);
+        if (q0[2] < nearC(view) || q1[2] < nearC(view)) return;
+        const X0 = projC(view, q0)[0], X1 = projC(view, q1)[0];
+        ctx.save();
+        if (path3(ctx, view, [[SH.x - SH.w, FLOOR, back], [SH.x + SH.w, FLOOR, back], [SH.x + SH.w, FLOOR - SH.h, back], [SH.x - SH.w, FLOOR - SH.h, back]])) ctx.clip();
+        ctx.globalCompositeOperation = 'screen';
+        const g = ctx.createLinearGradient(X0, 0, X1, 0);
+        g.addColorStop(0, 'rgba(255,230,180,0)');
+        g.addColorStop(0.5, css('#ffe6b4', 0.32 * Math.sin(a * Math.PI)));
+        g.addColorStop(1, 'rgba(255,230,180,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(X0, 0, X1 - X0, H);
+        ctx.restore();
+      }));
+      S.extraEvents = [{ t: 2, type: 'truck_pass', dur: 60 }];
     },
   });
 }
