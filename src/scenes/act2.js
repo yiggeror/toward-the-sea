@@ -12,6 +12,7 @@ import { stars, moon } from '../env/sky.js';
 import { rain, snow } from '../env/weather.js';
 import { stormSky, STORM } from './storm.js';
 import { HILL, STORMPAL, gale, B12, B13, B14, B15a, B15b } from './storm3.js';
+import { B16a } from './snow3.js';
 import { CardProp } from '../film/prop.js';
 import { drawCard } from '../film/postcard.js';
 import { locomote } from '../anim/gaits.js';
@@ -803,7 +804,7 @@ export function shots() {
     B12(), B13(), B14(),
     B15a(), B15b(),
     B15dream(), B15wake(),
-    retime('6.2', { name: 'B16a', from: 30, dur: BEAT * 7, xfade: 20, setup: (s) => { const ev = s.events; s.events = () => [{ t: 0, type: 'amb', name: 'snow' }, ...ev()]; } }),
+    B16a({ dur: BEAT * 7 }),
     B16s(),
     B16b(),
   ];
