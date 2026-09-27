@@ -216,6 +216,20 @@ export function drawWoods(ctx, view, L, o = {}) {
   const K = view.base * view.cam.z * view.D;
   const nc = nearC(view);
   const hz = (col, dist, k = 1) => mix(col, P.haze, fogK(dist, fd) * k);
+  // on sloped ground, things behind a crest are hidden: march the sight line
+  // from the eye to the base and see if the ground rises above it
+  const sloped = !(L.gy(0, L.d0) === 0 && L.gy(0, (L.d0 + L.d1) / 2) === 0 && L.gy(0, L.d1) === 0);
+  const [ex, ed] = camPos(view), ey = view.cam.y;
+  const hidden = (x, y, d) => {
+    if (!sloped) return false;
+    for (let k = 1; k < 16; k++) {
+      const u = k / 16;
+      const px = ex + (x - ex) * u, pd = ed + (d - ed) * u;
+      const ly = ey + (y - 0.35 - ey) * u; // aim a little up the plant, not at its root
+      if (L.gy(px, pd) < ly - 0.05) return true;
+    }
+    return false;
+  };
   // ---- ground (only in the far/all pass)
   if (o.only !== 'near') {
     const H = view.H;
@@ -256,6 +270,8 @@ export function drawWoods(ctx, view, L, o = {}) {
     // fill in pieces so the near-plane clip stays convex-ish
     for (let i = 0; i < left.length - 1 && !L.noPath; i += 4) {
       const a = left.slice(i, i + 5), b = right.slice(right.length - 1 - Math.min(right.length - 1, i + 4), right.length - i);
+      const mid = a[Math.min(2, a.length - 1)];
+      if (hidden(mid[0], mid[1] + 0.3, mid[2])) continue;
       const pc = hz(P.path, toCam(view, a[0][0], 0, a[0][2])[2], 0.8);
       fill3(ctx, view, [...a, ...b], css(pc));
     }
@@ -291,6 +307,7 @@ export function drawWoods(ctx, view, L, o = {}) {
   const list = [];
   const maxD = o.maxDist ?? 1e9, minD = o.minDist ?? nc * 1.2;
   const split = o.splitD ?? 0;
+
   for (const tr of L.trees) {
     const q = toCam(view, tr.x, L.gy(tr.x, tr.d), tr.d);
     if (q[2] < minD - tr.r * 2 || q[2] > maxD) continue;
@@ -302,6 +319,7 @@ export function drawWoods(ctx, view, L, o = {}) {
   for (const it of L.items) {
     const q = toCam(view, it.x, L.gy(it.x, it.d), it.d);
     if (q[2] < minD || q[2] > Math.min(maxD, 320)) continue;
+    if (q[2] > 6 && hidden(it.x, L.gy(it.x, it.d), it.d)) continue;
     // keep a clear zone in front of the lens (except a few plants at the frame edges)
     if (o.clearItems && q[2] < o.clearItems) {
       const [X] = projC(view, q);

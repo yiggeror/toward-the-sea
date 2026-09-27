@@ -285,7 +285,7 @@ function C4e() {
 // ---- C5 its point of view: the card rising into the dawn sky ----------------
 function C5() {
   return shot({
-    name: 'C5', dur: 120, unit: 100, anchor: [0.5, 0.5], grade: capeGrade(0.3), post: capePost(0.2),
+    name: 'C5', dur: 84, unit: 100, anchor: [0.5, 0.5], grade: capeGrade(0.3), post: capePost(0.2),
     setup(S) {
       S.layers.push(screenLayer(0, (ctx, t, W, H) => {
         skyGradient(ctx, W, H, CAPE.sky(0.3).slice(0, 3));
@@ -294,7 +294,7 @@ function C5() {
       }));
       S.layers.push(Object.assign(at(30000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 23, n: 6, y: -4500, dy: 3500, w: 16000, h: 1500, speed: 14, wrap: 150000, top: '#e9b9b4', shade: '#6d628f', rim: '#ffe0cc', glow: '#ff9f7a', light: [0.8, 0.6], alpha: 0.85 })), { blur: 3 }));
       S.layers.push(screenLayer(1, (ctx, t, W, H) => {
-        const u = t / 120;
+        const u = Math.min(1, t / 92);
         const s = H * 0.28 * Math.pow(1 - u, 1.6) + H * 0.01;
         const x = W * (0.45 + 0.18 * u + 0.03 * Math.sin(t * 0.1)), y = H * (0.62 - 0.45 * u);
         ctx.save();
@@ -313,16 +313,16 @@ function C5() {
 // ---- C6 extreme wide: a tiny figure on the rock under an enormous sky -------
 function C6() {
   return shot({
-    name: 'C6', dur: 192, unit: 14, anchor: [0.5, 0.82], grade: capeGrade(0.3), post: capePost(0.2),
+    name: 'C6', dur: 132, unit: 14, anchor: [0.5, 0.82], grade: capeGrade(0.3), post: capePost(0.2),
     cam: capeSide(CH.pd, { x: ROCK.x1 - 10, y: -4 + capeGy(0, CH.pd + ROCK.x1), dz: 0 }),
     setup(S) {
-      S.camera.move(0, 192, { x: ROCK.x1 - 12 }, 'linear');
+      S.camera.move(0, 132, { x: ROCK.x1 - 11.4 }, 'linear');
       capeSet(S, { dawn: 0.3, streaks: 5 });
       rockLayer(S);
       const gnd = chaseG;
       const cat = makeCat(S, { ground: gnd, pose0: standingPose(ROCK.x1 - 1.4, 1, gnd, { hPitch: 0.6, lookY: 0.8 }), wind: tailwind(0.7), light: dawnLight, rim: catRim });
       const P = cat.perf;
-      P.t = 60;
+      P.t = 34;
       A.sit(P);
       P.key(P.t + 6, { hPitch: -0.2, lookY: -0.3, earRot: 0.5, earFlat: 0.35 }, 'inout');
     },

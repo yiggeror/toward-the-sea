@@ -59,8 +59,9 @@ export function stormSky(S, o = {}) {
     const fl = strikeLight(o.strikes, t);
     clouds(ctx, view, p, t, { seed, n, y, dy: h * 0.6, w, h, speed, wrap: 120000, top: fl > 0.05 ? css(mix(top, '#dfe6ff', fl * 0.6)) : top, shade, rim: fl > 0.05 ? '#f4f6ff' : undefined, glow: fl > 0.05 ? '#cfd8ff' : undefined, light: [0.1, 1], alpha });
   };
-  S.layers.push(Object.assign(at(25000, 0.03, cloudLayer(71, -5600, 3600, 30000, -(o.cloudSpeed ?? 18), '#5f677a', '#363c4b', 0.95, 5)), { blur: 3, group: 'sky' }));
-  S.layers.push(Object.assign(at(25000, 0.031, cloudLayer(73, -3000, 2600, 26000, -(o.cloudSpeed ?? 18) * 1.3, '#4c5364', '#2b303d', 0.92, 5)), { blur: 3, group: 'sky' }));
+  // soft, heavy banks (well blurred: the storm must not look cut from card)
+  S.layers.push(Object.assign(at(25000, 0.03, cloudLayer(71, -5600, 3600, 30000, -(o.cloudSpeed ?? 18), '#5f677a', '#363c4b', 0.95, 5)), { blur: o.cloudBlur ?? 14, group: 'sky' }));
+  S.layers.push(Object.assign(at(25000, 0.031, cloudLayer(73, -3000, 2600, 26000, -(o.cloudSpeed ?? 18) * 1.3, '#4c5364', '#2b303d', 0.92, 5)), { blur: o.cloudBlur ?? 14, group: 'sky' }));
   // distant rain curtains hanging from the cloud base
   S.layers.push(screenLayer(0.035, (ctx, t, W, H) => {
     const n = o.curtains ?? 4;

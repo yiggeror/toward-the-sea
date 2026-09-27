@@ -51,7 +51,7 @@ export function capeBackdrop(S, o = {}) {
     glow(ctx, W * 0.86, H * 0.78, W * 0.7, '#ffcf9c', 0.45 + 0.3 * kk);
     glow(ctx, W * 0.86, H * 0.82, W * 0.25, '#fff0d4', 0.35 + 0.35 * kk);
   }));
-  S.layers.push(Object.assign(at(30000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 21, n: 6, y: -6500, dy: 2000, w: 16000, h: 1300, speed: 10, wrap: 150000, top: '#e9b9b4', shade: '#6d628f', rim: '#ffe0cc', glow: '#ff9f7a', light: [0.8, 0.6], alpha: 0.9 })), { blur: 2.5 }));
+  S.layers.push(Object.assign(at(30000, 0.02, (ctx, t, view, S2, p) => clouds(ctx, view, p, t, { seed: 21, n: 6, y: -6500, dy: 2000, w: 16000, h: 1300, speed: 10, wrap: 150000, top: '#e9b9b4', shade: '#6d628f', rim: '#ffe0cc', glow: '#ff9f7a', light: [0.8, 0.6], alpha: 0.9 })), { blur: 5.5 }));
   if (o.land === false) return;
   const far = profile({ base: 0, amp: 180, freq: 0.001, seed: 51 });
   S.layers.push(Object.assign(at(6000, 0.05, (ctx, t, view, S2, p) => fillBelow(ctx, view, p, far, CAPE.hillFar, 9000, 40)), { haze: { color: '#9a8fb0', amount: 0.3 } }));

@@ -481,8 +481,9 @@ export function drawCatWalkBack(ctx, p, opts) {
   // tail up from the rump, swaying
   const tw = p.tail ?? 0.7;
   const tsw = (p.tailSway ?? 0.5) * Math.sin(ph * TAU + 1);
-  // tailLow 0..1: from held high to hanging low behind (wind, fear, fatigue)
-  const lo = clamp(p.tailLow || 0, 0, 1);
+  // tailLow 0..1: from held high to hanging low behind (wind, fear, fatigue);
+  // eased so a half-lowered tail never sticks straight out sideways like an arm
+  const lo = smoothstep(0.15, 0.8, clamp(p.tailLow || 0, 0, 1));
   drawRingedTail(ctx, tailLine([sway, -0.95 + bob], lerp(-Math.PI / 2 + 0.28 + tsw * 0.2, Math.PI / 2 - 0.35 + tsw * 0.1, lo), lerp(-(1.1 + tsw * 0.5) * tw, 0.6, lo), lerp(1.5, 1.35, lo)).map(([x, y]) => [x, Math.min(y, -0.06)]), st);
   ctx.restore();
   return viewAnchor(g, opts);
