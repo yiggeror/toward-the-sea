@@ -5,13 +5,13 @@ resume in a new session.
 
 ## Status
 
-**v2 — director's cut** (1920×1080, 24 fps, 7 139 frames = 4:57.5, every frame
-drawn at 3840×2160 and filtered down). 66 shots in five acts
+**v2.1 — director's cut** (1920×1080, 24 fps, 7 118 frames = 4:56.6, every
+frame drawn at 3840×2160 and filtered down). 67 shots in five acts
 (`docs/treatment_v2.md`), score composed to picture (`tools/score.py`), mix
 −18 LUFS integrated, −1.5 dBFS peak. The v1 film (8:13) is kept in `video/v1/`
 for comparison; its log follows below. Master at CRF 17 + AAC 256 kb/s
-(363 MB) in `video/` as six keyframe-cut parts under 100 MB (`parts.txt`
-re-joins them losslessly); rendered in 29 minutes on 4 cores (`--ss 2 --jobs 4`).
+(357 MB) in `video/` as six keyframe-cut parts under 100 MB (`parts.txt`
+re-joins them losslessly); rendered in 39 minutes on 4 cores (`--ss 2 --jobs 4`).
 
 ## v2: the feedback and what changed
 
@@ -56,6 +56,18 @@ Asked to act as director and overhaul it, cutting scenes where needed:
   on contact sheets of every shot; the beach finale (first the same side view
   five times) and the storm run/bus stop (flat v1 side views) were rebuilt on
   the new 3D sets.
+- **v2.1** (after "继续吧"): the night at the bus stop moved into the same 3D
+  shelter as the storm arrival (it had cut to the old flat v1 shelter — a
+  different design): the lamp stutters out as the cat curls up beside the
+  card; a truck's headlights sweep the wall. The snow is a 3D field
+  (`src/scenes/snow3.js`) where paws sink into the surface; a new close-up
+  (B16s) of a flake landing on the nose — crossed eyes as with the butterfly,
+  a sneeze, delight. The forest shots are tighter, with no big blurred
+  blades across the frame; nothing is drawn through a hill crest any more;
+  softer storm and dawn clouds; the empty stretch after the loss trimmed
+  from 13 s to 9 s. Only the reveal at the sea (D4–D6) still reuses v1
+  shots: the painted sea of the card dissolving into the real one is the
+  moment v1 got right.
 
 ## v1 (superseded)
 
